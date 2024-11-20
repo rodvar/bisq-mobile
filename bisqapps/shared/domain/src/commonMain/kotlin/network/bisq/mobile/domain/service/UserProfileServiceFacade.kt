@@ -1,10 +1,13 @@
-package network.bisq.mobile.domain.user_profile
+package network.bisq.mobile.domain.service
 
-interface UserProfileServiceFacade {
+import network.bisq.mobile.domain.data.model.UserProfileModel
+import network.bisq.mobile.domain.data.repository.UserProfileRepository
+
+interface UserProfileServiceFacade<out M: UserProfileModel, out T: UserProfileRepository<M>> {
     /**
-     * The model for holding presentation relevant data as well as data needed for creating the user identity.
+     * The repository for holding presentation relevant data as well as data needed for creating the user identity.
      */
-    val model: UserProfileModel
+    val repository: T
 
     /**
      * Returns true if there is a user identity already created.

@@ -4,10 +4,14 @@ import androidx.navigation.NavController
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import network.bisq.mobile.domain.data.BackgroundDispatcher
+import network.bisq.mobile.domain.data.model.UserProfileModel
 import network.bisq.mobile.domain.data.repository.UserProfileRepository
+import network.bisq.mobile.domain.service.UserProfileServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
@@ -15,15 +19,22 @@ import network.bisq.mobile.presentation.ui.navigation.Routes
 open class CreateProfilePresenter(
     mainPresenter: MainPresenter,
     private val navController: NavController,
-    private val userProfileRepository: UserProfileRepository
+    private val userProfileRepository: UserProfileRepository<UserProfileModel>,
+    private val userProfileServiceFacade: UserProfileServiceFacade<UserProfileModel, UserProfileRepository<UserProfileModel>>,
 ) : BasePresenter(mainPresenter) {
 
     private val log = Logger.withTag(this::class.simpleName ?: "CreateProfilePresenter")
-    private val userProfileModel = userProfileRepository.model
 
-    val nickName: StateFlow<String> = userProfileModel.nickName
-    val nym: StateFlow<String> = userProfileModel.nym
-    val id: StateFlow<String> = userProfileModel.id
+    val nickName: StateFlow<String> = userProfileRepository.nickName
+        .stateIn(CoroutineScope(Dispatchers.Main) , SharingStarted.Eagerly, "")
+    val nym: StateFlow<String> = userProfileRepository.nym
+    val id: StateFlow<String> = userProfileRepository.id
+
+    init {
+        CoroutineScope(Dispatchers.Main).launch {
+            userProfileRepository.create(userProfileRepository.newModel())
+        }
+    }
 
 
     override fun onViewAttached() {
@@ -42,14 +53,14 @@ open class CreateProfilePresenter(
     }
 
     fun onNickNameChanged(value: String) {
-        userProfileRepository.model.setNickName(value)
+        userProfileRepository.updateNickName(value)
     }
 
     fun onGenerateKeyPair() {
         // takes 200 -1000 ms
         // todo start busy animation in UI
         CoroutineScope(BackgroundDispatcher).launch {
-            userProfileRepository.model.generateKeyPairInProgress.collect { inProgress ->
+            userProfileRepository.generateKeyPairInProgress.collect { inProgress ->
                 if (!inProgress) {
                     // todo stop busy animation in UI
                 }
@@ -57,7 +68,7 @@ open class CreateProfilePresenter(
         }
 
         CoroutineScope(BackgroundDispatcher).launch {
-            userProfileRepository.service.generateKeyPair()
+            userProfileServiceFacade.generateKeyPair()
         }
     }
 
@@ -66,9 +77,10 @@ open class CreateProfilePresenter(
         // We cannot use BackgroundDispatcher here as we get error:
         // `Method setCurrentState must be called on the main thread`
         CoroutineScope(Dispatchers.Main).launch {
-            userProfileRepository.model.createAndPublishInProgress.collect { inProgress ->
+            userProfileRepository.createAndPublishInProgress.collect { inProgress ->
                 if (!inProgress) {
                     // todo stop busy animation in UI
+                    log.d { "User Profile: ${userProfileRepository.data.value}" }
                     navController.navigate(Routes.TrustedNodeSetup.name) {
                         popUpTo(Routes.CreateProfile.name) { inclusive = true }
                     }
@@ -77,7 +89,7 @@ open class CreateProfilePresenter(
         }
 
         CoroutineScope(BackgroundDispatcher).launch {
-            userProfileRepository.service.createAndPublishNewUserProfile()
+            userProfileServiceFacade.createAndPublishNewUserProfile()
         }
     }
 }

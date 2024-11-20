@@ -2,11 +2,10 @@ package network.bisq.mobile.android.node.di
 
 import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.domain.data.repository.NodeGreetingRepository
-import network.bisq.mobile.android.node.domain.user_profile.NodeUserProfileModel
-import network.bisq.mobile.android.node.domain.user_profile.NodeUserProfileServiceFacade
+import network.bisq.mobile.android.node.domain.data.repository.NodeUserProfileRepository
+import network.bisq.mobile.android.node.service.NodeUserProfileServiceFacade
 import network.bisq.mobile.android.node.presentation.MainNodePresenter
-import network.bisq.mobile.domain.user_profile.UserProfileModel
-import network.bisq.mobile.domain.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.service.UserProfileServiceFacade
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.AppPresenter
 import org.koin.dsl.bind
@@ -22,8 +21,9 @@ val androidNodeModule = module {
     // and binding the same obj to 2 different abstractions
     single<MainPresenter> { MainNodePresenter(get(), get()) } bind AppPresenter::class
 
-    single<UserProfileModel> { NodeUserProfileModel() }
-    single<UserProfileServiceFacade> { NodeUserProfileServiceFacade(get(), get()) }
+    single<NodeUserProfileRepository> { NodeUserProfileRepository() }
+
+    single<NodeUserProfileServiceFacade> { NodeUserProfileServiceFacade(get(), get()) } bind UserProfileServiceFacade::class
 
     // Services
 //    TODO might not work because of the jars dependencies, needs more work

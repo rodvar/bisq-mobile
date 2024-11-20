@@ -10,17 +10,19 @@ import network.bisq.mobile.domain.data.persistance.PersistenceSource
 
 /**
  * Repository implementation for a single object. Allows for persistance if the persistance source if provided, otherwise is mem-only.
+ * This provide the object/level coroutines observer/observable pattern on the WHOLE data obj.
+ * Please inherit and add field level observer patter if you need.
  *
  * TODO: create a map-based multi object repository when needed (might need to leverage some kind of id generation on the base model)
  */
 abstract class SingleObjectRepository<out T : BaseModel>(
     private val persistenceSource: PersistenceSource<T>? = null
-) : Repository<T> {
+) : BaseRepository<T>() {
 
-    private val logger = Logger.withTag(this::class.simpleName ?: "SingleObjectRepository")
+    protected val logger = Logger.withTag(this::class.simpleName ?: "SingleObjectRepository")
 
     private val _data = MutableStateFlow<T?>(null)
-    override val data: StateFlow<T?> = _data
+    final override val data: StateFlow<T?> = _data
 
     private val job = Job()
     private val scope = CoroutineScope(job + BackgroundDispatcher)
@@ -32,6 +34,23 @@ abstract class SingleObjectRepository<out T : BaseModel>(
                 _data.value = it.get()
             }
         }
+    }
+
+    /**
+     * non-IO blocking get current cached data
+     */
+    protected fun currentData(): T? {
+        return _data.value
+    }
+    /**
+     * non-IO blocking update cache
+     */
+    protected fun updateData(value: @UnsafeVariance T?) {
+        _data.value = value
+    }
+
+    override suspend fun fetch(): T? {
+        return _data.value ?: persistenceSource?.get().also { _data.value = it }
     }
 
     override suspend fun create(data: @UnsafeVariance T) {
@@ -47,10 +66,6 @@ abstract class SingleObjectRepository<out T : BaseModel>(
     override suspend fun delete(data: @UnsafeVariance T) {
         _data.value = null
         persistenceSource?.delete(data)
-    }
-
-    override suspend fun fetch(): T? {
-        return _data.value ?: persistenceSource?.get().also { _data.value = it }
     }
 
     override suspend fun clear() {

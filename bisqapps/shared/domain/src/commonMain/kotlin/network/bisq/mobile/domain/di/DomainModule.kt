@@ -1,6 +1,7 @@
 package network.bisq.mobile.domain.di
 
 import network.bisq.mobile.domain.data.model.Greeting
+import network.bisq.mobile.domain.data.model.UserProfileModel
 import network.bisq.mobile.domain.data.repository.BisqStatsRepository
 import network.bisq.mobile.domain.data.repository.BtcPriceRepository
 import network.bisq.mobile.domain.data.repository.GreetingRepository
@@ -13,5 +14,5 @@ val domainModule = module {
     single<BisqStatsRepository> { BisqStatsRepository() }
     single<BtcPriceRepository> { BtcPriceRepository() }
     single<SettingsRepository> { SettingsRepository() }
-    single { UserProfileRepository(get(), get()) }
+    single<UserProfileRepository<UserProfileModel>> { UserProfileRepository() }
 }

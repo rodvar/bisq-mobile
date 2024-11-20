@@ -1,4 +1,4 @@
-package network.bisq.mobile.android.node.domain.user_profile
+package network.bisq.mobile.android.node.service
 
 import bisq.common.encoding.Hex
 import bisq.security.DigestUtil
@@ -8,9 +8,14 @@ import bisq.user.identity.NymIdGenerator
 import bisq.user.identity.UserIdentity
 import bisq.user.profile.UserProfile
 import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import network.bisq.mobile.android.node.AndroidApplicationService
-import network.bisq.mobile.domain.user_profile.UserProfileModel
-import network.bisq.mobile.domain.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.android.node.domain.data.model.NodeUserProfileModel
+import network.bisq.mobile.android.node.domain.data.repository.NodeUserProfileRepository
+import network.bisq.mobile.domain.data.model.UserProfileModel
+import network.bisq.mobile.domain.service.UserProfileServiceFacade
 import java.util.Random
 import kotlin.math.max
 import kotlin.math.min
@@ -22,10 +27,10 @@ import kotlin.math.min
  * Persistence is done inside the Bisq 2 libraries.
  */
 class NodeUserProfileServiceFacade(
-    override val model: UserProfileModel,
-    private val applicationServiceSupplier: AndroidApplicationService.Supplier
+    private val applicationServiceSupplier: AndroidApplicationService.Supplier,
+    override val repository: NodeUserProfileRepository
 ) :
-    UserProfileServiceFacade {
+    UserProfileServiceFacade<NodeUserProfileModel, NodeUserProfileRepository> {
 
     companion object {
         private const val AVATAR_VERSION = 0
@@ -46,13 +51,18 @@ class NodeUserProfileServiceFacade(
     }
 
     override suspend fun generateKeyPair() {
+        var model = repository.data.value
+        if (model == null) {
+            model = network.bisq.mobile.android.node.domain.data.model.NodeUserProfileModel()
+            repository.create(model)
+        }
         model as NodeUserProfileModel
-        model.setGenerateKeyPairInProgress(true)
+        model.generateKeyPairInProgress = true
         val keyPair = securityService.keyBundleService.generateKeyPair()
         model.keyPair = keyPair
         val pubKeyHash = DigestUtil.hash(keyPair.public.encoded)
         model.pubKeyHash = pubKeyHash
-        model.setId(Hex.encode(pubKeyHash))
+        model.id = Hex.encode(pubKeyHash)
         val ts = System.currentTimeMillis()
         val proofOfWork = userService.userIdentityService.mintNymProofOfWork(pubKeyHash)
         val powDuration = System.currentTimeMillis() - ts
@@ -61,7 +71,7 @@ class NodeUserProfileServiceFacade(
         model.proofOfWork = proofOfWork
         val powSolution = proofOfWork.solution
         val nym = NymIdGenerator.generate(pubKeyHash, powSolution)
-        model.setNym(nym)
+        model.nym = nym
 
         // CatHash is in desktop, needs to be reimplemented or the javafx part extracted and refactored into a non javafx lib
         //  Image image = CatHash.getImage(pubKeyHash,
@@ -69,14 +79,24 @@ class NodeUserProfileServiceFacade(
         //                                CURRENT_AVATARS_VERSION,
         //                                CreateProfileModel.CAT_HASH_IMAGE_SIZE);
 
-        model.setGenerateKeyPairInProgress(false)
+        model.generateKeyPairInProgress = false
+        // inform observers of the update
+        repository.update(model)
     }
 
     override suspend fun createAndPublishNewUserProfile() {
-        model as NodeUserProfileModel
-        model.setCreateAndPublishInProgress(true)  // UI should start busy animation based on that property
+        var model: NodeUserProfileModel? = repository.data.value
+        if (model == null) {
+            model = NodeUserProfileModel()
+            repository.create(model)
+        }
+        model.createAndPublishInProgress = true  // UI should start busy animation based on that property
+        // TODO answering comment above -> this should be a ui flag then rather than domain model one \
+        // calling update for now- ignoring for now
+        repository.update(model)
+
         userService.userIdentityService.createAndPublishNewUserProfile(
-            model.nickName.value,
+            model.nickName,
             model.keyPair,
             model.pubKeyHash,
             model.proofOfWork,
@@ -86,7 +106,10 @@ class NodeUserProfileServiceFacade(
         )
             .whenComplete { userIdentity: UserIdentity?, throwable: Throwable? ->
                 // UI should stop busy animation and show `next` button
-                model.setCreateAndPublishInProgress(false)
+                model.createAndPublishInProgress = false
+                CoroutineScope(Dispatchers.Main).launch {
+                    repository.update(model)
+                }
             }
     }
 
@@ -97,10 +120,12 @@ class NodeUserProfileServiceFacade(
 
     override suspend fun applySelectedUserProfile() {
         val userProfile = getSelectedUserProfile()
-        if (userProfile != null) {
-            model.setNickName(userProfile.nickName)
-            model.setNym(userProfile.nym)
-            model.setId(userProfile.id)
+        val model: NodeUserProfileModel? = repository.data.value
+        if (model != null && userProfile != null) {
+            model.nickName = userProfile.nickName
+            model.nym = userProfile.nym
+            model.id = userProfile.id
+            repository.update(model)
         }
     }
 
@@ -119,9 +144,9 @@ class NodeUserProfileServiceFacade(
     private fun getNodeUserProfileModel(userIdentity: UserIdentity): UserProfileModel {
         val userProfile = userIdentity.userProfile
         val model = NodeUserProfileModel()
-        model.setNickName(userProfile.nickName)
-        model.setNym(userProfile.nym)
-        model.setId(userProfile.id)
+        model.nickName = userProfile.nickName
+        model.nym = userProfile.nym
+        model.id = userProfile.id
         model.keyPair = userIdentity.identity.keyBundle.keyPair
         model.pubKeyHash = userIdentity.userProfile.pubKeyHash
         model.proofOfWork = userIdentity.userProfile.proofOfWork

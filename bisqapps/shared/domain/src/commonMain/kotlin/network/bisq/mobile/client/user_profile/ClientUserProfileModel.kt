@@ -1,8 +1,8 @@
-package network.bisq.mobile.domain.client.main.user_profile
+package network.bisq.mobile.client.user_profile
 
 import network.bisq.mobile.client.replicated_model.security.keys.KeyPair
 import network.bisq.mobile.client.replicated_model.security.pow.ProofOfWork
-import network.bisq.mobile.domain.user_profile.UserProfileModel
+import network.bisq.mobile.domain.data.model.UserProfileModel
 
 class ClientUserProfileModel : UserProfileModel() {
     lateinit var preparedDataAsJson: String

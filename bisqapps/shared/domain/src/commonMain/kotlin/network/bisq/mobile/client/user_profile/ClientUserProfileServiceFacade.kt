@@ -1,21 +1,22 @@
-package network.bisq.mobile.domain.client.main.user_profile
+package network.bisq.mobile.client.user_profile
 
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import network.bisq.mobile.client.replicated_model.user.profile.UserProfile
-import network.bisq.mobile.client.user_profile.UserProfileResponse
-import network.bisq.mobile.domain.user_profile.UserProfileModel
-import network.bisq.mobile.domain.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.client.main.user_profile.UserProfileApiGateway
+import network.bisq.mobile.domain.data.model.UserProfileModel
+import network.bisq.mobile.domain.data.repository.UserProfileRepository
+import network.bisq.mobile.domain.service.UserProfileServiceFacade
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
 
 class ClientUserProfileServiceFacade(
-    override val model: UserProfileModel,
+    override val repository: UserProfileRepository<ClientUserProfileModel>,
     private val apiGateway: UserProfileApiGateway
 ) :
-    UserProfileServiceFacade {
+    UserProfileServiceFacade<ClientUserProfileModel, UserProfileRepository<ClientUserProfileModel>> {
     private val log = Logger.withTag(this::class.simpleName ?: "UserProfileServiceFacade")
 
 
@@ -24,9 +25,15 @@ class ClientUserProfileServiceFacade(
     }
 
     override suspend fun generateKeyPair() {
-        model as ClientUserProfileModel
+        var model = repository.data.value
+        if (model == null) {
+            model = ClientUserProfileModel()
+            repository.create(model)
+        }
         try {
-            model.setGenerateKeyPairInProgress(true)
+            model.generateKeyPairInProgress = true
+            // TODO this flag should be UI related not in the domain model - forcing a new update here
+            repository.update(model)
             val ts = Clock.System.now().toEpochMilliseconds()
             val response = apiGateway.requestPreparedData()
             model.preparedDataAsJson = response.first
@@ -36,30 +43,43 @@ class ClientUserProfileServiceFacade(
 
             model.keyPair = preparedData.keyPair
             model.proofOfWork = preparedData.proofOfWork
-            model.setNym(preparedData.nym)
-            model.setId(preparedData.id)
+            model.nym = preparedData.nym
+            model.id = preparedData.id
+            repository.update(model)
         } catch (e: Exception) {
             log.e { e.toString() }
         } finally {
-            model.setGenerateKeyPairInProgress(false)
+            model.generateKeyPairInProgress = false
+            repository.update(model)
         }
     }
 
     override suspend fun createAndPublishNewUserProfile() {
-        model as ClientUserProfileModel
+        var model = repository.data.value
+        if (model == null) {
+            model = ClientUserProfileModel()
+            repository.create(model)
+        }
         try {
-            model.setCreateAndPublishInProgress(true)
+            model.generateKeyPairInProgress = true
+            // TODO this flag should be UI related not in the domain model - forcing a new update here
+            repository.update(model)
+
             val response: UserProfileResponse =
                 apiGateway.createAndPublishNewUserProfile(
-                    model.nickName.value,
+                    model.nickName,
                     model.preparedDataAsJson
                 )
-            require(model.id.value == response.userProfileId)
+            require(model.id == response.userProfileId)
             { "userProfileId from model does not match userProfileId from response" }
+
+            repository.update(model)
+
         } catch (e: Exception) {
             log.e { e.toString() }
         } finally {
-            model.setCreateAndPublishInProgress(false)
+            model.createAndPublishInProgress = false
+            repository.update(model)
         }
     }
 
@@ -75,10 +95,16 @@ class ClientUserProfileServiceFacade(
 
     override suspend fun applySelectedUserProfile() {
         try {
+            val model = repository.data.value
             val userProfile = getSelectedUserProfile()
-            model.setNickName(userProfile.nickName)
-            model.setNym(userProfile.nym)
-            model.setId(userProfile.id)
+            if (model != null) {
+                model.nickName = userProfile.nickName
+                model.nym = userProfile.nym
+                model.id = userProfile.id
+                repository.update(model)
+            } else {
+                log.w { "model in repository is null, cannot update model" }
+            }
         } catch (e: Exception) {
             log.e { e.toString() }
         }

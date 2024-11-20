@@ -52,7 +52,8 @@ val presentationModule = module {
         CreateProfilePresenter(
             get(),
             navController = navController,
-            userProfileRepository = get()
+            userProfileRepository = get(),
+            userProfileServiceFacade = get()
         )
     }
 
