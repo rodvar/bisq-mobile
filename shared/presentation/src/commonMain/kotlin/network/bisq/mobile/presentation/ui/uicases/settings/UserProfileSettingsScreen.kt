@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import bisqapps.shared.presentation.generated.resources.Res
+import bisqapps.shared.presentation.generated.resources.bisq_logo
+import bisqapps.shared.presentation.generated.resources.bisq_logo_small
 import bisqapps.shared.presentation.generated.resources.img_bitcoin_payment_waiting
 import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.domain.PlatformImage
@@ -178,9 +180,8 @@ private fun UserProfileScreenFooter(presenter: IUserProfileSettingsPresenter, sh
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.weight(1f)) {
                 CircularLoadingImage(
-                    // TODO specific image?
-                    image = Res.drawable.img_bitcoin_payment_waiting,
-                    isLoading = !showLoading
+                    image = Res.drawable.bisq_logo_small,
+                    isLoading = showLoading
                 )
             }
         } else {
