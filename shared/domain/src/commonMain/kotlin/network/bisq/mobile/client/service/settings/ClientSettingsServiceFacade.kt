@@ -107,9 +107,9 @@ class ClientSettingsServiceFacade(val apiGateway: SettingsApiGateway) : Settings
                 _isTacAccepted.value = it.isTacAccepted
                 _tradeRulesConfirmed.value = it.tradeRulesConfirmed
                 _languageCode.value = it.languageCode
+                _maxTradePriceDeviation.value = it.maxTradePriceDeviation
                 _supportedLanguageCodes.value = it.supportedLanguageCodes
                 _closeMyOfferWhenTaken.value = it.closeMyOfferWhenTaken
-                _maxTradePriceDeviation.value = it.maxTradePriceDeviation
                 _useAnimations.value = it.useAnimations
                 _numDaysAfterRedactingTradeData.value = it.numDaysAfterRedactingTradeData
             }
