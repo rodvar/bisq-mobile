@@ -63,7 +63,9 @@ fun TopBar(
 
     val currentTab = tabNavController.currentBackStackEntryAsState().value?.destination?.route
 
-    val showBackButton = customBackButton == null && navController.previousBackStackEntry != null
+    val showBackButton = (customBackButton == null &&
+                          navController.previousBackStackEntry != null &&
+                          !presenter.isAtHome())
 
     val topBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(topBarState, canScroll = { false })
@@ -78,7 +80,7 @@ fun TopBar(
                         showBackConfirmationDialog = true
                     }
                 } else {
-                    presenter.goBack()
+                    presenter.onMainBackNavigation()
                 }
             }
         }) {

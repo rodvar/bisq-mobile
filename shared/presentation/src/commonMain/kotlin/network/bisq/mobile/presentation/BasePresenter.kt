@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 import network.bisq.mobile.domain.data.BackgroundDispatcher
 import network.bisq.mobile.domain.data.model.BaseModel
 import network.bisq.mobile.domain.utils.Logging
-import network.bisq.mobile.i18n.AppStrings
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
 /**
@@ -49,9 +48,22 @@ interface ViewPresenter {
     fun showSnackbar(message: String, isError: Boolean = true)
 
     /**
+     * @return true if user is in home tab, false otherwise
+     */
+    fun isAtHome(): Boolean
+
+    fun navigateToTab(destination: Routes, saveStateOnPopUp: Boolean = true, shouldLaunchSingleTop: Boolean = true, shouldRestoreState: Boolean = true)
+
+    /**
      * Navigate back in the stack
+     * **CAUTION** this irreversibly removes backstack history
      */
     fun goBack(): Boolean
+
+    /**
+     * Handle event of back navigation whilst on main tabs screen (e.g. swipes gesture)
+     */
+    fun onMainBackNavigation()
 
     /**
      * This can be used as initialization method AFTER view gets attached (so view is available)
@@ -126,6 +138,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     override fun isIOS(): Boolean {
         val platformInfo = getPlatformInfo()
         val isIOS = platformInfo.name.lowercase().contains("ios")
+        log.d { "isIOS = $isIOS" }
         return isIOS
     }
 
@@ -156,6 +169,18 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
         rootPresenter!!.pushNotification(title, content)
     }
 
+    override fun isAtHome(): Boolean {
+        val currentTab = getRootTabNavController().currentBackStackEntry?.destination?.route
+        log.d { "Current tab $currentTab" }
+        return isAtMainScreen() && (currentTab == null || currentTab == Routes.TabHome.name)
+    }
+
+    protected fun isAtMainScreen(): Boolean {
+        val currentScreen = getRootNavController().currentBackStackEntry?.destination?.route
+        log.d { "Current screen $currentScreen" }
+        return (currentScreen == null || currentScreen == Routes.TabContainer.name)
+    }
+
     /**
      * Navigate to given destination
      */
@@ -184,7 +209,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     /**
      * Navigates to the given tab route inside the main presentation, with default parameters.
      */
-    fun navigateToTab(destination: Routes, saveStateOnPopUp: Boolean = true, shouldLaunchSingleTop: Boolean = true, shouldRestoreState: Boolean = true) {
+    override fun navigateToTab(destination: Routes, saveStateOnPopUp: Boolean, shouldLaunchSingleTop: Boolean, shouldRestoreState: Boolean) {
         log.d { "Navigating to tab ${destination.name} "}
         uiScope.launch(Dispatchers.Main) {
             getRootTabNavController().navigate(destination.name) {
@@ -199,13 +224,42 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
         }
     }
 
+    override fun onMainBackNavigation() {
+        when {
+            isAtHome() -> {
+                showSnackbar("Swipe one more time to exit")
+                goBack()
+            }
+            isAtMainScreen() -> {
+                navigateToTab(Routes.TabHome, saveStateOnPopUp = true, shouldLaunchSingleTop = true, shouldRestoreState = false)
+            }
+            else -> {
+                // normal back navigation
+                goBack()
+            }
+        }
+    }
+
+//    actual fun exitApp() {
+//        UIApplication.sharedApplication.performSelector(NSSelectorFromString("suspend"))
+//    }
     override fun goBack(): Boolean {
         enableInteractive(false)
         var wentBack = false
         uiScope.launch(Dispatchers.Main) {
             try {
                 log.i { "goBack default implementation" }
-                wentBack = rootNavigator.popBackStack()
+                if (isIOS()) {
+                    // TODO this is still not working on iOS, it could be because of the different way it handles the Dispatchers.Main coroutine
+                    // making this a suspend fun and using withContext() could fix it
+                    if (rootNavigator.currentBackStack.value.size > 1) {
+                        wentBack = rootNavigator.popBackStack()
+                    } else {
+                        exitApp()
+                    }
+                } else {
+                    wentBack = rootNavigator.popBackStack()
+                }
             } catch (e: Exception) {
                 log.e(e) { "Failed to navigate back" }
             } finally {
