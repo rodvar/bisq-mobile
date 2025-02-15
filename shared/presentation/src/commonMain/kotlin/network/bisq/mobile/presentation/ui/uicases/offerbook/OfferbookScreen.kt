@@ -10,8 +10,10 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.lyricist.LocalStrings
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.mirror
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
+import network.bisq.mobile.presentation.ui.components.molecules.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import org.koin.compose.koinInject
@@ -31,6 +33,7 @@ fun OfferbookScreen() {
 
     val offerListItems = presenter.offerbookListItems.collectAsState().value
     val selectedDirection = presenter.selectedDirection.collectAsState().value
+    val showDeleteConfirmationDialog = presenter.showDeleteConfirmation.collectAsState().value
     val filteredList = offerListItems.filter { it.bisqEasyOffer.direction.mirror == selectedDirection }
     val sortedList = filteredList.sortedByDescending { it.bisqEasyOffer.date }
 
@@ -48,6 +51,19 @@ fun OfferbookScreen() {
         ) { direction -> presenter.onSelectDirection(direction) }
 
         BisqGap.V1()
+
+        if (showDeleteConfirmationDialog) {
+            ConfirmationDialog(
+                message = "bisqEasy.offerbook.chatMessage.deleteOffer.confirmation".i18n(),
+//                subMessage = "You can resume later",
+                onConfirm = {
+                    presenter.proceedWithOfferAction()
+                },
+                onDismiss = {
+                    presenter.onCancelDelete()
+                }
+            )
+        }
 
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp),
