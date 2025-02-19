@@ -18,6 +18,7 @@ import cafe.adriel.lyricist.LocalStrings
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
+import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 
@@ -39,16 +40,19 @@ fun AppPaymentAccountCard(
             horizontal = BisqUIConstants.ScreenPadding,
         ), verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding)
     ) {
+        BisqGap.VQuarter()
         BisqText.h5Regular(
             text = strings.user_paymentAccounts_createAccount_headline,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-        BisqText.smallRegular(
+        BisqText.smallRegularGrey(
             text = strings.user_paymentAccounts_createAccount_subtitle,
-            color = BisqTheme.colors.grey1,
             textAlign = TextAlign.Center
         )
+
+        BisqGap.VHalf()
+
         BisqTextField(
             value = accountName,
             onValueChange = { it, isValid ->

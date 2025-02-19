@@ -30,6 +30,7 @@ import network.bisq.mobile.presentation.ui.components.BackHandler
 import network.bisq.mobile.presentation.ui.components.atoms.animations.ShineOverlay
 import network.bisq.mobile.presentation.ui.components.atoms.icons.BisqLogoSmall
 import network.bisq.mobile.presentation.ui.components.atoms.icons.UserIcon
+import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.navigation.Routes
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import org.koin.compose.koinInject
@@ -109,22 +110,16 @@ fun TopBar(
             } else {
                 if (isFlowScreen) {
                     Column {
-                        BisqText.smallRegular(
+                        BisqText.smallRegularGrey(
                             text = "Step $stepText",
-                            color = BisqTheme.colors.grey1,
                             // modifier = Modifier.padding(top= 8.dp)
                             modifier = Modifier.offset(y = (8).dp)
                         )
-                        BisqText.h5Medium(
-                            text = title,
-                            color = BisqTheme.colors.light1,
-                        )
+                        BisqGap.V1()
+                        BisqText.h5Medium(text = title)
                     }
                 } else {
-                    BisqText.h4Medium(
-                        text = title,
-                        color = BisqTheme.colors.light1,
-                    )
+                    BisqText.h4Medium(text = title)
                 }
             }
         },

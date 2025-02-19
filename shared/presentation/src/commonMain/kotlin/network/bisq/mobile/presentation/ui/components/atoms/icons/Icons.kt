@@ -57,6 +57,11 @@ fun CloseIcon(modifier: Modifier = Modifier.size(24.dp)) {
 }
 
 @Composable
+fun ExclamationRedIcon(modifier: Modifier = Modifier.size(24.dp)) {
+    Image(painterResource(Res.drawable.icon_exclamation_red), "Exclamation red icon", modifier = modifier)
+}
+
+@Composable
 fun ClosedEyeIcon(modifier: Modifier = Modifier.size(24.dp)) {
     Image(painterResource(Res.drawable.icon_closed_eye), "Closed eye icon", modifier = modifier)
 }
@@ -69,6 +74,11 @@ fun AddIcon(modifier: Modifier = Modifier.size(16.dp)) {
 @Composable
 fun ArrowDownIcon(modifier: Modifier = Modifier.size(12.dp)) {
     Image(painterResource(Res.drawable.icon_arrow_down), "Down arrow icon", modifier = modifier)
+}
+
+@Composable
+fun ArrowRightIcon(modifier: Modifier = Modifier.size(12.dp)) {
+    Image(painterResource(Res.drawable.icon_arrow_right), "Right arrow icon", modifier = modifier)
 }
 
 @Composable

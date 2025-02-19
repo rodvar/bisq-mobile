@@ -5,9 +5,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import network.bisq.mobile.presentation.ui.components.organisms.GenericErrorPanel
+import network.bisq.mobile.presentation.ui.components.organisms.ReportBugPanel
 
 @Composable
-fun ErrorOverlay(errorMessage: String?, onClose: () -> Unit) {
+fun ErrorOverlay(errorMessage: String?, systemCrashed: Boolean, onClose: () -> Unit) {
 
     if (errorMessage != null) {
         Box(
@@ -15,8 +16,9 @@ fun ErrorOverlay(errorMessage: String?, onClose: () -> Unit) {
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.5f)) // Dim the background
         ) {
-            GenericErrorPanel(
+            ReportBugPanel(
                 errorMessage = errorMessage,
+                systemCrashed = systemCrashed,
                 onClose = { onClose() }
             )
         }

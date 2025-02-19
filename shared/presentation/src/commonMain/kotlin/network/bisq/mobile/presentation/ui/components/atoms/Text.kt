@@ -26,23 +26,23 @@ enum class FontWeight {
 }
 
 enum class FontSize(val size: TextUnit) {
-    XSMALL(10.sp),
-    SMALL(12.sp),
-    BASE(14.sp),
-    LARGE(16.sp),
-    H6(18.sp),
-    H5(20.sp),
-    H4(22.sp),
-    H3(25.sp),
-    H2(28.sp),
-    H1(32.sp);
+    XSMALL(12.sp),
+    SMALL(14.sp),
+    BASE(16.sp),
+    LARGE(18.sp),
+    H6(20.sp),
+    H5(22.sp),
+    H4(24.sp),
+    H3(27.sp),
+    H2(30.sp),
+    H1(34.sp);
 }
 
 object BisqText {
     @Composable
     fun styledText(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         fontSize: FontSize = FontSize.BASE,
         fontWeight: FontWeight = FontWeight.REGULAR,
         textAlign: TextAlign = TextAlign.Start,
@@ -75,7 +75,7 @@ object BisqText {
     @Composable
     fun xsmallLight(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -92,7 +92,7 @@ object BisqText {
     @Composable
     fun xsmallRegular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -109,7 +109,7 @@ object BisqText {
     @Composable
     fun xsmallMedium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -126,7 +126,7 @@ object BisqText {
     @Composable
     fun xsmallBold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -144,7 +144,7 @@ object BisqText {
     @Composable
     fun smallLight(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -159,9 +159,23 @@ object BisqText {
     }
 
     @Composable
+    fun smallLightGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        smallLight(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun smallRegular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -176,9 +190,23 @@ object BisqText {
     }
 
     @Composable
+    fun smallRegularGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        smallRegular(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun smallMedium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -195,7 +223,7 @@ object BisqText {
     @Composable
     fun smallBold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -209,11 +237,24 @@ object BisqText {
         )
     }
 
+    @Composable
+    fun baseLightGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        baseLight(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
 
     @Composable
     fun baseLight(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -230,7 +271,7 @@ object BisqText {
     @Composable
     fun baseRegular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         singleLine: Boolean = false,
         modifier: Modifier = Modifier,
@@ -248,9 +289,25 @@ object BisqText {
     }
 
     @Composable
+    fun baseRegularGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        singleLine: Boolean = false,
+        modifier: Modifier = Modifier,
+    ) {
+        baseRegular(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            singleLine = singleLine,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun baseMedium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -265,9 +322,23 @@ object BisqText {
     }
 
     @Composable
+    fun baseMediumGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        baseMedium(
+            text = text,
+            color =  BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun baseBold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -285,7 +356,7 @@ object BisqText {
     @Composable
     fun largeLight(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -300,9 +371,23 @@ object BisqText {
     }
 
     @Composable
+    fun largeLightGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        largeLight(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun largeRegular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         singleLine: Boolean = false,
         modifier: Modifier = Modifier,
@@ -320,9 +405,25 @@ object BisqText {
     }
 
     @Composable
+    fun largeRegularGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        singleLine: Boolean = false,
+        modifier: Modifier = Modifier,
+    ) {
+        largeRegular(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            singleLine = singleLine,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun largeMedium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -339,7 +440,7 @@ object BisqText {
     @Composable
     fun largeBold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -357,7 +458,7 @@ object BisqText {
     @Composable
     fun h6Light(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -374,7 +475,7 @@ object BisqText {
     @Composable
     fun h6Regular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -391,7 +492,7 @@ object BisqText {
     @Composable
     fun h6Medium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -408,7 +509,7 @@ object BisqText {
     @Composable
     fun h6Bold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -426,7 +527,7 @@ object BisqText {
     @Composable
     fun h5Light(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -443,7 +544,7 @@ object BisqText {
     @Composable
     fun h5Regular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -458,9 +559,23 @@ object BisqText {
     }
 
     @Composable
+    fun h5RegularGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        h5Regular(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun h5Medium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -477,7 +592,7 @@ object BisqText {
     @Composable
     fun h5Bold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -495,7 +610,7 @@ object BisqText {
     @Composable
     fun h4Light(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -510,9 +625,23 @@ object BisqText {
     }
 
     @Composable
+    fun h4LightGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        h4Light(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun h4Regular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -529,7 +658,7 @@ object BisqText {
     @Composable
     fun h4Medium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -546,7 +675,7 @@ object BisqText {
     @Composable
     fun h4Bold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -564,7 +693,7 @@ object BisqText {
     @Composable
     fun h3Light(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -581,7 +710,7 @@ object BisqText {
     @Composable
     fun h3Regular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -598,7 +727,7 @@ object BisqText {
     @Composable
     fun h3Medium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -615,7 +744,7 @@ object BisqText {
     @Composable
     fun h3Bold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -633,7 +762,7 @@ object BisqText {
     @Composable
     fun h2Light(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -650,7 +779,7 @@ object BisqText {
     @Composable
     fun h2Regular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -667,7 +796,7 @@ object BisqText {
     @Composable
     fun h2Medium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -684,7 +813,7 @@ object BisqText {
     @Composable
     fun h2Bold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -698,11 +827,10 @@ object BisqText {
         )
     }
 
-
     @Composable
     fun h1Light(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -717,9 +845,23 @@ object BisqText {
     }
 
     @Composable
+    fun h1LightGrey(
+        text: String,
+        textAlign: TextAlign = TextAlign.Start,
+        modifier: Modifier = Modifier,
+    ) {
+        h1Light(
+            text = text,
+            color = BisqTheme.colors.grey2,
+            textAlign = textAlign,
+            modifier = modifier,
+        )
+    }
+
+    @Composable
     fun h1Regular(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -736,7 +878,7 @@ object BisqText {
     @Composable
     fun h1Medium(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {
@@ -753,7 +895,7 @@ object BisqText {
     @Composable
     fun h1Bold(
         text: String,
-        color: Color = BisqTheme.colors.light1,
+        color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
         modifier: Modifier = Modifier,
     ) {

@@ -73,7 +73,6 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
         Spacer(modifier = Modifier.height(24.dp))
         BisqText.largeRegular(
             text = "To use Bisq through your trusted node, please enter the URL to connect to. E.g. ws://10.0.2.2:8090",
-            color = BisqTheme.colors.light1,
         )
         Spacer(modifier = Modifier.height(24.dp))
         Column(
@@ -135,15 +134,11 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
 //                )
             }
             Spacer(modifier = Modifier.height(36.dp))
-            BisqText.baseRegular(
-                text = "STATUS",
-                color = BisqTheme.colors.grey2,
-            )
+            BisqText.baseRegularGrey(text = "STATUS")
             Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BisqText.largeRegular(
                     text = if (isConnected) "Connected" else "Not Connected",
-                    color = BisqTheme.colors.light1,
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 BisqText.baseRegular(
