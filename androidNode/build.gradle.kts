@@ -3,6 +3,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
+import java.text.SimpleDateFormat
+import java.util.Date
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -13,6 +15,7 @@ plugins {
 }
 
 version = project.findProperty("node.android.version") as String
+val versionCodeValue = (project.findProperty("node.android.version.code") as String).toInt()
 val sharedVersion = project.findProperty("shared.version") as String
 
 kotlin {
@@ -108,7 +111,7 @@ android {
         minSdk = libs.versions.android.node.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         multiDexEnabled = true
-        versionCode = 1
+        versionCode = versionCodeValue
         versionName = project.version.toString()
         buildConfigField("String", "APP_VERSION", "\"${version}\"")
         buildConfigField("String", "SHARED_VERSION", "\"${sharedVersion}\"")
@@ -148,7 +151,7 @@ android {
         val variant = this
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            val appName = "Bisq"
+            val appName = project.name
             val version = variant.versionName
             val fileName = "$appName-$version.apk"
             output.outputFileName = fileName
@@ -164,6 +167,8 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+    // needed for aab files renaming
+    setProperty("archivesBaseName", getArtifactName(defaultConfig))
 }
 
 // Compatible with macOS on Apple Silicon
@@ -240,4 +245,9 @@ tasks.withType<Test> {
             languageVersion.set(JavaLanguageVersion.of(17))
         }
     )
+}
+
+fun getArtifactName(defaultConfig: com.android.build.gradle.internal.dsl.DefaultConfig): String {
+//    val date = SimpleDateFormat("yyyyMMdd").format(Date())
+    return "Bisq-${defaultConfig.versionName}_${defaultConfig.versionCode}"
 }

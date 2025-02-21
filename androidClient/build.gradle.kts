@@ -10,6 +10,7 @@ plugins {
 }
 
 version = project.findProperty("client.android.version") as String
+val versionCodeValue = (project.findProperty("client.android.version.code") as String).toInt()
 val sharedVersion = project.findProperty("shared.version") as String
 
 kotlin {
@@ -69,7 +70,7 @@ android {
         applicationId = "network.bisq.mobile.client"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
+        versionCode = versionCodeValue
         versionName = version.toString()
         buildConfigField("String", "APP_VERSION", "\"${version}\"")
         buildConfigField("String", "SHARED_VERSION", "\"${sharedVersion}\"")
@@ -116,6 +117,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    // needed for aab files renaming
+    setProperty("archivesBaseName", getArtifactName(defaultConfig))
 }
 
 dependencies {
@@ -126,3 +129,7 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
+fun getArtifactName(defaultConfig: com.android.build.gradle.internal.dsl.DefaultConfig): String {
+//    val date = SimpleDateFormat("yyyyMMdd").format(Date())
+    return "BisqConnect-${defaultConfig.versionName}_${defaultConfig.versionCode}"
+}
