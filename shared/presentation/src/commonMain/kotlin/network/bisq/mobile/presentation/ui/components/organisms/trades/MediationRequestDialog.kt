@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
+import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.icons.InfoIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
@@ -27,6 +28,7 @@ fun MediationRequestDialog(
                 color = BisqTheme.colors.primary
             )
         }
+        BisqGap.V1()
         Column {
             BisqText.baseRegular(
                 text = "If you have problems which you cannot resolve with your trade partner your can request assistance from a mediator.",
@@ -38,10 +40,11 @@ fun MediationRequestDialog(
                 textAlign = TextAlign.Center
             )
         }
+        BisqGap.V1()
         Row {
             BisqButton(
                 text = "Cancel",
-                backgroundColor = BisqTheme.colors.dark5,
+                type = BisqButtonType.Grey,
                 onClick = onDismiss,
                 padding = PaddingValues(horizontal = 42.dp, vertical = 8.dp)
             )

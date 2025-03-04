@@ -28,6 +28,7 @@ open class MainPresenter(
     companion object {
         // TODO based on this flag show user a modal explaining internal crash, devs reporte,d with a button to quit the app
         val _systemCrashed = MutableStateFlow(false)
+        val _genericErrorMessage: MutableStateFlow<String?> = MutableStateFlow(null)
 
         @JvmStatic
         fun init() {
@@ -44,15 +45,22 @@ open class MainPresenter(
     private val _isContentVisible = MutableStateFlow(false)
     override val isContentVisible: StateFlow<Boolean> = _isContentVisible
 
+    private val _isSmallScreen = MutableStateFlow(false)
+    override val isSmallScreen: StateFlow<Boolean> = _isSmallScreen
+
     override val languageCode: StateFlow<String> = settingsService.languageCode
 
     init {
         val localeCode = getDeviceLanguageCode()
+        var screenWidth = getScreenWidthDp()
+        _isSmallScreen.value = screenWidth < 480
         log.i { "Shared Version: ${BuildConfig.SHARED_LIBS_VERSION}" }
         log.i { "iOS Client Version: ${BuildConfig.IOS_APP_VERSION}" }
         log.i { "Android Client Version: ${BuildConfig.ANDROID_APP_VERSION}" }
         log.i { "Android Node Version: ${BuildNodeConfig.APP_VERSION}" }
         log.i { "Device language code: $localeCode"}
+        log.i { "Screen width: $screenWidth"}
+        log.i { "Small screen: ${_isSmallScreen.value}"}
     }
 
     @CallSuper

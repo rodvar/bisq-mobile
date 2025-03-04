@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import cafe.adriel.lyricist.LocalStrings
+import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isSell
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
@@ -38,10 +39,12 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.icons.UpIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.molecules.UserProfile
-import network.bisq.mobile.presentation.ui.components.molecules.info.InfoBoxStyle
-import network.bisq.mobile.presentation.ui.components.molecules.info.InfoRow
+import network.bisq.mobile.presentation.ui.components.molecules.UserProfileRow
+import network.bisq.mobile.presentation.ui.components.molecules.info.*
+import network.bisq.mobile.presentation.ui.components.organisms.trades.CancelTradeDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 import org.koin.compose.koinInject
 
 @Composable
@@ -54,6 +57,8 @@ fun TradeDetailsComposable() {
     val stringsBisqEasy = LocalStrings.current.bisqEasy
     val interruptTradeButtonVisible by presenter.interruptTradeButtonVisible.collectAsState()
     val interruptTradeButtonText by presenter.interruptTradeButtonText.collectAsState()
+    val tradeCloseType by presenter.tradeCloseType.collectAsState()
+    val showInterruptionConfirmationDialog by presenter.showInterruptionConfirmationDialog.collectAsState()
 
     val enterTransition = remember {
         expandVertically(
@@ -86,10 +91,12 @@ fun TradeDetailsComposable() {
         if (showDetails) 0f else 180f
     }
 
+    val isSell = presenter.directionEnum.isSell
+
     Row(modifier = Modifier.clip(shape = RoundedCornerShape(12.dp))) {
         Column(
             modifier = Modifier.fillMaxWidth()
-                .background(color = BisqTheme.colors.dark5)
+                .background(color = BisqTheme.colors.dark4)
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -109,19 +116,54 @@ fun TradeDetailsComposable() {
 
                     BisqGap.H1()
 
-                    UserProfile(item.peersUserProfile)
+                    UserProfileRow(
+                        item.peersUserProfile,
+                        item.peersReputationScore,
+                        true
+                    )
                 }
             }
 
             BisqGap.VHalf()
 
-            InfoRow(
-                style = InfoBoxStyle.Style2,
-                label1 = presenter.leftAmountDescription,
-                value1 = "${presenter.leftAmount} ${presenter.leftCode}",
-                label2 = presenter.rightAmountDescription,
-                value2 = "${presenter.rightAmount} ${presenter.rightCode}",
-            )
+
+            if (presenter.isSmallScreen()) {
+                if (isSell) {
+                    InfoBoxSats(label = presenter.leftAmountDescription, value = presenter.leftAmount)
+                } else {
+                    InfoBox(
+                        label = presenter.leftAmountDescription,
+                        value = "${presenter.leftAmount} ${presenter.leftCode}"
+                    )
+                }
+                if (isSell) {
+                    InfoBox(
+                        label = presenter.rightAmountDescription,
+                        value = "${presenter.rightAmount} ${presenter.rightCode}"
+                    )
+                } else {
+                    InfoBoxSats(label = presenter.rightAmountDescription, value = presenter.rightAmount)
+                }
+            } else {
+                InfoRowContainer {
+                    if (isSell) {
+                        InfoBoxSats(label = presenter.leftAmountDescription, value = presenter.leftAmount)
+                    } else {
+                        InfoBox(
+                            label = presenter.leftAmountDescription,
+                            value = "${presenter.leftAmount} ${presenter.leftCode}"
+                        )
+                    }
+                    if (isSell) {
+                        InfoBox(
+                            label = presenter.rightAmountDescription,
+                            value = "${presenter.rightAmount} ${presenter.rightCode}"
+                        )
+                    } else {
+                        InfoBoxSats(label = presenter.rightAmountDescription, value = presenter.rightAmount)
+                    }
+                }
+            }
 
             AnimatedVisibility(
                 visible = showDetails,
@@ -129,17 +171,31 @@ fun TradeDetailsComposable() {
                 exit = exitTransition
             ) {
                 Column(
-                    horizontalAlignment = Alignment.End,
+                    horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.weight(2f)
                 ) {
-                    InfoRow(
-                        style = InfoBoxStyle.Style2,
-                        label1 = stringsBisqEasy.bisqEasy_openTrades_table_price,
-                        value1 = item.formattedPrice,
-                        label2 = "Trade date", // -> bisqEasy.openTrades.tradeDetails.tradeDate  //strings.bisqEasy_tradeCompleted_body_date,
-                        value2 = "${item.formattedDate} ${item.formattedTime}",
-                    )
+                    if (presenter.isSmallScreen()) {
+                        InfoBox(
+                            label = stringsBisqEasy.bisqEasy_openTrades_table_price,
+                            value = item.formattedPrice,
+                            style = InfoBoxStyle.Style2,
+                        )
+                        BisqGap.V1()
+                        InfoBox(
+                            label = "Trade date", // -> bisqEasy.openTrades.tradeDetails.tradeDate  //strings.bisqEasy_tradeCompleted_body_date,
+                            value = "${item.formattedDate} ${item.formattedTime}",
+                            style = InfoBoxStyle.Style2,
+                        )
+                    } else {
+                        InfoRow(
+                            style = InfoBoxStyle.Style2,
+                            label1 = stringsBisqEasy.bisqEasy_openTrades_table_price,
+                            value1 = item.formattedPrice,
+                            label2 = "Trade date", // -> bisqEasy.openTrades.tradeDetails.tradeDate  //strings.bisqEasy_tradeCompleted_body_date,
+                            value2 = "${item.formattedDate} ${item.formattedTime}",
+                        )
+                    }
 
                     BisqGap.V1()
 
@@ -163,11 +219,8 @@ fun TradeDetailsComposable() {
                 BisqButton(
                     modifier = Modifier.alpha(buttonAlpha),
                     text = interruptTradeButtonText,
-                    onClick = { presenter.onInterruptTrade() },
+                    onClick = { presenter.setShowInterruptionConfirmationDialog(true) },
                     type = BisqButtonType.Outline,
-                    color = BisqTheme.colors.primary,
-                    borderColor = BisqTheme.colors.primary,
-                    // padding = PaddingValues(horizontal = 70.dp, vertical = 6.dp)
                 )
                 IconButton(onClick = { showDetails = !showDetails }) {
                     //TODO icon is not high resolution
@@ -181,5 +234,13 @@ fun TradeDetailsComposable() {
                 }
             }
         }
+    }
+
+    if (showInterruptionConfirmationDialog) {
+        CancelTradeDialog(
+            onCancelConfirm = { presenter.onInterruptTrade() },
+            onDismiss = { presenter.setShowInterruptionConfirmationDialog(false) },
+            isRejection = tradeCloseType == TradeDetailsHeaderPresenter.TradeCloseType.REJECT
+        )
     }
 }

@@ -51,8 +51,7 @@ class TrustedNodeSetupPresenter(
     }
 
     override fun updateBisqApiUrl(newUrl: String, isValid: Boolean) {
-        log.w { "$newUrl: $isValid" }
-        // TODO apply validation of the URL format ws://<IP>:<PORT> after Buddha's support for it
+        // log.w { "$newUrl: $isValid" }
         _isBisqApiUrlValid.value = isValid
         _bisqApiUrl.value = newUrl
         _isConnected.value = false

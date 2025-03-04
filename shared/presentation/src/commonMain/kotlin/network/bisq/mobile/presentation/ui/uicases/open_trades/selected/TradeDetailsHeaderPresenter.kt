@@ -3,6 +3,7 @@ package network.bisq.mobile.presentation.ui.uicases.open_trades.selected
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
@@ -26,6 +27,7 @@ class TradeDetailsHeaderPresenter(
     val selectedTrade: StateFlow<TradeItemPresentationModel?> = tradesServiceFacade.selectedTrade
 
     var direction: String = ""
+    var directionEnum: DirectionEnum = DirectionEnum.BUY
     var leftAmountDescription: String = ""
     var leftAmount: String = ""
     var leftCode: String = ""
@@ -33,7 +35,8 @@ class TradeDetailsHeaderPresenter(
     var rightAmount: String = ""
     var rightCode: String = ""
 
-    private var tradeCloseType: TradeCloseType? = null
+    private var _tradeCloseType: MutableStateFlow<TradeCloseType?> = MutableStateFlow(null)
+    val tradeCloseType: StateFlow<TradeCloseType?> = _tradeCloseType
 
     private var _interruptTradeButtonText: MutableStateFlow<String> = MutableStateFlow("")
     val interruptTradeButtonText: StateFlow<String> = _interruptTradeButtonText
@@ -41,11 +44,18 @@ class TradeDetailsHeaderPresenter(
     private var _interruptTradeButtonVisible: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val interruptTradeButtonVisible: StateFlow<Boolean> = _interruptTradeButtonVisible
 
+    private val _showInterruptionConfirmationDialog = MutableStateFlow(false)
+    val showInterruptionConfirmationDialog: StateFlow<Boolean> get() = _showInterruptionConfirmationDialog
+    fun setShowInterruptionConfirmationDialog(value: Boolean) {
+        _showInterruptionConfirmationDialog.value = value
+    }
+
     override fun onViewAttached() {
         require(tradesServiceFacade.selectedTrade.value != null)
         val openTradeItemModel = tradesServiceFacade.selectedTrade.value!!
 
         if (openTradeItemModel.bisqEasyTradeModel.isSeller) {
+            directionEnum = DirectionEnum.SELL
             direction = "SELL" //"offer.sell"
             leftAmountDescription = "Amount to send" //"bisqEasy.tradeState.header.send"
             leftAmount = openTradeItemModel.formattedBaseAmount
@@ -54,6 +64,7 @@ class TradeDetailsHeaderPresenter(
             rightAmount = openTradeItemModel.formattedQuoteAmount
             rightCode = openTradeItemModel.quoteCurrencyCode
         } else {
+            directionEnum = DirectionEnum.BUY
             direction = "BUY" //"offer.sell"
             leftAmountDescription = "Amount to pay" //"bisqEasy.tradeState.header.pay"
             leftAmount = openTradeItemModel.formattedQuoteAmount
@@ -75,7 +86,7 @@ class TradeDetailsHeaderPresenter(
     }
 
     private fun tradeStateChanged(state: BisqEasyTradeStateEnum?) {
-        tradeCloseType = null
+        _tradeCloseType.value = null
         _interruptTradeButtonText.value = ""
         _interruptTradeButtonVisible.value = false
 
@@ -95,7 +106,7 @@ class TradeDetailsHeaderPresenter(
             BisqEasyTradeStateEnum.TAKER_RECEIVED_TAKE_OFFER_RESPONSE__BUYER_DID_NOT_SENT_BTC_ADDRESS__BUYER_DID_NOT_RECEIVED_ACCOUNT_DATA,
             BisqEasyTradeStateEnum.TAKER_DID_NOT_RECEIVED_TAKE_OFFER_RESPONSE__BUYER_SENT_BTC_ADDRESS__BUYER_DID_NOT_RECEIVED_ACCOUNT_DATA -> {
                 _interruptTradeButtonVisible.value = true
-                tradeCloseType = TradeCloseType.REJECT
+                _tradeCloseType.value = TradeCloseType.REJECT
                 _interruptTradeButtonText.value = "Reject trade" // bisqEasy.openTrades.rejectTrade
             }
 
@@ -123,13 +134,13 @@ class TradeDetailsHeaderPresenter(
             BisqEasyTradeStateEnum.BUYER_RECEIVED_SELLERS_FIAT_RECEIPT_CONFIRMATION,
             BisqEasyTradeStateEnum.BUYER_RECEIVED_BTC_SENT_CONFIRMATION -> {
                 _interruptTradeButtonVisible.value = true
-                tradeCloseType = TradeCloseType.CANCEL
+                _tradeCloseType.value = TradeCloseType.CANCEL
                 _interruptTradeButtonText.value = "bisqEasy.openTrades.cancelTrade".i18n()
             }
 
             BisqEasyTradeStateEnum.BTC_CONFIRMED -> {
                 _interruptTradeButtonVisible.value = false
-                tradeCloseType = TradeCloseType.COMPLETED
+                _tradeCloseType.value = TradeCloseType.COMPLETED
                 _interruptTradeButtonText.value = ""
             }
 
@@ -156,9 +167,9 @@ class TradeDetailsHeaderPresenter(
             require(selectedTrade.value != null)
 
             var result: Result<Unit>? = null
-            if (tradeCloseType == TradeCloseType.REJECT) {
+            if (tradeCloseType.value == TradeCloseType.REJECT) {
                 result = tradesServiceFacade.rejectTrade()
-            } else if (tradeCloseType == TradeCloseType.CANCEL) {
+            } else if (tradeCloseType.value == TradeCloseType.CANCEL) {
                 result = tradesServiceFacade.cancelTrade()
             }
             if (result != null) {
@@ -185,7 +196,7 @@ class TradeDetailsHeaderPresenter(
         rightAmount = ""
         rightCode = ""
 
-        tradeCloseType = null
+        _tradeCloseType.value = null
         _interruptTradeButtonText.value = ""
         _interruptTradeButtonVisible.value = false
     }

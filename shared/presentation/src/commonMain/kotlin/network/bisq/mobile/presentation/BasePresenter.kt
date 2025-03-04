@@ -2,6 +2,7 @@ package network.bisq.mobile.presentation
 
 import androidx.annotation.CallSuper
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.collectAsState
 import androidx.navigation.NavHostController
 import androidx.navigation.NavOptionsBuilder
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +33,8 @@ interface ViewPresenter {
     val isInteractive: StateFlow<Boolean>
     val genericErrorMessage: StateFlow<String?>
 
+    fun isSmallScreen(): Boolean
+
     fun onCloseGenericErrorPanel()
 
     fun navigateToReportError()
@@ -50,6 +53,7 @@ interface ViewPresenter {
     fun getSnackState(): SnackbarHostState
 
     fun showSnackbar(message: String, isError: Boolean = true)
+    fun dismissSnackbar()
 
     /**
      * @return true if user is in home tab, false otherwise
@@ -119,6 +123,16 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
         uiScope.launch(Dispatchers.Main) {
             snackbarHostState.showSnackbar(message, withDismissAction = true)
         }
+    }
+
+    override fun dismissSnackbar() {
+        uiScope.launch(Dispatchers.Main) {
+            snackbarHostState.currentSnackbarData?.dismiss()
+        }
+    }
+
+    override fun isSmallScreen(): Boolean {
+        return rootPresenter?.isSmallScreen?.value ?: false
     }
 
     /**
@@ -403,7 +417,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     }
 
     override fun onCloseGenericErrorPanel() {
-        _genericErrorMessage.value = null
+        MainPresenter._genericErrorMessage.value = null
     }
 
     override fun navigateToReportError() {

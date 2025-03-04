@@ -26,25 +26,35 @@ import org.jetbrains.compose.resources.painterResource
 @Composable
 fun TakeOfferProgressDialog() {
 
-    BisqDialog {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
-            Box {
-                RotatingImage(painterResource(Res.drawable.bisq_easy_circle), modifier = Modifier.size(BisqUIConstants.ScreenPadding5X))
-                Image(painterResource(Res.drawable.bisq_easy), "", modifier = Modifier.size(BisqUIConstants.ScreenPadding5X))
-            }
-            BisqText.h4Regular(text = "bisqEasy.takeOffer.review.sendTakeOfferMessageFeedback.headline".i18n(), textAlign = TextAlign.Center)
-
-            BisqGap.V2()
-
-            BisqText.baseRegular(text = "bisqEasy.takeOffer.review.sendTakeOfferMessageFeedback.subTitle".i18n(), textAlign = TextAlign.Center)
-
-            BisqGap.V1()
-
-            BisqText.baseRegularGrey(
-                text = "bisqEasy.takeOffer.review.sendTakeOfferMessageFeedback.info".i18n(),
-                textAlign = TextAlign.Center,
+    BisqDialog(dismissOnClickOutside = false) {
+        Box {
+            RotatingImage(
+                painterResource(Res.drawable.bisq_easy_circle),
+                modifier = Modifier.size(BisqUIConstants.ScreenPadding5X)
+            )
+            Image(
+                painterResource(Res.drawable.bisq_easy),
+                "",
+                modifier = Modifier.size(BisqUIConstants.ScreenPadding5X)
             )
         }
+        BisqText.h4Regular(
+            text = "bisqEasy.takeOffer.review.sendTakeOfferMessageFeedback.headline".i18n(),
+            textAlign = TextAlign.Center
+        )
+
+        BisqGap.V2()
+
+        BisqText.baseRegular(
+            text = "bisqEasy.takeOffer.review.sendTakeOfferMessageFeedback.subTitle".i18n(),
+            textAlign = TextAlign.Center
+        )
+
+        BisqGap.V1()
+
+        BisqText.baseRegularGrey(
+            text = "bisqEasy.takeOffer.review.sendTakeOfferMessageFeedback.info".i18n(),
+            textAlign = TextAlign.Center,
+        )
     }
 }

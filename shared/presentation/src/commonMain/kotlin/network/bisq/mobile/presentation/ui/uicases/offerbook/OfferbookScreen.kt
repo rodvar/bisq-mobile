@@ -14,6 +14,7 @@ import cafe.adriel.lyricist.LocalStrings
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.mirror
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.ui.components.atoms.button.BisqFABAddButton
 import network.bisq.mobile.presentation.ui.components.atoms.icons.AddIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
@@ -49,20 +50,16 @@ fun OfferbookScreen() {
             TopBar(title = commonStrings.common_offers)
         },
         fab = {
-            FloatingActionButton(
+            BisqFABAddButton(
                 onClick = { presenter.createOffer() },
-                containerColor = BisqTheme.colors.primary,
-                contentColor = BisqTheme.colors.light1,
-            ) {
-                AddIcon(modifier = Modifier.size(24.dp))
-            }
+            )
         }
     ) {
         DirectionToggle(
             offerDirections,
             selectedDirection,
-            130.dp
-        ) { direction -> presenter.onSelectDirection(direction) }
+            onStateChange = { direction -> presenter.onSelectDirection(direction) }
+        )
 
         BisqGap.V1()
 

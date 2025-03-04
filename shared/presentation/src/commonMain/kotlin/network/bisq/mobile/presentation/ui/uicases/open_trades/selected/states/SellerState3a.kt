@@ -16,9 +16,7 @@ import androidx.compose.ui.unit.dp
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.trade_check_circle
 import network.bisq.mobile.i18n.i18n
-import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
-import network.bisq.mobile.presentation.ui.components.atoms.BisqText
-import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
+import network.bisq.mobile.presentation.ui.components.atoms.*
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
@@ -34,7 +32,7 @@ fun SellerState3a(
     val buttonEnabled by presenter.buttonEnabled.collectAsState()
     val openTradeItemModel = presenter.selectedTrade.value!!
     val quoteAmount = openTradeItemModel.quoteAmountWithCode
-    val baseAmount = openTradeItemModel.baseAmountWithCode
+    val baseAmount = openTradeItemModel.formattedBaseAmount
     val paymentMethod = openTradeItemModel.bisqEasyTradeModel.contract.baseSidePaymentMethodSpec.paymentMethod
     val bitcoinPaymentDescription =
         "bisqEasy.tradeState.info.seller.phase3a.bitcoinPayment.description.$paymentMethod".i18n()
@@ -56,16 +54,21 @@ fun SellerState3a(
             )
             BisqText.baseRegularGrey(
                 // I confirmed to have received {0}
-                text = "bisqEasy.tradeState.info.seller.phase3a.fiatPaymentReceivedCheckBox".i18n(quoteAmount),
+                "bisqEasy.tradeState.info.seller.phase3a.fiatPaymentReceivedCheckBox".i18n(quoteAmount),
             )
         }
 
         BisqGap.V1()
+
         // Send {0} to the buyer
-        BisqText.h5Light(text = "bisqEasy.tradeState.info.seller.phase3a.sendBtc".i18n(baseAmount))
+        // BisqText.h5Light(text = "bisqEasy.tradeState.info.seller.phase3a.sendBtc".i18n(baseAmount))
+        Row {
+            BisqText.h5Light("Send ") // TODO:i18n
+            BtcSatsText(baseAmount, fontSize = FontSize.H5)
+        }
+        BisqText.h5Light("to the buyer") // TODO:i18n
 
         BisqGap.VHalf()
-        // todo add copy icon
         BisqTextField(
             // Amount to send
             label = "bisqEasy.tradeState.info.seller.phase3a.baseAmount".i18n(),
@@ -75,7 +78,6 @@ fun SellerState3a(
         )
 
         BisqGap.VHalf()
-        // todo add copy icon
         BisqTextField(
             // Bitcoin address / Lightning invoice
             label = bitcoinPaymentDescription,
@@ -87,7 +89,7 @@ fun SellerState3a(
         BisqGap.V1()
         BisqText.baseRegularGrey(
             // Fill in the Bitcoin transaction ID / Fill in the preimage if available
-            text = paymentProofPrompt,
+            paymentProofPrompt,
         )
 
         BisqGap.VHalf()
@@ -105,10 +107,6 @@ fun SellerState3a(
             text = "bisqEasy.tradeState.info.seller.phase3a.btcSentButton".i18n(baseAmount),
             onClick = { presenter.onConfirmedBtcSent() },
             disabled = buttonEnabled.not(),
-            padding = PaddingValues(
-                horizontal = 18.dp,
-                vertical = 6.dp
-            )
         )
     }
 }

@@ -1,60 +1,110 @@
 package network.bisq.mobile.presentation.ui.components.atoms
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
+
+enum class BtcSatsStyle {
+    Default, // Regular text
+    TextField  // Full width, text field style
+}
 
 @Composable
-fun BtcSatsText(formattedBtcAmountValue: String) {
+fun BtcSatsText(
+    formattedBtcAmountValue: String, // Expect this to be in btc format (Eg: 0.001112222)
+    label: String? = null,
+    fontSize: FontSize = FontSize.BASE,
+    style: BtcSatsStyle = BtcSatsStyle.Default,
+    noCode: Boolean = false
+) {
+    if (formattedBtcAmountValue.isEmpty())
+        return;
 
-    // val btcValue = sats.toDouble() / 100_000_000
-    val formattedValue = formatSatsToDisplay(formattedBtcAmountValue)
+    val formattedValue = formatSatsToDisplay(formattedBtcAmountValue, noCode)
+    val finalFontSize = fontSize
 
-    /*  val btcAmountValueHighLightedZeros = formattedBtcAmountValue
-          .takeWhile { it == '0' || it == '.' }
-      val btcAmountValue = formattedBtcAmountValue
-          .dropWhile { it == '0' || it == '.' }
-          .reversed()
-          .chunked(3)
-          .joinToString(" ")
-          .reversed()*/
+    if (style == BtcSatsStyle.Default) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // BtcLogo()
+            Text(
+                text = formattedValue,
+                fontSize = finalFontSize.size,
+                fontFamily = BisqText.fontFamilyRegular(),
+                lineHeight = TextUnit(finalFontSize.size.times(1.15).value, TextUnitType.Sp),
+                color = BisqTheme.colors.white,
+            )
+        }
+    } else if (style == BtcSatsStyle.TextField) {
+        val grey2Color = BisqTheme.colors.grey2
 
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // BtcLogo()
-        Text(
-            text = formattedValue,
-            fontSize = 20.sp,
-            color = BisqTheme.colors.white,
-        )
+        if (label?.isNotEmpty() == true) {
+            BisqText.baseLight(
+                text = label,
+                color = grey2Color,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+            )
+            BisqGap.VQuarter()
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape = RoundedCornerShape(6.dp))
+                .background(BisqTheme.colors.secondaryDisabled)
+                .drawBehind {
+                    drawLine(
+                        color = grey2Color,
+                        start = Offset(0f, size.height),
+                        end = Offset(size.width, size.height),
+                        strokeWidth = 4.dp.toPx()
+                    )
+                }
+                .padding(BisqUIConstants.ScreenPadding),
+        ) {
+            // BtcLogo()
+            Text(
+                text = formattedValue,
+                fontSize = finalFontSize.size,
+                fontFamily = BisqText.fontFamilyRegular(),
+                lineHeight = TextUnit(finalFontSize.size.times(1.15).value, TextUnitType.Sp),
+                color = BisqTheme.colors.white,
+            )
+        }
     }
 }
 
 @Composable
-private fun formatSatsToDisplay(formattedBtcAmountValue: String): AnnotatedString {
-    // val formattedBtcAmountValue = numberFormatter.satsFormat(btcValue)
+private fun formatSatsToDisplay(formattedBtcAmountValue: String, noCode: Boolean): AnnotatedString {
 
     return buildAnnotatedString {
         val parts = formattedBtcAmountValue.split(".")
         val integerPart = parts[0]
-        val fractionalPart = parts[1]
+        val fractionalPart = parts[1] ?: ""
 
-        val formattedFractional = fractionalPart.chunked(3).joinToString(" ")
+        val formattedFractional = fractionalPart.reversed().chunked(3).joinToString(" ").reversed()
         val leadingZeros = formattedFractional.takeWhile { it == '0' || it == ' ' }
         val significantDigits = formattedFractional.dropWhile { it == '0' || it == ' ' }
 
-        val prefixColor = if(integerPart.toInt() > 0) BisqTheme.colors.light1 else BisqTheme.colors.grey2
+        val prefixColor = if (integerPart.toInt() > 0) BisqTheme.colors.white else BisqTheme.colors.grey2
 
         withStyle(style = SpanStyle(color = prefixColor)) {
             append(integerPart)
@@ -65,9 +115,10 @@ private fun formatSatsToDisplay(formattedBtcAmountValue: String): AnnotatedStrin
             append(leadingZeros)
         }
 
-        withStyle(style = SpanStyle(color = BisqTheme.colors.light1)) {
+        withStyle(style = SpanStyle(color = BisqTheme.colors.white)) {
             append(significantDigits)
-            append(" BTC")
+            if (noCode == false)
+                append(" BTC")
         }
     }
 }

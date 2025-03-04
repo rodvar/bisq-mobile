@@ -10,6 +10,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import cafe.adriel.lyricist.LocalStrings
 import network.bisq.mobile.presentation.ui.components.atoms.*
+import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
@@ -28,6 +29,7 @@ fun MultiScreenWizardScaffold(
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     useStaticScaffold: Boolean = false,
     snackbarHostState: SnackbarHostState? = null,
+    isInteractive: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
 
@@ -48,6 +50,7 @@ fun MultiScreenWizardScaffold(
                 horizontalAlignment = hAlignment,
                 verticalArrangement = verticalArrangement,
                 snackbarHostState = snackState,
+                isInteractive = isInteractive,
                 content = innerContent
             )
         } else { padding, topBar, bottomBar, hAlignment, verticalArrangement, snackState, innerContent ->
@@ -58,6 +61,7 @@ fun MultiScreenWizardScaffold(
                 horizontalAlignment = hAlignment,
                 verticalArrangement = verticalArrangement,
                 snackbarHostState = snackState,
+                isInteractive = isInteractive,
                 content = innerContent
             )
         }
@@ -65,7 +69,13 @@ fun MultiScreenWizardScaffold(
     scaffold(
         PaddingValues(all = 0.dp),
         {
-            TopBar(title, isFlowScreen = true, stepText = "$stepIndex/$stepsLength")
+            Column {
+                TopBar(title, isFlowScreen = true, stepText = "$stepIndex/$stepsLength")
+                BisqProgressBar(
+                    stepIndex.toFloat() / stepsLength.toFloat(),
+                    modifier = Modifier.fillMaxWidth().padding(top = BisqUIConstants.ScreenPaddingHalf)
+                )
+            }
         },
         {
             // TODO: This takes up too much height
@@ -80,15 +90,20 @@ fun MultiScreenWizardScaffold(
                 ) {
                     BisqButton(
                         text = prevButtonText,
-                        backgroundColor = BisqTheme.colors.dark5,
+                        type = BisqButtonType.Grey,
                         onClick = {
                             if (prevOnClick != null) {
                                 prevOnClick()
                             }
                         },
-                        padding = PaddingValues(horizontal = BisqUIConstants.ScreenPadding3X, vertical = BisqUIConstants.ScreenPaddingHalf),
-                        disabled = prevOnClick == null || prevDisabled
+                        padding = PaddingValues(
+                            horizontal = BisqUIConstants.ScreenPaddingHalf,
+                            vertical = BisqUIConstants.ScreenPaddingHalf
+                        ),
+                        disabled = prevOnClick == null || prevDisabled,
+                        modifier = Modifier.weight(1.0F)
                     )
+                    BisqGap.H1()
                     BisqButton(
                         text = nextButtonText,
                         onClick = {
@@ -96,8 +111,12 @@ fun MultiScreenWizardScaffold(
                                 nextOnClick()
                             }
                         },
-                        padding = PaddingValues(horizontal = BisqUIConstants.ScreenPadding3X, vertical = BisqUIConstants.ScreenPaddingHalf),
-                        disabled = nextOnClick == null || nextDisabled
+                        padding = PaddingValues(
+                            horizontal = BisqUIConstants.ScreenPaddingHalf,
+                            vertical = BisqUIConstants.ScreenPaddingHalf
+                        ),
+                        disabled = nextOnClick == null || nextDisabled,
+                        modifier = Modifier.weight(1.0F)
                     )
                 }
             }
@@ -107,11 +126,6 @@ fun MultiScreenWizardScaffold(
         Arrangement.Top,
         snackbarHostState,
     ) {
-
-        BisqProgressBar(
-            stepIndex.toFloat() / stepsLength.toFloat(),
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
-        )
 
         // TODO: Should pass these values to the column deep inside BisqScrollLayout
         // as BissScrollScaffold's params, rather than creating a column here?

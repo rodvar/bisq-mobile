@@ -19,9 +19,9 @@ class CreateOfferDirectionPresenter(
     lateinit var appStrings: AppStrings
 
     private val _showSellerReputationWarning = MutableStateFlow(false)
-    val showSellerReputationWarning : StateFlow<Boolean> get() = _showSellerReputationWarning
-    fun setShowSellerReputationWarning (value: Boolean) {
-       _showSellerReputationWarning.value = value
+    val showSellerReputationWarning: StateFlow<Boolean> get() = _showSellerReputationWarning
+    fun setShowSellerReputationWarning(value: Boolean) {
+        _showSellerReputationWarning.value = value
     }
 
     override fun onViewAttached() {
@@ -46,6 +46,7 @@ class CreateOfferDirectionPresenter(
     }
 
     fun onSellWithoutReputation() {
+        setShowSellerReputationWarning(false) 
         direction = DirectionEnum.SELL
         navigateNext()
     }
@@ -60,16 +61,17 @@ class CreateOfferDirectionPresenter(
     }
 
     fun showLearnReputation() {
-        log.i {"show learn reputation page in browser"}
-        // TODO: Uncomment after #143 merge
-//        enableInteractive(false)
-//        navigateToUrl("https://bisq.wiki/Reputation")
-//        enableInteractive(true)
+        enableInteractive(false)
+        navigateToUrl("https://bisq.wiki/Reputation#How_to_build_reputation")
+        enableInteractive(true)
     }
 
     private fun navigateNext() {
         commitToModel()
-        navigateTo(Routes.CreateOfferMarket)
+        if (createOfferPresenter.createOfferModel.market == null)
+            navigateTo(Routes.CreateOfferMarket)
+        else
+            navigateTo(Routes.CreateOfferAmount)
     }
 
     private fun commitToModel() {

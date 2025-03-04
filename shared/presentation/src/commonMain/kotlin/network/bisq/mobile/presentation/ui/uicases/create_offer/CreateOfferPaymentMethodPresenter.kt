@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
 import network.bisq.mobile.i18n.AppStrings
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
@@ -24,6 +25,9 @@ class CreateOfferPaymentMethodPresenter(
     lateinit var appStrings: AppStrings
 
     override fun onViewAttached() {
+        selectedBaseSidePaymentMethods.value = emptySet()
+        selectedQuoteSidePaymentMethods.value = emptySet()
+
         createOfferModel = createOfferPresenter.createOfferModel
 
         val quoteCurrencyCode = createOfferModel.market!!.quoteCurrencyCode
@@ -42,6 +46,11 @@ class CreateOfferPaymentMethodPresenter(
         // availableQuoteSidePaymentMethods = createOfferModel.availableQuoteSidePaymentMethods.subList(0, 3)  // for dev testing to avoid scroll
         availableQuoteSidePaymentMethods = createOfferModel.availableQuoteSidePaymentMethods
         availableBaseSidePaymentMethods = createOfferModel.availableBaseSidePaymentMethods
+    }
+
+    override fun onViewUnattaching() {
+        dismissSnackbar()
+        super.onViewUnattaching()
     }
 
     fun getQuoteSidePaymentMethodsImagePaths(): List<String> {
@@ -77,6 +86,12 @@ class CreateOfferPaymentMethodPresenter(
         if (isValid()) {
             commitToModel()
             navigateTo(Routes.CreateOfferReviewOffer)
+        } else {
+            if (selectedQuoteSidePaymentMethods.value.isEmpty()) {
+                showSnackbar("bisqEasy.tradeWizard.paymentMethods.warn.noFiatPaymentMethodSelected".i18n())
+            } else if (selectedBaseSidePaymentMethods.value.isEmpty()) {
+                showSnackbar("bisqEasy.tradeWizard.paymentMethods.warn.noBtcSettlementMethodSelected".i18n())
+            }
         }
     }
 

@@ -18,6 +18,7 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 
 @Composable
 fun BuyerState1a(
@@ -32,7 +33,7 @@ fun BuyerState1a(
     Column {
         BisqGap.V1()
         // Fill in your Bitcoin address / Fill in your Lightning invoice
-        BisqText.h5Light(text = headline)
+        BisqText.h5Light(headline)
 
         BisqGap.V1()
         BisqTextField(
@@ -53,21 +54,15 @@ fun BuyerState1a(
                 text = "bisqEasy.tradeState.info.buyer.phase1a.send".i18n(), // Send to seller
                 onClick = { presenter.onSend() },
                 disabled = bitcoinPaymentData.isEmpty(),
-                padding = PaddingValues(
-                    horizontal = 18.dp,
-                    vertical = 6.dp
-                )
             )
             BisqButton(
                 text = "bisqEasy.tradeState.info.buyer.phase1a.walletHelpButton".i18n(), // Open wallet guide
                 onClick = { presenter.onOpenWalletGuide() },
-                padding = PaddingValues(
-                    horizontal = 18.dp,
-                    vertical = 6.dp
-                ),
                 type = BisqButtonType.Outline,
-                color = BisqTheme.colors.primary,
-                borderColor = BisqTheme.colors.primary,
+                padding = PaddingValues(
+                    horizontal = BisqUIConstants.ScreenPadding,
+                    vertical = BisqUIConstants.ScreenPaddingHalf
+                )
             )
         }
     }
