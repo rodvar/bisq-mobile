@@ -44,7 +44,7 @@ import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 fun BisqTextField(
     label: String = "",
     value: String = "",
-    onValueChange: (String, Boolean) -> Unit = { it, isValid -> }, // Param1: newValue, Param2: validatity of newValue, based on validation()
+    onValueChange: ((String, Boolean) -> Unit)? = null,
     placeholder: String = "",
     labelRightSuffix: (@Composable () -> Unit)? = null,
     leftSuffix: (@Composable () -> Unit)? = null,
@@ -66,6 +66,7 @@ fun BisqTextField(
     numberWithTwoDecimals: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    var hasInteracted by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
@@ -83,9 +84,9 @@ fun BisqTextField(
 
     val dangerColor = BisqTheme.colors.danger
     val grey2Color = BisqTheme.colors.grey2
-    val finalIndicatorColor by remember(validationError, isFocused) {
+    val finalIndicatorColor by remember(validationError, isFocused, hasInteracted) {
         mutableStateOf(
-            if (validationError == null || validationError?.isEmpty() == true)
+            if (validationError == null || validationError?.isEmpty() == true || !hasInteracted)
                 if (isFocused) indicatorColor else grey2Color
             else
                 dangerColor
@@ -118,16 +119,37 @@ fun BisqTextField(
         )
     }
 
-    var hasInitialized by remember { mutableStateOf(false) }
-    LaunchedEffect(value) {
-        if (hasInitialized) {
+    // Trigger validation for read only fields, on first render
+    LaunchedEffect(disabled) {
+        if (disabled == true && value.isNotEmpty()) {
+            hasInteracted = true
             validationError = validation?.invoke(value)
-            onValueChange(value, validationError == null)
         }
-        hasInitialized = true
+    }
+    
+    // Re-validate, whenever validation function itself changes
+    // Applicable in cases, where the validation() changes based on
+    // change in other parameters like BitcoinLnAddressField::type
+    LaunchedEffect(validation) {
+        validationError = validation?.invoke(value)
     }
 
-    Column(modifier = modifier) {
+    // To do validation, when value is pasted.
+    // So value is programatically changed, without user interaction
+    // This code listens for change in value and triggers validation
+//    var hasInitialized by remember { mutableStateOf(false) }
+//    LaunchedEffect(value) {
+//        if (hasInitialized && value.length > 0) {
+//            validationError = validation?.invoke(value)
+//            onValueChange(value, validationError == null)
+//            hasInteracted = true
+//        }
+//        hasInitialized = true
+//    }
+
+    Column(
+        modifier = modifier
+    ) {
         if (label.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -176,11 +198,14 @@ fun BisqTextField(
                         val decimalPattern = Regex("^\\d*\\.?\\d{0,2}$")
                         if (decimalPattern.matches(cleanValue)) {
                             validationError = validation?.invoke(cleanValue)
-                            onValueChange(cleanValue, validationError == null || validationError?.isEmpty() == true)
+                            onValueChange?.invoke(
+                                cleanValue,
+                                validationError == null || validationError?.isEmpty() == true
+                            )
                         }
                     } else {
                         validationError = validation?.invoke(cleanValue)
-                        onValueChange(cleanValue, validationError == null || validationError?.isEmpty() == true)
+                        onValueChange?.invoke(cleanValue, validationError == null || validationError?.isEmpty() == true)
                     }
                 },
                 modifier = Modifier
@@ -189,6 +214,8 @@ fun BisqTextField(
                     .onFocusChanged { focusState ->
                         isFocused = focusState.isFocused
                         if (!focusState.isFocused) {
+                            if (value.length > 0)
+                                hasInteracted = true
                             validationError = validation?.invoke(value)
                         }
                     },
@@ -224,7 +251,6 @@ fun BisqTextField(
                             innerTextField()
                         }
 
-
                         if (showCopy) {
                             CopyIconButton(value)
                         }
@@ -232,7 +258,8 @@ fun BisqTextField(
                         if (showPaste) {
                             PasteIconButton(onPaste = {
                                 validationError = validation?.invoke(it)
-                                onValueChange(it, validationError == null)
+                                onValueChange?.invoke(it, validationError == null)
+                                hasInteracted = true
                             })
                         }
 
@@ -246,7 +273,7 @@ fun BisqTextField(
             )
         }
         // Error text has priority over help field
-        if (validationError?.isNotEmpty() == true) {
+        if (validationError?.isNotEmpty() == true && hasInteracted == true) {
             BisqGap.VQuarter()
             BisqText.smallRegular(
                 text = validationError!!,
