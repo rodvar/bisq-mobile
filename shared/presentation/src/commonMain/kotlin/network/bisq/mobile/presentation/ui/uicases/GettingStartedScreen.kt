@@ -20,6 +20,7 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqCard
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
+import network.bisq.mobile.presentation.ui.components.atoms.button.LinkButton
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.BisqScrollLayout
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
@@ -74,7 +75,7 @@ fun GettingStartedScreen() {
                 }
             }
         }
-        /* BisqButton("Chat", onClick = { presenter.navigateToChat() }) */
+        BisqButton("Trade guide", onClick = { presenter.navigateToGuide() })
         WelcomeCard(
             presenter = presenter,
             title = presenter.title,
@@ -122,11 +123,9 @@ fun WelcomeCard(
         )
 
         // Footer Link
-        BisqButton(
+        LinkButton(
             footerLink,
-            color = BisqTheme.colors.primary,
-            type = BisqButtonType.Clear,
-            padding = PaddingValues(all = BisqUIConstants.Zero),
+            link = "https://bisq.wiki/Bisq_Easy",
             onClick = { presenter.navigateLearnMore() }
         )
     }

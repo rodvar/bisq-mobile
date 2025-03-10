@@ -19,6 +19,8 @@ import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPayme
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPricePresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferReviewPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.TradeGuidePresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.WalletGuidePresenter
 import network.bisq.mobile.presentation.ui.uicases.offerbook.OfferbookMarketPresenter
 import network.bisq.mobile.presentation.ui.uicases.offerbook.OfferbookPresenter
 import network.bisq.mobile.presentation.ui.uicases.open_trades.OpenTradeListPresenter
@@ -163,6 +165,8 @@ val presentationModule = module {
 
     single { ChatPresenter(get()) } bind IChatPresenter::class
 
+    single { TradeGuidePresenter(get(), get()) } bind TradeGuidePresenter::class
+    single { WalletGuidePresenter(get()) } bind WalletGuidePresenter::class
 
     factory<TimeProvider> { getPlatformCurrentTimeProvider() }
 
