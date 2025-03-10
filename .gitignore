@@ -20,6 +20,7 @@ local.properties
 
 # for release
 credentials
+release.sh
 
 ## iOS - we currently have this tracked by the repo
 *.xcodeproj/*
