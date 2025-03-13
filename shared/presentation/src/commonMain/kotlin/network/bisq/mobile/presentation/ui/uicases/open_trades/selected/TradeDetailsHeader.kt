@@ -30,22 +30,20 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
-import cafe.adriel.lyricist.LocalStrings
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isSell
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.icons.UpIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
-import network.bisq.mobile.presentation.ui.components.molecules.UserProfile
 import network.bisq.mobile.presentation.ui.components.molecules.UserProfileRow
 import network.bisq.mobile.presentation.ui.components.molecules.info.*
 import network.bisq.mobile.presentation.ui.components.organisms.trades.CancelTradeDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
-import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 import org.koin.compose.koinInject
 
 @Composable
@@ -54,8 +52,6 @@ fun TradeDetailsComposable() {
     RememberPresenterLifecycle(presenter)
 
     val item: TradeItemPresentationModel = presenter.selectedTrade.value!!
-    val strings = LocalStrings.current.bisqEasyTradeState
-    val stringsBisqEasy = LocalStrings.current.bisqEasy
     val interruptTradeButtonVisible by presenter.interruptTradeButtonVisible.collectAsState()
     val interruptTradeButtonText by presenter.interruptTradeButtonText.collectAsState()
     val tradeCloseType by presenter.tradeCloseType.collectAsState()
@@ -178,22 +174,22 @@ fun TradeDetailsComposable() {
                 ) {
                     if (presenter.isSmallScreen()) {
                         InfoBox(
-                            label = stringsBisqEasy.bisqEasy_openTrades_table_price,
+                            label = "bisqEasy.openTrades.table.price".i18n(),
                             value = item.formattedPrice,
                             style = InfoBoxStyle.Style2,
                         )
                         BisqGap.V1()
                         InfoBox(
-                            label = "Trade date", // -> bisqEasy.openTrades.tradeDetails.tradeDate  //strings.bisqEasy_tradeCompleted_body_date,
+                            label = "bisqEasy.openTrades.tradeDetails.tradeDate".i18n(),
                             value = "${item.formattedDate} ${item.formattedTime}",
                             style = InfoBoxStyle.Style2,
                         )
                     } else {
                         InfoRow(
                             style = InfoBoxStyle.Style2,
-                            label1 = stringsBisqEasy.bisqEasy_openTrades_table_price,
+                            label1 = "bisqEasy.openTrades.table.price".i18n(),
                             value1 = item.formattedPrice,
-                            label2 = "Trade date", // -> bisqEasy.openTrades.tradeDetails.tradeDate  //strings.bisqEasy_tradeCompleted_body_date,
+                            label2 = "bisqEasy.openTrades.tradeDetails.tradeDate",
                             value2 = "${item.formattedDate} ${item.formattedTime}",
                         )
                     }
@@ -202,9 +198,9 @@ fun TradeDetailsComposable() {
 
                     InfoRow(
                         style = InfoBoxStyle.Style2,
-                        label1 = stringsBisqEasy.bisqEasy_offerbook_offerList_table_columns_settlementMethod,
+                        label1 = "bisqEasy.offerbook.offerList.table.columns.settlementMethod".i18n(),
                         value1 = "${item.fiatPaymentMethodDisplayString} / ${item.bitcoinSettlementMethodDisplayString}",
-                        label2 = strings.bisqEasy_tradeState_header_tradeId,
+                        label2 = "bisqEasy.tradeState.header.tradeId".i18n(),
                         value2 = item.shortTradeId,
                     )
 

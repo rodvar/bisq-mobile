@@ -1,32 +1,25 @@
 package network.bisq.mobile.presentation.ui.uicases.offerbook
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import cafe.adriel.lyricist.LocalStrings
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.mirror
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.button.BisqFABAddButton
-import network.bisq.mobile.presentation.ui.components.atoms.icons.AddIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.ui.components.molecules.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
-import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import org.koin.compose.koinInject
 
 @Composable
 fun OfferbookScreen() {
-    val commonStrings = LocalStrings.current.common
     val presenter: OfferbookPresenter = koinInject()
 
     RememberPresenterLifecycle(presenter)
@@ -45,7 +38,7 @@ fun OfferbookScreen() {
 
     BisqStaticScaffold(
         topBar = {
-            TopBar(title = commonStrings.common_offers)
+            TopBar(title = "Offers") //TODO:i18n
         },
         fab = {
             BisqFABAddButton(

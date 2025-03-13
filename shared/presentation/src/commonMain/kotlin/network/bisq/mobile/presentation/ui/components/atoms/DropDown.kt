@@ -46,7 +46,7 @@ fun BisqDropDown(
 
     Column {
         if (label.isNotEmpty()) {
-            BisqText.baseRegular(text = label)
+            BisqText.baseRegular(label)
             BisqGap.VQuarter()
         }
 
@@ -80,7 +80,7 @@ fun BisqDropDown(
 
             filteredItems.forEachIndexed { index, item ->
                 DropdownMenuItem(
-                    text = { BisqText.baseRegular(text = item.second) },
+                    text = { BisqText.baseRegular(item.second) },
                     onClick = {
                         onValueChanged?.invoke(item)
                         expanded = false

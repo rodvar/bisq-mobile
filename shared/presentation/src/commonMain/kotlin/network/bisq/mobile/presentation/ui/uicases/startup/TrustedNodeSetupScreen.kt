@@ -37,7 +37,6 @@ import network.bisq.mobile.presentation.ui.components.atoms.icons.QuestionIcon
 import network.bisq.mobile.presentation.ui.components.layout.BisqScrollScaffold
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
-import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 
 interface ITrustedNodeSetupPresenter : ViewPresenter {
@@ -55,7 +54,6 @@ interface ITrustedNodeSetupPresenter : ViewPresenter {
     fun goBackToSetupScreen()
 }
 
-@OptIn(ExperimentalResourceApi::class)
 @Composable
 fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
     val presenter: ITrustedNodeSetupPresenter = koinInject()
@@ -135,11 +133,11 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
 //                )
             }
             Spacer(modifier = Modifier.height(36.dp))
-            BisqText.baseRegularGrey(text = "STATUS")
+            BisqText.baseRegularGrey("STATUS")
             Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BisqText.largeRegular(
-                    text = if (isConnected) "Connected" else "Not Connected",
+                    if (isConnected) "Connected" else "Not Connected",
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 BisqText.baseRegular(

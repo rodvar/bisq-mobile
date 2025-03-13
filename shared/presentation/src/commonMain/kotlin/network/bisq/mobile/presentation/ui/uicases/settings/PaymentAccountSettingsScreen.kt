@@ -5,8 +5,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import cafe.adriel.lyricist.LocalStrings
 import kotlinx.coroutines.flow.StateFlow
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ViewPresenter
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
@@ -17,7 +17,6 @@ import network.bisq.mobile.presentation.ui.components.molecules.BisqBottomSheet
 import network.bisq.mobile.presentation.ui.components.molecules.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.organisms.settings.AppPaymentAccountCard
 import network.bisq.mobile.presentation.ui.composeModels.PaymentAccount
-import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 import org.koin.compose.koinInject
 
@@ -36,8 +35,6 @@ interface IPaymentAccountSettingsPresenter : ViewPresenter {
 @Composable
 fun PaymentAccountSettingsScreen() {
 
-    val strings = LocalStrings.current.user
-    val stringsCommon = LocalStrings.current.common
 
     val presenter: IPaymentAccountSettingsPresenter = koinInject()
     val accounts by presenter.accounts.collectAsState()
@@ -75,7 +72,7 @@ fun PaymentAccountSettingsScreen() {
             verticalArrangement = Arrangement.Center,
         ) {
             BisqButton(
-                text = strings.user_paymentAccounts_createAccount,
+                text = "user.paymentAccounts.createAccount".i18n(),
                 onClick = { showBottomSheet = !showBottomSheet },
                 modifier = Modifier.padding(all = 8.dp)
             )
@@ -88,7 +85,7 @@ fun PaymentAccountSettingsScreen() {
         verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding)
     ) {
         BisqButton(
-            text = strings.user_paymentAccounts_createAccount,
+            text = "user.paymentAccounts.createAccount".i18n(),
             onClick = { showBottomSheet = !showBottomSheet },
             padding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
             modifier = Modifier.align(Alignment.End)
@@ -119,7 +116,7 @@ fun PaymentAccountSettingsScreen() {
                 accountDescription = account.description
             },
             items = accounts.map { it.name },
-            label = strings.user_userProfile_payment_account
+            label = "Payment account" //TODO:i18n
         )
 
         BisqGap.V1()
@@ -127,7 +124,7 @@ fun PaymentAccountSettingsScreen() {
         BisqTextField(
             value = accountDescription,
             onValueChange = { value, isValid -> accountDescription = value },
-            label = strings.user_paymentAccounts_accountData,
+            label = "user.paymentAccounts.accountData".i18n(),
             isTextArea = true,
             validation = {
 
@@ -150,12 +147,12 @@ fun PaymentAccountSettingsScreen() {
             modifier = Modifier.fillMaxWidth()
         ) {
             BisqButton(
-                text = stringsCommon.delete_account,
+                text = "Delete account", //TODO:i18n
                 type = BisqButtonType.Grey,
                 onClick = { showConfirmationDialog = true }
             )
             BisqButton(
-                text = stringsCommon.buttons_save,
+                text = "action.save",
                 onClick = {
                     presenter.saveAccount(accountName, accountDescription)
                 }

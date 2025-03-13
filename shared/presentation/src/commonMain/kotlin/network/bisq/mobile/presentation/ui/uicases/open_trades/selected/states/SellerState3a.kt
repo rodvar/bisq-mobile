@@ -3,7 +3,6 @@ package network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -23,7 +22,6 @@ import network.bisq.mobile.presentation.ui.components.molecules.inputfield.Payme
 import network.bisq.mobile.presentation.ui.components.molecules.inputfield.PaymentProofType
 import network.bisq.mobile.presentation.ui.components.organisms.trades.InvalidPaymentProofConfirmationDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
-import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -68,7 +66,7 @@ fun SellerState3a(
         BisqGap.V1()
 
         // Send {0} to the buyer
-        // BisqText.h5Light(text = "bisqEasy.tradeState.info.seller.phase3a.sendBtc".i18n(baseAmount))
+        // BisqText.h5Light("bisqEasy.tradeState.info.seller.phase3a.sendBtc".i18n(baseAmount))
         Row {
             BisqText.h5Light("Send ") // TODO:i18n
             BtcSatsText(baseAmount, fontSize = FontSize.H5)
