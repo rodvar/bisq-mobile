@@ -54,6 +54,10 @@ interface ITrustedNodeSetupPresenter : ViewPresenter {
     fun updateBisqApiUrl(newUrl: String, isValid: Boolean)
 
     fun testConnection(isWorkflow: Boolean = true)
+    /**
+     * @return the error message if url is invalid, null otherwise
+     */
+    fun validateWsUrl(url: String): String?
 
     fun navigateToNextScreen()
 
@@ -115,17 +119,7 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                     )
                 },
                 validation = {
-                    val wsUrlPattern =
-                        """^(ws|wss):\/\/(([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|localhost)|(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}))(:\d{1,5})$""".toRegex()
-
-                    if (it.isEmpty()) {
-                        return@BisqTextField "URL cannot be empty" //TODO:i18n
-                    }
-                    if (!wsUrlPattern.matches(it)) {
-                        return@BisqTextField "Invalid WebSocket URL. Must be ws:// or wss:// followed by a domain/IP and port" //TODO:i18n
-                    }
-
-                    return@BisqTextField null
+                    return@BisqTextField presenter.validateWsUrl(it)
                 }
             )
 
