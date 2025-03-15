@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,8 +37,12 @@ import network.bisq.mobile.presentation.ui.components.atoms.icons.BisqLogo
 import network.bisq.mobile.presentation.ui.components.atoms.icons.CopyIcon
 import network.bisq.mobile.presentation.ui.components.atoms.icons.QuestionIcon
 import network.bisq.mobile.presentation.ui.components.layout.BisqScrollScaffold
+import network.bisq.mobile.presentation.ui.components.molecules.TopBar
+import network.bisq.mobile.presentation.ui.components.molecules.settings.BreadcrumbNavigation
+import network.bisq.mobile.presentation.ui.components.molecules.settings.MenuItem
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.ui.uicases.settings.ISettingsPresenter
 import org.koin.compose.koinInject
 
 interface ITrustedNodeSetupPresenter : ViewPresenter {
@@ -52,7 +58,7 @@ interface ITrustedNodeSetupPresenter : ViewPresenter {
      */
     fun validateWsUrl(url: String): String?
 
-    fun testConnection()
+    fun testConnection(isWorkflow: Boolean = true)
 
     fun navigateToNextScreen()
 
@@ -62,19 +68,34 @@ interface ITrustedNodeSetupPresenter : ViewPresenter {
 @Composable
 fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
     val presenter: ITrustedNodeSetupPresenter = koinInject()
+    val settingsPresenter: ISettingsPresenter = koinInject()
 
     val bisqApiUrl = presenter.bisqApiUrl.collectAsState().value
     val isConnected = presenter.isConnected.collectAsState().value
     val isLoading = presenter.isLoading.collectAsState().value
     val clipboardManager = LocalClipboardManager.current
 
-    RememberPresenterLifecycle(presenter)
+    val menuTree: MenuItem = settingsPresenter.menuTree()
+    val menuPath = remember { mutableStateListOf(menuTree) }
+
+    RememberPresenterLifecycle(presenter, {
+        if (!isWorkflow) {
+            menuPath.add((menuTree as MenuItem.Parent).children[3])
+        }
+    })
 
     BisqScrollScaffold(
+        topBar = { TopBar("Trusted node") }, // TODO:i18n
         snackbarHostState = presenter.getSnackState()
     ) {
-        BisqLogo()
-        Spacer(modifier = Modifier.height(24.dp))
+        if (isWorkflow) {
+            BisqLogo()
+            Spacer(modifier = Modifier.height(24.dp))
+        } else {
+            BreadcrumbNavigation(path = menuPath) { index ->
+                if (index == 0) settingsPresenter.settingsNavigateBack()
+            }
+        }
         BisqText.largeRegular(
             text = "To use Bisq through your trusted node, please enter the URL to connect to. E.g. ws://10.0.2.2:8090",
         )
@@ -173,16 +194,14 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                         padding = PaddingValues(horizontal = 32.dp, vertical = 12.dp),
                     )
                 }
-                //Spacer(modifier = Modifier.width(20.dp))
                 AnimatedVisibility(
                     visible = isConnected,
                     enter = fadeIn(animationSpec = tween(300)),
-
-                    ) {
+                ) {
                     BisqButton(
                         text = if (isWorkflow) "Next" else "Save",
                         color = BisqTheme.colors.light1,
-                        onClick = { if (isWorkflow) presenter.navigateToNextScreen() else presenter.testConnection() },
+                        onClick = { if (isWorkflow) presenter.navigateToNextScreen() else presenter.testConnection(false) },
                         padding = PaddingValues(horizontal = 32.dp, vertical = 12.dp),
                     )
                 }

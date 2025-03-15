@@ -11,6 +11,7 @@ enum class Routes(val title: String) {
     Onboarding(title = "onboarding"),
     CreateProfile(title = "create_profile"),
     TrustedNodeSetup(title = "trusted_node_setup"),
+    TrustedNodeSettings(title = "trusted_node_settings"),
 
     TabContainer(title = "tab_container"),
 
@@ -34,7 +35,9 @@ enum class Routes(val title: String) {
 
     ChatScreen(title = "chat_screen"),
 
+    GeneralSettings(title = "general_settings"),
     UserProfileSettings(title = "user_profile_settings"),
+    PaymentAcountSettings(title = "payment_account_settings"),
 
     TabSettings(title = "tab_settings"),
 

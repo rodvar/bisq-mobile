@@ -20,6 +20,8 @@ import network.bisq.mobile.presentation.ui.uicases.create_offer.*
 import network.bisq.mobile.presentation.ui.uicases.guide.*
 import network.bisq.mobile.presentation.ui.uicases.offerbook.OfferbookScreen
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.OpenTradeScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.GeneralSettingsScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.PaymentAccountSettingsScreen
 import network.bisq.mobile.presentation.ui.uicases.settings.UserProfileSettingsScreen
 import network.bisq.mobile.presentation.ui.uicases.startup.CreateProfileScreen
 import network.bisq.mobile.presentation.ui.uicases.startup.OnBoardingScreen
@@ -41,6 +43,8 @@ fun RootNavGraph(rootNavController: NavHostController) {
             SplashScreen()
         }
 
+        addScreen(Routes.TrustedNodeSettings.name, content = { TrustedNodeSetupScreen(false) })
+
         val startupScreens: List<Pair<Routes, @Composable () -> Unit>> = listOf(
             Routes.Agreement to { AgreementScreen() },
             Routes.Onboarding to { OnBoardingScreen() },
@@ -56,7 +60,9 @@ fun RootNavGraph(rootNavController: NavHostController) {
             Routes.OffersByMarket to { OfferbookScreen() },
             Routes.OpenTrade to { OpenTradeScreen() },
             Routes.ChatScreen to { ChatScreen() },
-            Routes.UserProfileSettings to { UserProfileSettingsScreen(showBackNavigation = true) },
+            Routes.GeneralSettings to { GeneralSettingsScreen() },
+            Routes.UserProfileSettings to { UserProfileSettingsScreen() },
+            Routes.PaymentAcountSettings to { PaymentAccountSettingsScreen() },
         )
         otherScreens.forEach{ (route, screen): Pair<Routes, @Composable () -> Unit> ->
             addScreen(route.name, content = screen)
