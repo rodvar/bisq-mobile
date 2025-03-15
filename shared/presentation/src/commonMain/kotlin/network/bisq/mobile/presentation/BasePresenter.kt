@@ -33,6 +33,8 @@ interface ViewPresenter {
     val isInteractive: StateFlow<Boolean>
     val genericErrorMessage: StateFlow<String?>
 
+    fun isDemo(): Boolean
+
     fun isSmallScreen(): Boolean
 
     fun onCloseGenericErrorPanel()
@@ -430,5 +432,5 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
         enableInteractive(true)
     }
 
-    open fun isDemo(): Boolean = rootPresenter?.isDemo() ?: false
+    override fun isDemo(): Boolean = rootPresenter?.isDemo() ?: false
 }

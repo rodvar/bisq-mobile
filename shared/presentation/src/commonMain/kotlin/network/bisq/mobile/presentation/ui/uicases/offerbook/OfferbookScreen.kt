@@ -43,6 +43,7 @@ fun OfferbookScreen() {
         fab = {
             BisqFABAddButton(
                 onClick = { presenter.createOffer() },
+                enabled = !presenter.isDemo()
             )
         }
     ) {
