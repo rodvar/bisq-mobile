@@ -4,6 +4,7 @@ import network.bisq.mobile.domain.data.model.MarketPriceItem
 import network.bisq.mobile.domain.data.replicated.account.payment_method.BitcoinPaymentRailEnum
 import network.bisq.mobile.domain.data.replicated.account.payment_method.FiatPaymentRailUtil
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVO
+import network.bisq.mobile.domain.data.replicated.common.currency.marketListDemoObj
 import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVO
@@ -157,7 +158,15 @@ class CreateOfferPresenter(
     }
 
     fun getMostRecentPriceQuote(market: MarketVO): PriceQuoteVO {
-        val marketPriceItem: MarketPriceItem = marketPriceServiceFacade.findMarketPriceItem(market)!!
-        return MarketPriceSpecVO().getPriceQuoteVO(marketPriceItem)
+        if (isDemo()) {
+            val marketVO = marketListDemoObj.find { market.baseCurrencyCode == it.baseCurrencyCode && market.quoteCurrencyCode == market.quoteCurrencyCode }
+            return PriceQuoteVO(
+                100,
+                marketVO!!
+            )
+        } else {
+            val marketPriceItem: MarketPriceItem = marketPriceServiceFacade.findMarketPriceItem(market)!!
+            return MarketPriceSpecVO().getPriceQuoteVO(marketPriceItem)
+        }
     }
 }
