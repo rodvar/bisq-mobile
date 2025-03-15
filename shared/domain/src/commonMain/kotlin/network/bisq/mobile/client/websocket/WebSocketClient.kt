@@ -51,6 +51,7 @@ import network.bisq.mobile.domain.data.replicated.security.keys.PublicKeyVO
 import network.bisq.mobile.domain.data.replicated.security.pow.ProofOfWorkVO
 import network.bisq.mobile.domain.data.replicated.settings.settingsVODemoObj
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.domain.data.replicated.user.profile.userProfileDemoObj
 import network.bisq.mobile.domain.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.domain.utils.createUuid
@@ -168,6 +169,7 @@ class WebSocketClient(
                 webSocketRequest.path.endsWith("settings") -> json.encodeToString(settingsVODemoObj)
                 webSocketRequest.path.endsWith("user-identities/ids") -> json.encodeToString(identitiesDemoObj)
                 webSocketRequest.path.endsWith("offerbook/markets") -> json.encodeToString(marketListDemoObj)
+                webSocketRequest.path.endsWith("selected/user-profile") -> json.encodeToString(userProfileDemoObj)
                 else -> "{}"
             })
     }
