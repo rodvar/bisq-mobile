@@ -12,13 +12,14 @@ class TabContainerPresenter(
 
     override fun createOffer() {
         try {
+//            if (isDemo()) {
+//                showSnackbar("Create offer is disabled in demo mode")
+//                return
+//            }
             createOfferPresenter.onStartCreateOffer()
             navigateTo(Routes.CreateOfferDirection)
         } catch (e: Exception) {
             log.e(e) { "Failed to create offer" }
-            showSnackbar(
-                if (isDemo()) "Create offer is disabled in demo mode" else "Cannot create offer at this time, please try again later"
-            )
         }
     }
 
