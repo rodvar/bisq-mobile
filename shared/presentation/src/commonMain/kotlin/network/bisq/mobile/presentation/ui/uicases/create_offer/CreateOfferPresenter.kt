@@ -120,21 +120,24 @@ class CreateOfferPresenter(
     }
 
     suspend fun createOffer() {
+        if (isDemo()) {
+            showSnackbar("Cannot create offer in demostrtion mode")
+            return
+        }
         val direction: DirectionEnum = createOfferModel.direction
         val market: MarketVO = createOfferModel.market!!
         val bitcoinPaymentMethods: Set<String> = createOfferModel.selectedBaseSidePaymentMethods
         val fiatPaymentMethods: Set<String> = createOfferModel.selectedQuoteSidePaymentMethods
 
-        var amountSpec: AmountSpecVO
-        if (createOfferModel.amountType == AmountType.FIXED_AMOUNT) {
-            amountSpec = QuoteSideFixedAmountSpecVO(createOfferModel.quoteSideFixedAmount!!.value)
+        val amountSpec = if (createOfferModel.amountType == AmountType.FIXED_AMOUNT) {
+            QuoteSideFixedAmountSpecVO(createOfferModel.quoteSideFixedAmount!!.value)
         } else {
-            amountSpec = QuoteSideRangeAmountSpecVO(
+            QuoteSideRangeAmountSpecVO(
                 createOfferModel.quoteSideMinRangeAmount!!.value,
                 createOfferModel.quoteSideMaxRangeAmount!!.value
             )
         }
-        val priceSpec: PriceSpecVO = if (createOfferModel.priceType == PriceType.FIXED) {
+        val priceSpec = if (createOfferModel.priceType == PriceType.FIXED) {
             FixPriceSpecVO(createOfferModel.priceQuote)
         } else {
             if (createOfferModel.percentagePriceValue == 0.0) MarketPriceSpecVO()
