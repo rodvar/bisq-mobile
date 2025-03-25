@@ -32,16 +32,18 @@ import network.bisq.mobile.presentation.ui.components.atoms.icons.BisqLogoSmall
 import network.bisq.mobile.presentation.ui.components.atoms.icons.UserIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
+import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.navigation.Routes
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import org.koin.compose.koinInject
 
 interface ITopBarPresenter : ViewPresenter {
     val uniqueAvatar: StateFlow<PlatformImage?>
-    fun onAvatarClicked()
-
     val showAnimation: StateFlow<Boolean>
     val connectivityStatus: StateFlow<ConnectivityService.ConnectivityStatus>
+
+    fun avatarEnabled(currentTab: String?): Boolean
+    fun navigateToUserProfile()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +61,6 @@ fun TopBar(
     val navController: NavHostController = presenter.getRootNavController()
     val tabNavController: NavHostController = presenter.getRootTabNavController()
 
-    val interactionEnabled = presenter.isInteractive.collectAsState().value
     val showAnimation = presenter.showAnimation.collectAsState().value
     var showBackConfirmationDialog by remember { mutableStateOf(false) }
 
@@ -68,9 +69,6 @@ fun TopBar(
     val showBackButton = (customBackButton == null &&
                           navController.previousBackStackEntry != null &&
                           !presenter.isAtHome())
-
-    val topBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(topBarState, canScroll = { false })
 
     val connectivityStatus = presenter.connectivityStatus.collectAsState().value
 
@@ -93,6 +91,8 @@ fun TopBar(
             )
         }
     }
+
+    RememberPresenterLifecycle(presenter)
 
     TopAppBar(
         navigationIcon = {
@@ -131,11 +131,10 @@ fun TopBar(
 
                 val userIconModifier = Modifier
                     .size(30.dp)
-                    .alpha(if (currentTab == Routes.TabSettings.name) 0.5f else 1.0f)
+                    .alpha(if (presenter.avatarEnabled(currentTab)) 1.0f else 0.5f)
                     .clickable {
-                        if (currentTab != Routes.TabSettings.name) {
-                            // TODO this should be presenter code, with the proper main thread coroutine used (causes random crashes as is)
-                            navController.navigate(Routes.UserProfileSettings.name)
+                        if (presenter.avatarEnabled(currentTab)) {
+                            presenter.navigateToUserProfile()
                         }
                     }
 
