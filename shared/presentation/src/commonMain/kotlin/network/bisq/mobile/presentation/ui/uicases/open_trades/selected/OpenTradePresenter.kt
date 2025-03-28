@@ -1,11 +1,12 @@
 package network.bisq.mobile.presentation.ui.uicases.open_trades.selected
 
 import androidx.compose.foundation.ScrollState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
+import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum.BTC_CONFIRMED
@@ -18,6 +19,7 @@ import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqE
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.navigation.Routes
 
 class OpenTradePresenter(
     mainPresenter: MainPresenter,
@@ -35,6 +37,11 @@ class OpenTradePresenter(
 
     private var _isInMediation: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isInMediation: StateFlow<Boolean> = _isInMediation
+
+
+    private var _chatMessages: MutableStateFlow<List<BisqEasyOpenTradeMessageModel>> = MutableStateFlow(listOf())
+    val chatMessages: StateFlow<List<BisqEasyOpenTradeMessageModel>> = _chatMessages
+
 
     private var _tradePaneScrollState: MutableStateFlow<ScrollState?> = MutableStateFlow(null)
     private var _coroutineScope: CoroutineScope? = null
@@ -56,8 +63,8 @@ class OpenTradePresenter(
         }
 
         presenterScope.launch {
-            openTradeItemModel.bisqEasyOpenTradeChannelModel.isInMediation.collect { isInMediation ->
-                _isInMediation.value = isInMediation
+            openTradeItemModel.bisqEasyOpenTradeChannelModel.chatMessages.collect { chatMessages ->
+                _chatMessages.value = chatMessages
             }
         }
     }
@@ -67,6 +74,11 @@ class OpenTradePresenter(
         _tradeProcessBoxVisible.value = false
         _isInMediation.value = false
     }
+
+    fun onOpenChat() {
+        navigateTo(Routes.TradeChat)
+    }
+
 
     private fun tradeStateChanged(state: BisqEasyTradeStateEnum?) {
         _tradeAbortedBoxVisible.value = false

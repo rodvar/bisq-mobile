@@ -1,6 +1,13 @@
 package network.bisq.mobile.domain.utils
 
-import kotlinx.datetime.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.until
+import network.bisq.mobile.domain.formatDateTime
+import network.bisq.mobile.i18n.i18n
 
 object DateUtils {
 
@@ -25,11 +32,19 @@ object DateUtils {
         return Triple(years, months, days)
     }
 
-    fun toDateString(epochMillis: Long, timeZone: TimeZone = TimeZone.currentSystemDefault()): String {
+    //todo used for last user activity which should be in format: "3 min, 22 sec ago"
+    fun lastSeen(epochMillis: Long, timeZone: TimeZone = TimeZone.currentSystemDefault()): String {
         val instant = Instant.fromEpochMilliseconds(epochMillis)
         val localDateTime = instant.toLocalDateTime(timeZone)
         return localDateTime.toString()
             .split(".")[0] // remove ms
-                .replace("T", " ") // separate date time
+            .replace("T", " ") // separate date time
     }
+
+    fun toDateTime(epochMillis: Long, timeZone: TimeZone = TimeZone.currentSystemDefault()): String {
+        val instant = Instant.fromEpochMilliseconds(epochMillis)
+        val localDateTime = instant.toLocalDateTime(timeZone)
+        return formatDateTime(localDateTime)
+    }
+
 }

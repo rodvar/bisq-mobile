@@ -33,11 +33,11 @@ enum class Routes(val title: String) {
     TabOpenTradeList(title = "tab_my_trades"),
     OpenTrade(title = "trade_flow"),
 
-    ChatScreen(title = "chat_screen"),
+    TradeChat(title = "trade_chat"),
 
     GeneralSettings(title = "general_settings"),
     UserProfileSettings(title = "user_profile_settings"),
-    PaymentAcountSettings(title = "payment_account_settings"),
+    PaymentAccountSettings(title = "payment_account_settings"),
 
     TabSettings(title = "tab_settings"),
 

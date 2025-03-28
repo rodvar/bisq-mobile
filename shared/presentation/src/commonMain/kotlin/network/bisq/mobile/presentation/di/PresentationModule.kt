@@ -7,9 +7,7 @@ import network.bisq.mobile.presentation.ui.AppPresenter
 import network.bisq.mobile.presentation.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.ui.components.molecules.TopBarPresenter
 import network.bisq.mobile.presentation.ui.helpers.TimeProvider
-import network.bisq.mobile.presentation.ui.uicases.ChatPresenter
 import network.bisq.mobile.presentation.ui.uicases.GettingStartedPresenter
-import network.bisq.mobile.presentation.ui.uicases.IChatPresenter
 import network.bisq.mobile.presentation.ui.uicases.ITabContainerPresenter
 import network.bisq.mobile.presentation.ui.uicases.TabContainerPresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferAmountPresenter
@@ -28,14 +26,33 @@ import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.Interrup
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.OpenTradePresenter
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.TradeDetailsHeaderPresenter
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.TradeFlowPresenter
-import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.*
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.BuyerState1aPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.BuyerState2aPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.BuyerState2bPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.BuyerState3aPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.BuyerState4Presenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.BuyerStateLightning3bPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.BuyerStateMainChain3bPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.SellerState1Presenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.SellerState2aPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.SellerState2bPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.SellerState3aPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.SellerState4Presenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.SellerStateLightning3bPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.SellerStateMainChain3bPresenter
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.TradeStatesProvider
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.trade_chat.TradeChatPresenter
+import network.bisq.mobile.presentation.ui.uicases.settings.GeneralSettingsPresenter
+import network.bisq.mobile.presentation.ui.uicases.settings.IGeneralSettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.IPaymentAccountSettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.ISettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.IUserProfileSettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.PaymentAccountPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.SettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.UserProfileSettingsPresenter
+import network.bisq.mobile.presentation.ui.uicases.startup.AgreementPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.CreateProfilePresenter
+import network.bisq.mobile.presentation.ui.uicases.startup.IAgreementPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.IOnboardingPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.ITrustedNodeSetupPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.OnBoardingPresenter
@@ -45,8 +62,6 @@ import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferAmountPre
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferPaymentMethodPresenter
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferPresenter
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferReviewPresenter
-import network.bisq.mobile.presentation.ui.uicases.settings.*
-import network.bisq.mobile.presentation.ui.uicases.startup.*
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
@@ -163,7 +178,7 @@ val presentationModule = module {
     factory { TradeFlowPresenter(get(), get(), get()) }
     factory { OpenTradePresenter(get(), get(), get()) }
 
-    single { ChatPresenter(get()) } bind IChatPresenter::class
+    single { TradeChatPresenter(get(), get()) }
 
     single { TradeGuidePresenter(get(), get()) } bind TradeGuidePresenter::class
     single { WalletGuidePresenter(get()) } bind WalletGuidePresenter::class
