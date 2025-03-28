@@ -1,8 +1,11 @@
 package network.bisq.mobile.client
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.domain.UrlLauncher
+import network.bisq.mobile.domain.data.BackgroundDispatcher
 import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.domain.service.common.LanguageServiceFacade
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
@@ -31,6 +34,7 @@ open class ClientMainPresenter(
 
     override fun onViewAttached() {
         super.onViewAttached()
+        validateVersion()
         activateServices()
         listenForConnectivity()
     }
@@ -51,6 +55,18 @@ open class ClientMainPresenter(
                     log.d { "connectivity status changed to $it - reconnecting services" }
                     reactiveServices()
                 }
+            }
+        }
+    }
+
+    private fun validateVersion() {
+        CoroutineScope(BackgroundDispatcher).launch {
+            if (settingsServiceFacade.isApiCompatible()) {
+                log.d { "trusted node is compatible, continue" }
+            } else {
+                log.w { "configured trusted node doesn't have a compatible api version" }
+                // TODO flow and make UI react blocking usage of the app
+//                throw IllegalStateException("API version is not compatible")
             }
         }
     }
