@@ -1,0 +1,17 @@
+{
+  "name": "Bisq",
+  "identifier": "network.bisq",
+  "apps": [
+    {
+      "name": "Bisq Connect",
+      "bundleIdentifier": "network.bisq",
+      "developerName": "Bisq",
+      "version": "0.0.5",
+      "versionDate": "2025-03-29",
+      "versionDescription": "Bisq Connect 0.0.5",
+      "downloadURL": "https://bisq-network.github.io/bisq-mobile/releases/sidestore/bisq-connect.ipa",
+      "iconURL": "https://bisq-network.github.io/bisq-mobile/releases/sidestore/icon.png",
+      "tintColor": "ff9500"
+    }
+  ]
+}
