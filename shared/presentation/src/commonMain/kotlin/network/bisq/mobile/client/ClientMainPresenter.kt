@@ -7,7 +7,7 @@ import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.domain.UrlLauncher
 import network.bisq.mobile.domain.data.BackgroundDispatcher
 import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
-import network.bisq.mobile.domain.service.chat.trade.TradeChatServiceFacade
+import network.bisq.mobile.domain.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.domain.service.common.LanguageServiceFacade
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.network.ClientConnectivityService
@@ -15,6 +15,7 @@ import network.bisq.mobile.domain.service.notifications.OpenTradesNotificationSe
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
+import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.MainPresenter
 
 /**
@@ -23,8 +24,9 @@ import network.bisq.mobile.presentation.MainPresenter
 open class ClientMainPresenter(
     private val connectivityService: ClientConnectivityService,
     openTradesNotificationService: OpenTradesNotificationService,
+    private val userProfileServiceFacade: UserProfileServiceFacade,
     private val tradesServiceFacade: TradesServiceFacade,
-    private val tradeChatServiceFacade: TradeChatServiceFacade,
+    private val tradeChatMessagesServiceFacade: TradeChatMessagesServiceFacade,
     private val webSocketClientProvider: WebSocketClientProvider,
     private val applicationBootstrapFacade: ApplicationBootstrapFacade,
     private val offersServiceFacade: OffersServiceFacade,
@@ -81,10 +83,11 @@ open class ClientMainPresenter(
     private fun activateServices() {
         runCatching {
             applicationBootstrapFacade.activate()
+            userProfileServiceFacade.activate()
             offersServiceFacade.activate()
             marketPriceServiceFacade.activate()
             tradesServiceFacade.activate()
-            tradeChatServiceFacade.activate()
+            tradeChatMessagesServiceFacade.activate()
             settingsServiceFacade.activate()
             languageServiceFacade.activate()
         }.onFailure { e ->
@@ -96,10 +99,11 @@ open class ClientMainPresenter(
 
     private fun deactivateServices() {
         applicationBootstrapFacade.deactivate()
+        userProfileServiceFacade.deactivate()
         offersServiceFacade.deactivate()
         marketPriceServiceFacade.deactivate()
         tradesServiceFacade.deactivate()
-        tradeChatServiceFacade.deactivate()
+        tradeChatMessagesServiceFacade.deactivate()
         settingsServiceFacade.deactivate()
         languageServiceFacade.deactivate()
         super.onViewUnattaching()

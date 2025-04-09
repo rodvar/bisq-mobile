@@ -3,6 +3,7 @@ package network.bisq.mobile.client.service.trades
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.client.websocket.subscription.ModificationType
@@ -80,7 +81,7 @@ class ClientTradesServiceFacade(
             takeOfferStatus.value = TakeOfferStatus.SUCCESS
             return Result.success(apiResult.getOrThrow().tradeId)
         } else {
-            throw apiResult.exceptionOrNull()!!
+            return Result.failure(apiResult.exceptionOrNull()!!)
         }
     }
 
@@ -139,13 +140,13 @@ class ClientTradesServiceFacade(
             modificationType == ModificationType.ADDED
         ) {
             payload.forEach { item ->
-                _openTradeItems.value += TradeItemPresentationModel(item)
+                _openTradeItems.update { it + TradeItemPresentationModel(item) }
             }
         } else if (modificationType == ModificationType.REMOVED) {
             payload.forEach { item ->
                 val toRemove: TradeItemPresentationModel? = findOpenTradeItemModel(item.trade.id)
                 if (toRemove != null) {
-                    _openTradeItems.value -= toRemove
+                    _openTradeItems.update { it - toRemove }
                 }
             }
         }
