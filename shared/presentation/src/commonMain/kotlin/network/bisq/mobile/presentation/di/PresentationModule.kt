@@ -92,7 +92,7 @@ val presentationModule = module {
 
     single<SettingsPresenter> { SettingsPresenter(get(), get()) } bind ISettingsPresenter::class
 
-    single<UserProfileSettingsPresenter> { UserProfileSettingsPresenter(get(), get(), get(), get()) } bind IUserProfileSettingsPresenter::class
+    single<UserProfileSettingsPresenter> { UserProfileSettingsPresenter(get(), get(), get(), get(), get()) } bind IUserProfileSettingsPresenter::class
 
     single<GettingStartedPresenter> { GettingStartedPresenter(get(), get(), get(), get()) }
 
@@ -145,10 +145,10 @@ val presentationModule = module {
 
     // Create offer
     single { CreateOfferPresenter(get(), get(), get()) }
-    single { CreateOfferDirectionPresenter(get(), get()) }
+    single { CreateOfferDirectionPresenter(get(), get(), get(), get()) }
     single { CreateOfferMarketPresenter(get(), get(), get()) }
-    single { CreateOfferPricePresenter(get(), get()) }
-    single { CreateOfferAmountPresenter(get(), get(), get()) }
+    single { CreateOfferPricePresenter(get(), get(), get()) }
+    single { CreateOfferAmountPresenter(get(), get(), get(), get(), get(), get()) }
     single { CreateOfferPaymentMethodPresenter(get(), get()) }
     single { CreateOfferReviewPresenter(get(), get()) }
 

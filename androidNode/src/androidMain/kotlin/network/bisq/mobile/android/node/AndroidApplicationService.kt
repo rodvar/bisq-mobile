@@ -23,6 +23,7 @@ import bisq.application.ApplicationService
 import bisq.application.State
 import bisq.bisq_easy.BisqEasyService
 import bisq.bonded_roles.BondedRolesService
+import bisq.bonded_roles.bonded_role.AuthorizedBondedRolesService
 import bisq.bonded_roles.security_manager.alert.AlertNotificationsService
 import bisq.chat.ChatService
 import bisq.common.observable.Observable
@@ -43,6 +44,10 @@ import bisq.settings.SettingsService
 import bisq.support.SupportService
 import bisq.trade.TradeService
 import bisq.user.UserService
+import bisq.user.banned.BannedUserService
+import bisq.user.identity.UserIdentityService
+import bisq.user.profile.UserProfileService
+import bisq.user.reputation.ReputationService
 import lombok.Getter
 import lombok.Setter
 import lombok.extern.slf4j.Slf4j
@@ -123,6 +128,8 @@ class AndroidApplicationService(
 
         var languageRepository: Supplier<LanguageRepository> =
             Supplier { applicationService.languageRepository }
+        var reputationService: Supplier<ReputationService> =
+            Supplier { applicationService.userService.reputationService }
     }
 
     companion object {
@@ -168,6 +175,11 @@ class AndroidApplicationService(
         identityService,
         networkService,
         bondedRolesService
+    )
+    val userProfileService = UserProfileService(
+        persistenceService,
+        securityService,
+        networkService,
     )
     val chatService: ChatService
     val settingsService = SettingsService(persistenceService)
@@ -236,6 +248,7 @@ class AndroidApplicationService(
         dontShowAgainService = DontShowAgainService(settingsService)
 
         languageRepository = LanguageRepository()
+
     }
 
     override fun initialize(): CompletableFuture<Boolean> {

@@ -17,6 +17,7 @@ import network.bisq.mobile.presentation.ui.components.atoms.NoteText
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.MultiScreenWizardScaffold
 import network.bisq.mobile.presentation.ui.components.molecules.ToggleTab
+import network.bisq.mobile.presentation.ui.components.organisms.create_offer.WhyHighPricePopup
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
@@ -32,6 +33,9 @@ fun CreateOfferTradePriceSelectorScreen() {
     val formattedPercentagePriceValid by presenter.formattedPercentagePriceValid.collectAsState()
     val formattedPrice by presenter.formattedPrice.collectAsState()
     val priceType by presenter.priceType.collectAsState()
+    val isBuy by presenter.isBuy.collectAsState()
+    val showWhyPopup by presenter.showWhyPopup.collectAsState()
+    val hintText by presenter.hintText.collectAsState()
 
     MultiScreenWizardScaffold(
         "bisqEasy.takeOffer.review.price.price".i18n(),
@@ -43,11 +47,12 @@ fun CreateOfferTradePriceSelectorScreen() {
         nextDisabled = !presenter.formattedPercentagePriceValid.collectAsState().value,
     ) {
         BisqText.h3Regular(
-            text = "bisqEasy.price.headline".i18n(),
+            text = "What is your trade price?", // TODO:i18n "bisqEasy.price.headline".i18n(),
             modifier = Modifier.align(Alignment.Start)
         )
         BisqGap.V1()
-        BisqText.largeLightGrey("bisqEasy.tradeWizard.price.subtitle".i18n())
+        // TODO:i18n "bisqEasy.tradeWizard.price.subtitle".i18n())
+        BisqText.largeLightGrey("This can be defined as a percentage price which floats with the market price or fixed price.")
         Column(
             modifier = Modifier.padding(vertical = BisqUIConstants.ScreenPadding2X),
             verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding)
@@ -97,13 +102,11 @@ fun CreateOfferTradePriceSelectorScreen() {
                             if (parsedValue == null) {
                                 return@BisqTextField "Value cannot be empty"
                             }
-                            val parsedPercent = formattedPercentagePrice.toDoubleOrNull()
-                            if (parsedPercent != null) {
-                                if (parsedPercent < -10) {
-                                    return@BisqTextField "Trade price should be greater than -10% of market price"
-                                } else if (parsedPercent > 50) {
-                                    return@BisqTextField "Trade price should be lesser than 50% of market price"
-                                }
+                            val parsedPercent = presenter.calculatePercentageForFixedValue(it)
+                            if (parsedPercent < -10) {
+                                return@BisqTextField "Trade price should be greater than -10% of market price"
+                            } else if (parsedPercent > 50) {
+                                return@BisqTextField "Trade price should be lesser than 50% of market price"
                             }
                             return@BisqTextField null
                         }
@@ -117,12 +120,22 @@ fun CreateOfferTradePriceSelectorScreen() {
                 }
             }
 
-            val tempStatus = "bisqEasy.price.feedback.sentence.some".i18n()
-            NoteText(
-                notes = "bisqEasy.price.feedback.sentence".i18n(tempStatus),
-                linkText = "bisqEasy.price.feedback.learnWhySection.openButton".i18n(),
-                textAlign = TextAlign.Center,
-            )
+            if (isBuy) {
+                NoteText(
+                    notes = hintText,
+                    linkText = "bisqEasy.price.feedback.learnWhySection.openButton".i18n(),
+                    textAlign = TextAlign.Center,
+                    onLinkClick = {
+                        presenter.setShowWhyPopup(true)
+                    }
+                )
+            }
         }
+    }
+
+    if (showWhyPopup) {
+        WhyHighPricePopup(
+            onDismiss = { presenter.setShowWhyPopup(false) }
+        )
     }
 }
