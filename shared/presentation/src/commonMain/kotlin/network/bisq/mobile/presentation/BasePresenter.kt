@@ -208,9 +208,16 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
      * Navigate to given destination
      */
     protected fun navigateTo(destination: Routes, customSetup: (NavOptionsBuilder) -> Unit = {}) {
+        enableInteractive(false)
         uiScope.launch(Dispatchers.Main) {
-            rootNavigator.navigate(destination.name) {
-                customSetup(this)
+            try {
+                rootNavigator.navigate(destination.name) {
+                    customSetup(this)
+                }
+            } catch (e: Exception) {
+                log.e(e) { "Failed to navigate to ${destination.name}" }
+            } finally {
+                enableInteractive()
             }
         }
     }
