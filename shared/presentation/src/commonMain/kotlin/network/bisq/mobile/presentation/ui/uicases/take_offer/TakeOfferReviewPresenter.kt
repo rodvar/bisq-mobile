@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.ui.uicases.take_offer
 
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
@@ -16,6 +17,7 @@ import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.trades.TakeOfferStatus
 import network.bisq.mobile.domain.utils.PriceUtil
+import network.bisq.mobile.domain.utils.StringUtils.truncate
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
@@ -49,15 +51,17 @@ class TakeOfferReviewPresenter(
 
     private val _showTakeOfferProgressDialog = MutableStateFlow(false)
     val showTakeOfferProgressDialog: StateFlow<Boolean> get() = _showTakeOfferProgressDialog
-    fun setShowTakeOfferProgressDialog(value: Boolean) {
+    private fun setShowTakeOfferProgressDialog(value: Boolean) {
         _showTakeOfferProgressDialog.value = value
     }
 
     private val _showTakeOfferSuccessDialog = MutableStateFlow(false)
     val showTakeOfferSuccessDialog: StateFlow<Boolean> get() = _showTakeOfferSuccessDialog
-    fun setShowTakeOfferSuccessDialog(value: Boolean) {
+    private fun setShowTakeOfferSuccessDialog(value: Boolean) {
         _showTakeOfferSuccessDialog.value = value
     }
+
+    private var jobs: MutableSet<Job> = mutableSetOf()
 
     override fun onViewAttached() {
         presenterScope.launch {
@@ -70,9 +74,9 @@ class TakeOfferReviewPresenter(
             takeOfferErrorMessage
                 .drop(1) // To ignore the first init message
                 .collect { message ->
-                log.e { "takeOfferErrorMessage: $message" }
-                showSnackbar(message ?: "Unexpected error occurred, please try again", true)
-            }
+                    log.e { "takeOfferErrorMessage: $message" }
+                    showSnackbar(message ?: "Unexpected error occurred, please try again", true)
+                }
         }
 
         takeOfferModel = takeOfferPresenter.takeOfferModel
@@ -96,7 +100,7 @@ class TakeOfferReviewPresenter(
             amountToPay = formattedBaseAmount
             amountToReceive = formattedQuoteAmount
             fee = "bisqEasy.tradeWizard.review.sellerPaysMinerFee".i18n()
-            feeDetails ="bisqEasy.tradeWizard.review.noTradeFeesLong".i18n()
+            feeDetails = "bisqEasy.tradeWizard.review.noTradeFeesLong".i18n()
         }
 
         marketCodes = offerListItem.bisqEasyOffer.market.marketCodes
@@ -104,27 +108,43 @@ class TakeOfferReviewPresenter(
         applyPriceDetails()
     }
 
+    override fun onViewUnattaching() {
+        jobs.forEach { it.cancel() }
+        jobs.clear()
+        super.onViewUnattaching()
+    }
+
     fun onBack() {
         navigateBack()
     }
 
     fun onTakeOffer() {
-        backgroundScope.launch {
-            setShowTakeOfferProgressDialog(true)
+        setShowTakeOfferProgressDialog(true)
+        disableInteractive()
+
+        jobs.forEach { it.cancel() }
+        jobs.clear()
+        jobs.add(presenterScope.launch {
             try {
-                enableInteractive(false)
-                takeOfferPresenter.takeOffer(takeOfferStatus, takeOfferErrorMessage)
-                //delay(3000L)
-                setShowTakeOfferProgressDialog(false)
+                // takeOffer use withContext(IODispatcher) for calling the service
+                val (statusFlow, errorFlow) = takeOfferPresenter.takeOffer()
+
+                // The stateFlow objects are set in the ioScope in the service. Thus we need to map them to the presenterScope.
+                jobs.add(launch {
+                    statusFlow.collect { takeOfferStatus.value = it }
+                })
+                jobs.add(launch {
+                    errorFlow.collect { takeOfferErrorMessage.value = it }
+                })
                 setShowTakeOfferSuccessDialog(true)
             } catch (e: Exception) {
                 log.e("Take offer failed", e)
-                takeOfferErrorMessage.value = e.message ?: "Offer cannot be taken at this time"
-                setShowTakeOfferProgressDialog(false)
+                takeOfferErrorMessage.value = e.message ?: ("Take offer failed with exception: " + e.toString().truncate(50))
             } finally {
+                setShowTakeOfferProgressDialog(false)
                 enableInteractive()
             }
-        }
+        })
     }
 
     fun onGoToOpenTrades() {
@@ -138,7 +158,7 @@ class TakeOfferReviewPresenter(
         // Navigate back to TabContainer, which is part of RootNavigator's nav stack.
         // Rather than navigating back to a specific Tab, which is part of TabNavController
         navigateBackTo(Routes.TabContainer)
-   }
+    }
 
     private fun applyPriceDetails() {
         val priceSpec = takeOfferModel.offerItemPresentationVO.bisqEasyOffer.priceSpec

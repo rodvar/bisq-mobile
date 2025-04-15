@@ -1,14 +1,14 @@
 package network.bisq.mobile.presentation.ui.uicases.startup
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import network.bisq.mobile.domain.PlatformImage
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.User
 import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
@@ -55,7 +55,6 @@ open class CreateProfilePresenter(
     val createAndPublishInProgress: StateFlow<Boolean> get() = _createAndPublishInProgress
 
     // Misc
-    private val coroutineScope = CoroutineScope(Dispatchers.Main) // rootNavigator.navigate requires Dispatchers.Main
     private var job: Job? = null
 
     // Lifecycle
@@ -65,11 +64,12 @@ open class CreateProfilePresenter(
 
     override fun onViewUnattaching() {
         cancelJob()
+        super.onViewUnattaching()
     }
 
     init {
         // if this presenter gets to work, it means there is no profile saved
-        backgroundScope.launch {
+        ioScope.launch {
             userRepository.create(User())
         }
     }
@@ -91,8 +91,8 @@ open class CreateProfilePresenter(
         if (nickName.value.isNotEmpty()) {
             // We would never call generateKeyPair while generateKeyPair is not
             // completed, thus we can assign to same job reference
-            job = coroutineScope.launch {
-                enableInteractive(false)
+            job = presenterScope.launch {
+                disableInteractive()
                 log.i { "Show busy animation for createAndPublishInProgress" }
                 _createAndPublishInProgress.value = true
                 runCatching {
@@ -111,6 +111,7 @@ open class CreateProfilePresenter(
                     enableInteractive()
                 }.onFailure { e ->
                     GenericErrorHandler.handleGenericError("Creating and publishing new user profile failed.", e)
+                    _createAndPublishInProgress.value = false
                     enableInteractive()
                 }
             }
@@ -127,7 +128,7 @@ open class CreateProfilePresenter(
 
         runCatching {
             job = presenterScope.launch {
-                val deferred = CoroutineScope(Dispatchers.Default).async {
+                withContext(Dispatchers.Default) {
                     // takes 200 -1000 ms
                     userProfileService.generateKeyPair { id, nym, profileIcon ->
                         setId(id)
@@ -135,18 +136,20 @@ open class CreateProfilePresenter(
                         setProfileIcon(profileIcon)
                     }
                 }
-                deferred.await()
-                backgroundScope.launch {
+
+                withContext(IODispatcher) {
                     userRepository.update(User().apply {
                         uniqueAvatar = profileIcon.value
                         lastActivity = Clock.System.now().toEpochMilliseconds()
                     })
                 }
+
                 _generateKeyPairInProgress.value = false
                 log.i { "Hide busy animation for generateKeyPair" }
             }
         }.onFailure { e ->
             GenericErrorHandler.handleGenericError("Generating the key pair failed.", e)
+            _generateKeyPairInProgress.value = false
         }
     }
 

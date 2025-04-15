@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.websocket.subscription.WebSocketEventObserver
-import network.bisq.mobile.domain.data.BackgroundDispatcher
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.service.common.LanguageServiceFacade
 import network.bisq.mobile.domain.utils.Logging
 
@@ -31,12 +31,12 @@ class ClientLanguageServiceFacade(
     }
 
     // Misc
-    private val coroutineScope = CoroutineScope(BackgroundDispatcher)
+    private val ioScope = CoroutineScope(IODispatcher)
     private var job: Job? = null
 
     // Life cycle
     override fun activate() {
-        job = coroutineScope.launch {
+        job = ioScope.launch {
 
             _i18nPairs.value = listOf(
                 "en" to "English (English)",

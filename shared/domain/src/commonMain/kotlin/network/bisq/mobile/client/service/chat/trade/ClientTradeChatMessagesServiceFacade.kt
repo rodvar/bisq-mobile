@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.websocket.subscription.WebSocketEventPayload
-import network.bisq.mobile.domain.data.BackgroundDispatcher
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.chat.CitationVO
 import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
 import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
@@ -41,7 +41,7 @@ class ClientTradeChatMessagesServiceFacade(
 
     // Misc
     private var active = false
-    private val coroutineScope = CoroutineScope(BackgroundDispatcher)
+    private val ioScope = CoroutineScope(IODispatcher)
     private var jobs: MutableSet<Job> = mutableSetOf()
 
     override fun activate() {
@@ -50,23 +50,23 @@ class ClientTradeChatMessagesServiceFacade(
             deactivate()
         }
 
-        jobs += coroutineScope.launch {
+        jobs += ioScope.launch {
             selectedTrade.collect { _ -> updateChatMessages() }
         }
-        jobs += coroutineScope.launch {
+        jobs += ioScope.launch {
             selectedUserProfileId.collect { _ -> updateChatMessages() }
         }
-        jobs += coroutineScope.launch {
+        jobs += ioScope.launch {
             allBisqEasyOpenTradeMessages.collect { _ -> updateChatMessages() }
         }
-        jobs += coroutineScope.launch {
+        jobs += ioScope.launch {
             allChatReactions.collect { _ -> updateChatMessages() }
         }
 
-        jobs += coroutineScope.launch {
+        jobs += ioScope.launch {
             subscribeTradeChats()
         }
-        jobs += coroutineScope.launch {
+        jobs += ioScope.launch {
             subscribeChatReactions()
         }
 

@@ -4,6 +4,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.chat.CitationVO
 import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
 import network.bisq.mobile.domain.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
@@ -40,10 +42,11 @@ class TradeChatPresenter(
         require(tradesServiceFacade.selectedTrade.value != null)
         val selectedTrade = tradesServiceFacade.selectedTrade.value!!
 
-        presenterScope.launch {
-            val settings = settingsRepository.fetch()!!
-            _showChatRulesWarnBox.value = settings.showChatRulesWarnBox
+        this.presenterScope.launch {
+            val settings = withContext(IODispatcher) { settingsRepository.fetch() }
+            settings?.let { _showChatRulesWarnBox.value = it.showChatRulesWarnBox }
             val bisqEasyOpenTradeChannelModel = selectedTrade.bisqEasyOpenTradeChannelModel
+
             bisqEasyOpenTradeChannelModel.chatMessages.collect { messages ->
                 _chatMessages.value = messages.toList()
             }
@@ -51,35 +54,37 @@ class TradeChatPresenter(
     }
 
     override fun onViewUnattaching() {
-        super.onViewUnattaching()
         jobs.forEach { it.cancel() }
         jobs.clear()
+        super.onViewUnattaching()
     }
 
     fun sendChatMessage(text: String) {
-        jobs.add(backgroundScope.launch {
-            val citation = quotedMessage.value?.let { quotedMessage ->
-                quotedMessage.text?.let { text ->
-                    CitationVO(
-                        quotedMessage.senderUserProfileId,
-                        text,
-                        quotedMessage.id
-                    )
-                }
+        val citation = quotedMessage.value?.let { quotedMessage ->
+            quotedMessage.text?.let { text ->
+                CitationVO(
+                    quotedMessage.senderUserProfileId,
+                    text,
+                    quotedMessage.id
+                )
             }
-            tradeChatMessagesServiceFacade.sendChatMessage(text, citation)
+        }
+        jobs.add(presenterScope.launch {
+            withContext(IODispatcher) {
+                tradeChatMessagesServiceFacade.sendChatMessage(text, citation)
+            }
             _quotedMessage.value = null
         })
     }
 
     fun onAddReaction(message: BisqEasyOpenTradeMessageModel, reaction: ReactionEnum) {
-        jobs.add(backgroundScope.launch {
+        jobs.add(ioScope.launch {
             tradeChatMessagesServiceFacade.addChatMessageReaction(message.id, reaction)
         })
     }
 
     fun onRemoveReaction(message: BisqEasyOpenTradeMessageModel, reaction: BisqEasyOpenTradeMessageReactionVO) {
-        jobs.add(backgroundScope.launch {
+        jobs.add(ioScope.launch {
             tradeChatMessagesServiceFacade.removeChatMessageReaction(message.id, reaction)
         })
     }
@@ -95,11 +100,17 @@ class TradeChatPresenter(
     }
 
     fun onDontShowAgainChatRulesWarningBox() {
-        jobs.add(backgroundScope.launch {
-            _showChatRulesWarnBox.value = false
-            val settings = settingsRepository.fetch()!!
-            settings.showChatRulesWarnBox = false
-            settingsRepository.update(settings)
+        _showChatRulesWarnBox.value = false
+
+        jobs.add(presenterScope.launch {
+            val settings = withContext(IODispatcher) {
+                settingsRepository.fetch()
+            }
+
+            settings?.let {
+                it.showChatRulesWarnBox = false
+                settingsRepository.update(it)
+            }
         })
     }
 }

@@ -30,7 +30,7 @@ import network.bisq.mobile.client.websocket.messages.WebSocketRestApiResponse
 import network.bisq.mobile.client.websocket.subscription.ModificationType
 import network.bisq.mobile.client.websocket.subscription.Topic
 import network.bisq.mobile.client.websocket.subscription.WebSocketEventObserver
-import network.bisq.mobile.domain.data.BackgroundDispatcher
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.domain.data.replicated.common.currency.marketListDemoObj
 import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
@@ -76,30 +76,30 @@ class WebSocketClient(
     private var connectionReady = CompletableDeferred<Boolean>()
     private val requestResponseHandlersMutex = Mutex()
 
-    private val backgroundScope = CoroutineScope(BackgroundDispatcher)
+    private val ioScope = CoroutineScope(IODispatcher)
 
-    enum class WebSockectClientStatus {
+    enum class WebSocketClientStatus {
         DISCONNECTED,
         CONNECTING,
         CONNECTED
     }
 
-    val _connected = MutableStateFlow(WebSockectClientStatus.DISCONNECTED)
-    val connected: StateFlow<WebSockectClientStatus> = _connected
+    val _webSocketClientStatus = MutableStateFlow(WebSocketClientStatus.DISCONNECTED)
+    val webSocketClientStatus: StateFlow<WebSocketClientStatus> = _webSocketClientStatus
 
-    fun isConnected(): Boolean = connected.value == WebSockectClientStatus.CONNECTED || isDemo()
+    fun isConnected(): Boolean = webSocketClientStatus.value == WebSocketClientStatus.CONNECTED || isDemo()
 
     fun isDemo(): Boolean = webSocketUrl.startsWith(DEMO_URL)
 
     suspend fun connect(isTest: Boolean = false) {
         log.i("Connecting to websocket at: $webSocketUrl")
-        if (connected.value != WebSockectClientStatus.CONNECTED) {
+        if (webSocketClientStatus.value != WebSocketClientStatus.CONNECTED) {
             try {
-                _connected.value = WebSockectClientStatus.CONNECTING
+                _webSocketClientStatus.value = WebSocketClientStatus.CONNECTING
                 session = httpClient.webSocketSession { url(webSocketUrl) }
                 if (session?.isActive == true) {
-                    _connected.value = WebSockectClientStatus.CONNECTED
-                    CoroutineScope(BackgroundDispatcher).launch { startListening() }
+                    _webSocketClientStatus.value = WebSocketClientStatus.CONNECTED
+                    CoroutineScope(IODispatcher).launch { startListening() }
                     connectionReady.complete(true)
                     if (!isTest) {
                         log.d { "Websocket connected" }
@@ -107,7 +107,7 @@ class WebSocketClient(
                 }
             } catch (e: Exception) {
                 log.e("Connecting websocket failed", e)
-                _connected.value = WebSockectClientStatus.DISCONNECTED
+                _webSocketClientStatus.value = WebSocketClientStatus.DISCONNECTED
                 if (isTest) {
                     throw e
                 } else {
@@ -125,14 +125,14 @@ class WebSocketClient(
 
         session?.close()
         session = null
-        _connected.value = WebSockectClientStatus.DISCONNECTED
+        _webSocketClientStatus.value = WebSocketClientStatus.DISCONNECTED
         if (!isTest) {
             log.d { "WS disconnected" }
         }
     }
 
     private fun reconnect() {
-        backgroundScope.launch {
+        ioScope.launch {
             log.d { "Launching reconnect" }
             disconnect()
             delay(DELAY_TO_RECONNECT) // Delay before reconnecting

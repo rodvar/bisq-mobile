@@ -4,6 +4,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.repository.BisqStatsRepository
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
@@ -36,9 +38,9 @@ open class GettingStartedPresenter(
     private var job: Job? = null
 
     override fun onStartTrading() {
-        enableInteractive(false)
+        disableInteractive()
         navigateToTradingTab()
-        enableInteractive(true)
+        enableInteractive()
     }
 
     private fun navigateToTradingTab() {
@@ -46,9 +48,9 @@ open class GettingStartedPresenter(
     }
 
     override fun navigateLearnMore() {
-        enableInteractive(false)
+        disableInteractive()
         navigateToUrl("https://bisq.wiki/Bisq_Easy")
-        enableInteractive(true)
+        enableInteractive()
     }
 
     fun navigateToGuide() {
@@ -56,21 +58,19 @@ open class GettingStartedPresenter(
     }
 
     private fun refresh() {
-        job = backgroundScope.launch {
-            try {
-                enableInteractive(false)
-                // TODO get published profiles data from service
-                val bisqStats = bisqStatsRepository.fetch()
-                _publishedProfiles.value = bisqStats?.publishedProfiles ?: 0
+        disableInteractive()
+        job = presenterScope.launch {
+            val bisqStats = withContext(IODispatcher) {
+                bisqStatsRepository.fetch()
+            }
+            _publishedProfiles.value = bisqStats?.publishedProfiles ?: 0
+
+            launch {
                 offersServiceFacade.offerbookListItems.collect {
                     _offersOnline.value = it.size
                 }
-            } catch (e: Exception) {
-                // Handle errors
-                println("Error: ${e.message}")
             }
-        }.also {
-            enableInteractive(true)
+            enableInteractive()
         }
     }
 

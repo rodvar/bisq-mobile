@@ -7,10 +7,10 @@ import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.
 import network.bisq.mobile.domain.formatters.AmountFormatter
 import network.bisq.mobile.domain.formatters.PercentageFormatter
 import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
-import network.bisq.mobile.presentation.ui.helpers.i18NPaymentMethod
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.helpers.i18NPaymentMethod
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
 class CreateOfferReviewPresenter(
@@ -37,6 +37,7 @@ class CreateOfferReviewPresenter(
 
 
     override fun onViewAttached() {
+        super.onViewAttached()
         createOfferModel = createOfferPresenter.createOfferModel
         direction = createOfferModel.direction
 
@@ -110,18 +111,19 @@ class CreateOfferReviewPresenter(
     }
 
     fun onCreateOffer() {
-        backgroundScope.launch {
-            enableInteractive(false)
-            // TODO deactivate buttons, show waiting state
+        disableInteractive()
+
+        presenterScope.launch {
+            // We use withContext(IODispatcher) for the service call, thus we switch context and block
             createOfferPresenter.createOffer()
-            // TODO hide waiting state, show successfully published state, show button to open offer book, clear navigation backstack
+            // After createOffer is completed  we are back on presenterScope
             onGoToOfferList()
             enableInteractive()
         }
     }
 
     private fun onGoToOfferList() {
-        presenterScope.launch {
+        this.presenterScope.launch {
             // FIXME without clearing the backstack it does not work
             val rootNavController = getRootNavController()
             var currentBackStack = rootNavController.currentBackStack.value

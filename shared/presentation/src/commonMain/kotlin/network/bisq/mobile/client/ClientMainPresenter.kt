@@ -1,11 +1,11 @@
 package network.bisq.mobile.client
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.domain.UrlLauncher
-import network.bisq.mobile.domain.data.BackgroundDispatcher
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.domain.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.domain.service.common.LanguageServiceFacade
@@ -47,15 +47,15 @@ open class ClientMainPresenter(
     override fun onViewUnattaching() {
         // For Tor we might want to leave it running while in background to avoid delay of re-connect
         // when going into foreground again.
-        // coroutineScope.launch {  webSocketClient.disconnect() }
+        // presenterScope.launch {  webSocketClient.disconnect() }
         deactivateServices()
         super.onViewUnattaching()
     }
 
     private fun listenForConnectivity() {
-        backgroundScope.launch {
-            connectivityService.startMonitoring()
-            webSocketClientProvider.get().connected.collect {
+        connectivityService.startMonitoring()
+        presenterScope.launch {
+            webSocketClientProvider.get().webSocketClientStatus.collect {
                 if (webSocketClientProvider.get().isConnected()) {
                     log.d { "connectivity status changed to $it - reconnecting services" }
                     reactiveServices()
@@ -65,16 +65,18 @@ open class ClientMainPresenter(
     }
 
     private fun validateVersion() {
-        CoroutineScope(BackgroundDispatcher).launch {
-            if (settingsServiceFacade.isApiCompatible()) {
-                log.d { "trusted node is compatible, continue" }
-            } else {
+        presenterScope.launch {
+            val isApiCompatible = withContext(IODispatcher) { settingsServiceFacade.isApiCompatible() }
+            if (!isApiCompatible) {
                 log.w { "configured trusted node doesn't have a compatible api version" }
-                val trustedNodeVersion = settingsServiceFacade.getTrustedNodeVersion()
+
+                val trustedNodeVersion = withContext(IODispatcher) { settingsServiceFacade.getTrustedNodeVersion() }
                 GenericErrorHandler.handleGenericError(
                     "Your configured trusted node is running Bisq version $trustedNodeVersion.\n" +
                             "Bisq Connect requires version ${BuildConfig.BISQ_API_VERSION} to run properly.\n"
                 )
+            } else {
+                log.d { "trusted node is compatible, continue" }
             }
         }
     }
@@ -110,7 +112,6 @@ open class ClientMainPresenter(
         tradeChatMessagesServiceFacade.deactivate()
         settingsServiceFacade.deactivate()
         languageServiceFacade.deactivate()
-        super.onViewUnattaching()
     }
 
     override fun isDemo(): Boolean = ApplicationBootstrapFacade.isDemo

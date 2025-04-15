@@ -6,7 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavOptionsBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import network.bisq.mobile.domain.data.BackgroundDispatcher
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.BaseModel
 import network.bisq.mobile.domain.getPlatformInfo
 import network.bisq.mobile.domain.utils.Logging
@@ -46,6 +46,7 @@ interface ViewPresenter {
      * @return root navigation controller
      */
     fun getRootNavController(): NavHostController
+
     /**
      * @return main app tab nav controller
      */
@@ -61,7 +62,12 @@ interface ViewPresenter {
      */
     fun isAtHome(): Boolean
 
-    fun navigateToTab(destination: Routes, saveStateOnPopUp: Boolean = true, shouldLaunchSingleTop: Boolean = true, shouldRestoreState: Boolean = true)
+    fun navigateToTab(
+        destination: Routes,
+        saveStateOnPopUp: Boolean = true,
+        shouldLaunchSingleTop: Boolean = true,
+        shouldRestoreState: Boolean = true
+    )
 
     /**
      * Navigate back in the stack
@@ -99,16 +105,20 @@ interface ViewPresenter {
  * Base class allows to have a tree hierarchy of presenters. If the rootPresenter is null, this presenter acts as root
  * if root present is passed, this present attach itself to the root to get updates (consequently its dependants will be always empty
  */
-abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPresenter, Logging {
+abstract class BasePresenter(private val rootPresenter: MainPresenter?) : ViewPresenter, Logging {
     companion object {
         var isDemo = false
     }
 
     protected var view: Any? = null
-    // Coroutine scope for the presenter
-    protected val presenterScope = CoroutineScope(Dispatchers.Main + Job())
-    protected val uiScope = CoroutineScope(Dispatchers.Main)
-    protected val backgroundScope = CoroutineScope(BackgroundDispatcher)
+
+    // Coroutine scope for the presenter.
+    // Launches coroutines on the main thread and allows manual cancellation via `presenterScope.cancel()`.
+    // ⚠️ Must be explicitly cancelled (e.g., in onDestroy) to avoid memory leaks.
+    protected val presenterScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // For network access, persistence or file IO
+    protected val ioScope = CoroutineScope(IODispatcher + SupervisorJob())
 
     private val dependants = if (isRoot()) mutableListOf<BasePresenter>() else null
 
@@ -122,13 +132,13 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     }
 
     override fun showSnackbar(message: String, isError: Boolean) {
-        uiScope.launch(Dispatchers.Main) {
+        this.presenterScope.launch(Dispatchers.Main) {
             snackbarHostState.showSnackbar(message, withDismissAction = true)
         }
     }
 
     override fun dismissSnackbar() {
-        uiScope.launch(Dispatchers.Main) {
+        this.presenterScope.launch(Dispatchers.Main) {
             snackbarHostState.currentSnackbarData?.dismiss()
         }
     }
@@ -148,13 +158,15 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     init {
         rootPresenter?.registerChild(child = this)
     }
-    
-    protected fun enableInteractive(enable: Boolean = true) {
-        uiScope.launch {
-            if (enable) {
-                delay(250L)
-            }
-            _isInteractive.value = enable
+
+    protected fun disableInteractive() {
+        _isInteractive.value = false
+    }
+
+    protected fun enableInteractive() {
+        presenterScope.launch {
+            delay(250L)
+            _isInteractive.value = true
         }
     }
 
@@ -208,8 +220,8 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
      * Navigate to given destination
      */
     protected fun navigateTo(destination: Routes, customSetup: (NavOptionsBuilder) -> Unit = {}) {
-        enableInteractive(false)
-        uiScope.launch(Dispatchers.Main) {
+        disableInteractive()
+        this.presenterScope.launch(Dispatchers.Main) {
             try {
                 rootNavigator.navigate(destination.name) {
                     customSetup(this)
@@ -231,7 +243,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
      * Back navigation popping back stack
      */
     protected fun navigateBackTo(destination: Routes, shouldInclusive: Boolean = false, shouldSaveState: Boolean = false) {
-        uiScope.launch(Dispatchers.Main) {
+        this.presenterScope.launch(Dispatchers.Main) {
             rootNavigator.popBackStack(destination.name, inclusive = shouldInclusive, saveState = shouldSaveState)
         }
     }
@@ -239,9 +251,14 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     /**
      * Navigates to the given tab route inside the main presentation, with default parameters.
      */
-    override fun navigateToTab(destination: Routes, saveStateOnPopUp: Boolean, shouldLaunchSingleTop: Boolean, shouldRestoreState: Boolean) {
-        log.d { "Navigating to tab ${destination.name} "}
-        uiScope.launch(Dispatchers.Main) {
+    override fun navigateToTab(
+        destination: Routes,
+        saveStateOnPopUp: Boolean,
+        shouldLaunchSingleTop: Boolean,
+        shouldRestoreState: Boolean
+    ) {
+        log.d { "Navigating to tab ${destination.name} " }
+        this.presenterScope.launch(Dispatchers.Main) {
             getRootTabNavController().navigate(destination.name) {
                 getRootTabNavController().graph.startDestinationRoute?.let { route ->
                     popUpTo(route) {
@@ -260,9 +277,11 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
                 showSnackbar("Swipe one more time to exit")
                 goBack()
             }
+
             isAtMainScreen() -> {
                 navigateToTab(Routes.TabHome, saveStateOnPopUp = true, shouldLaunchSingleTop = true, shouldRestoreState = false)
             }
+
             else -> {
                 // normal back navigation
                 goBack()
@@ -270,13 +289,13 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
         }
     }
 
-//    actual fun exitApp() {
+    //    actual fun exitApp() {
 //        UIApplication.sharedApplication.performSelector(NSSelectorFromString("suspend"))
 //    }
     override fun goBack(): Boolean {
-        enableInteractive(false)
+        disableInteractive()
         var wentBack = false
-        uiScope.launch(Dispatchers.Main) {
+        this.presenterScope.launch(Dispatchers.Main) {
             try {
                 log.i { "goBack default implementation" }
                 if (isIOS()) {
@@ -305,7 +324,8 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     }
 
     @CallSuper
-    override fun onViewUnattaching() { }
+    override fun onViewUnattaching() {
+    }
 
     @CallSuper
     override fun onDestroying() {
@@ -359,7 +379,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     }
 
     fun detachView() {
-        presenterScope.cancel()
+        this.presenterScope.cancel()
 
         onViewUnattaching()
         this.view = null
@@ -393,7 +413,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
      * @param scope defaults to Coroutine.Main (view thread)
      * @param started defaults to Lazy loading
      */
-    protected fun <M: BaseModel, T> stateFlowFromRepository(
+    protected fun <M : BaseModel, T> stateFlowFromRepository(
         repositoryFlow: StateFlow<M?>,
         transform: (M?) -> T,
         initialValue: T,
@@ -411,7 +431,8 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
 
     private fun cleanup() {
         try {
-            presenterScope.cancel()
+            this.presenterScope.cancel()
+            this.ioScope.cancel()
             // copy to avoid concurrency exception - no problem with multiple on destroy calls
             dependants?.toList()?.forEach { it.onDestroy() }
         } catch (e: Exception) {
@@ -430,9 +451,9 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     }
 
     override fun navigateToReportError() {
-        enableInteractive(false)
+        disableInteractive()
         navigateToUrl("https://github.com/bisq-network/bisq-mobile/issues")
-        enableInteractive(true)
+        enableInteractive()
     }
 
     override fun isDemo(): Boolean = rootPresenter?.isDemo() ?: false

@@ -22,10 +22,11 @@ class SellerState2bPresenter(
     override fun onViewUnattaching() {
         job?.cancel()
         job = null
+        super.onViewUnattaching()
     }
 
     fun onConfirmFiatReceipt() {
-        job = backgroundScope.launch {
+        job = ioScope.launch {
             tradesServiceFacade.sellerConfirmFiatReceipt()
         }
     }

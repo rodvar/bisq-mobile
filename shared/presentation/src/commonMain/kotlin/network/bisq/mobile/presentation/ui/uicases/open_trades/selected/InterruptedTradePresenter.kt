@@ -3,6 +3,8 @@ package network.bisq.mobile.presentation.ui.uicases.open_trades.selected
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.contract.RoleEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
@@ -40,12 +42,12 @@ class InterruptedTradePresenter(
         super.onViewAttached()
         require(tradesServiceFacade.selectedTrade.value != null)
         val openTradeItemModel = tradesServiceFacade.selectedTrade.value!!
-        presenterScope.launch {
+        this.presenterScope.launch {
             openTradeItemModel.bisqEasyTradeModel.tradeState.collect { tradeState ->
                 tradeStateChanged(tradeState)
             }
         }
-        presenterScope.launch {
+        this.presenterScope.launch {
             openTradeItemModel.bisqEasyOpenTradeChannelModel.isInMediation.collect { isInMediation ->
                 _isInMediation.value = isInMediation
             }
@@ -146,16 +148,18 @@ class InterruptedTradePresenter(
     }
 
     fun onCloseTrade() {
-        backgroundScope.launch {
-            if (selectedTrade.value != null) {
-                tradesServiceFacade.closeTrade()
+        if (selectedTrade.value != null) {
+            presenterScope.launch {
+                withContext(IODispatcher) {
+                    tradesServiceFacade.closeTrade()
+                }
+                navigateBack()
             }
-            navigateBack()
         }
     }
 
     fun onReportToMediator() {
-        backgroundScope.launch {
+        ioScope.launch {
             mediationServiceFacade.reportToMediator(selectedTrade.value!!)
         }
     }

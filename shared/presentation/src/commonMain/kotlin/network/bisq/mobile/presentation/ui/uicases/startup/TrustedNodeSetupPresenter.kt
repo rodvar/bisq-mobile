@@ -3,7 +3,9 @@ package network.bisq.mobile.presentation.ui.uicases.startup
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
@@ -43,15 +45,15 @@ class TrustedNodeSetupPresenter(
 
     private fun initialize() {
         log.i { "View attached to Trusted node presenter" }
-        backgroundScope.launch {
+
+        presenterScope.launch {
             try {
-                settingsRepository.fetch()
-                settingsRepository.data.value.let {
-                    it?.let {
-                        log.d { "Settings url:${it.bisqApiUrl}" }
-                        updateBisqApiUrl(it.bisqApiUrl, true)
-                        validateVersion()
-                    }
+                val data = withContext(IODispatcher) {
+                    settingsRepository.fetch()
+                }
+                data?.let {
+                    updateBisqApiUrl(it.bisqApiUrl, true)
+                    validateVersion()
                 }
             } catch (e: Exception) {
                 log.e("Failed to load from repository", e)
@@ -79,24 +81,29 @@ class TrustedNodeSetupPresenter(
     }
 
     override fun testConnection(isWorkflow: Boolean) {
-        backgroundScope.launch {
-            _isLoading.value = true
-            log.w { "Test: " + _bisqApiUrl.value }
-            WebSocketClientProvider.parseUri(_bisqApiUrl.value).let { connectionSettings ->
-                if (webSocketClientProvider.testClient(connectionSettings.first, connectionSettings.second)) {
+        _isLoading.value = true
+        log.i { "Test: " + _bisqApiUrl.value }
+        val connectionSettings = WebSocketClientProvider.parseUri(_bisqApiUrl.value)
+        presenterScope.launch {
+            val success = withContext(IODispatcher) {
+                webSocketClientProvider.testClient(connectionSettings.first, connectionSettings.second)
+            }
+
+            if (success) {
+                val validateVersion = withContext(IODispatcher) {
                     updateTrustedNodeSettings()
-                    _isConnected.value = true
-                    if (validateVersion()) {
-                        showSnackbar("Connected successfully to ${_bisqApiUrl.value}, settings updated")
-                        if (!isWorkflow) {
-                            navigateBack();
-                        }
-                    }
-                } else {
-                    showSnackbar("Could not connect to given url ${_bisqApiUrl.value}, please try again with another setup")
-                    _isConnected.value = false
+                    validateVersion()
                 }
-                _isLoading.value = false
+                if (validateVersion) {
+                    showSnackbar("Connected successfully to ${_bisqApiUrl.value}, settings updated")
+                    if (!isWorkflow) {
+                        navigateBack();
+                    }
+                }
+                _isConnected.value = true
+            } else {
+                showSnackbar("Could not connect to given url ${_bisqApiUrl.value}, please try again with another setup")
+                _isConnected.value = false
             }
         }
     }

@@ -1,11 +1,11 @@
 package network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import network.bisq.mobile.domain.data.BackgroundDispatcher
+import kotlinx.coroutines.withContext
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
@@ -30,6 +30,7 @@ abstract class State4Presenter(
         _showCloseTradeDialog.value = false
         jobs.forEach { it.cancel() }
         jobs.clear()
+        super.onViewUnattaching()
     }
 
     fun onCloseTrade() {
@@ -41,29 +42,26 @@ abstract class State4Presenter(
     }
 
     fun onConfirmCloseTrade() {
-        jobs.add(CoroutineScope(BackgroundDispatcher).launch {
-            val result = tradesServiceFacade.closeTrade()
+        jobs.add(presenterScope.launch {
+            val result = withContext(IODispatcher) { tradesServiceFacade.closeTrade() }
+
             when {
                 result.isFailure -> {
-                    presenterScope.launch {
-                        _showCloseTradeDialog.value = false
-                        result.exceptionOrNull()?.let { exception -> GenericErrorHandler.handleGenericError(exception.message) }
-                            ?: GenericErrorHandler.handleGenericError("No Exception is set in result failure")
-                    }
+                    _showCloseTradeDialog.value = false
+                    result.exceptionOrNull()?.let { exception -> GenericErrorHandler.handleGenericError(exception.message) }
+                        ?: GenericErrorHandler.handleGenericError("No Exception is set in result failure")
                 }
 
                 result.isSuccess -> {
-                    presenterScope.launch {
-                        _showCloseTradeDialog.value = false
-                        navigateBack()
-                    }
+                    _showCloseTradeDialog.value = false
+                    navigateBack()
                 }
             }
         })
     }
 
     fun onExportTradeDate() {
-        jobs.add(CoroutineScope(BackgroundDispatcher).launch {
+        jobs.add(ioScope.launch {
             tradesServiceFacade.exportTradeDate()
         })
     }

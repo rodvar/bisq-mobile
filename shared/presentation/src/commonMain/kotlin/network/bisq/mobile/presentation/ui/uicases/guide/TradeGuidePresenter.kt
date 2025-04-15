@@ -34,7 +34,7 @@ class TradeGuidePresenter(
     }
 
     fun tradeRulesNextClick() {
-        presenterScope.launch {
+        this.presenterScope.launch {
             val isConfirmed = tradeRulesConfirmed.first()
             if (!isConfirmed) {
                 settingsServiceFacade.confirmTradeRules(true)
@@ -45,9 +45,9 @@ class TradeGuidePresenter(
     }
 
     fun navigateSecurityLearnMore() {
-        enableInteractive(false)
+        disableInteractive()
         navigateToUrl("https://bisq.wiki/Bisq_Easy")
-        enableInteractive(true)
+        enableInteractive()
     }
 
 }

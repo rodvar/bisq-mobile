@@ -3,8 +3,10 @@ package network.bisq.mobile.presentation.ui.uicases.startup
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.model.User
 import network.bisq.mobile.domain.data.replicated.settings.SettingsVO
@@ -36,23 +38,31 @@ open class SplashPresenter(
     private var jobs: MutableSet<Job> = mutableSetOf()
 
     override fun onViewAttached() {
-        log.d { "SplashPresenter running" }
-        jobs.add(backgroundScope.launch {
-            val settingsMobile: Settings = settingsRepository.fetch() ?: Settings()
-            if (settingsMobile.firstLaunch) {
-                val deviceLanguageCode = getDeviceLanguageCode()
-                val i18nSupportedCodes = languageServiceFacade.i18nPairs.value.map { it.first }
-                if (i18nSupportedCodes.contains(deviceLanguageCode)) {
-                    settingsServiceFacade.setLanguageCode(deviceLanguageCode)
-                } else {
-                    settingsServiceFacade.setLanguageCode("en")
+        jobs.add(presenterScope.launch {
+            val settings: Settings = withContext(IODispatcher) {
+                settingsRepository.fetch() ?: Settings()
+            }
+
+            if (settings.firstLaunch) {
+                withContext(IODispatcher) {
+                    val deviceLanguageCode = getDeviceLanguageCode()
+                    val i18nSupportedCodes = languageServiceFacade.i18nPairs.value.map { it.first }
+                    if (i18nSupportedCodes.contains(deviceLanguageCode)) {
+                        settingsServiceFacade.setLanguageCode(deviceLanguageCode)
+                    } else {
+                        settingsServiceFacade.setLanguageCode("en")
+                    }
                 }
             }
 
-            userRepository.fetch()?.let {
-                it.lastActivity = Clock.System.now().toEpochMilliseconds()
-                userRepository.update(it)
+            withContext(IODispatcher) {
+                userRepository.fetch()?.let {
+                    it.lastActivity = Clock.System.now().toEpochMilliseconds()
+                    userRepository.update(it)
+                }
             }
+            super.onViewUnattaching()
+
             progress.collect { value ->
                 when {
                     value == 1.0f -> navigateToNextScreen()
@@ -63,17 +73,16 @@ open class SplashPresenter(
         // todo this should happen after connection to backend is configured if client mode
         // and it must not be cancelled at onViewUnattaching in case the presenter is just quickly activated
         // best its not called from a presenter but a service which checks if the url to backend is set...
-        backgroundScope.launch { settingsServiceFacade.getSettings() }
-        log.d { "SplashPresenter running finished.." }
     }
 
     override fun onViewUnattaching() {
         jobs.forEach { it.cancel() }
         jobs.clear()
+        super.onViewUnattaching()
     }
 
     private fun navigateToNextScreen() {
-        uiScope.launch {
+        presenterScope.launch {
             if (!hasConnectivity()) {
                 navigateToTrustedNodeSetup()
             }
@@ -95,7 +104,7 @@ open class SplashPresenter(
 
                     // Scenario 1: All good and setup for both androidNode and xClients
                     if (user != null && hasProfile) {
-                        // TOOD:
+                        // TODO:
                         // 1) Is this the right condition?
                         // 2a) androidNode being able to connect with other peers and
                         // 2b) xClients being able to connect with remote instance happening successfuly as part of services init?

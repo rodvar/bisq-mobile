@@ -4,10 +4,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.PlatformImage
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.User
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
+import network.bisq.mobile.domain.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.network.ConnectivityService
 import network.bisq.mobile.domain.service.reputation.ReputationServiceFacade
@@ -21,7 +24,8 @@ class UserProfileSettingsPresenter(
     private val reputationServiceFacade: ReputationServiceFacade,
     private val userRepository: UserRepository,
     connectivityService: ConnectivityService,
-    mainPresenter: MainPresenter): BasePresenter(mainPresenter), IUserProfileSettingsPresenter {
+    mainPresenter: MainPresenter
+) : BasePresenter(mainPresenter), IUserProfileSettingsPresenter {
 
     companion object {
         const val DEFAULT_UNKNOWN_VALUE = "N/A"
@@ -60,24 +64,30 @@ class UserProfileSettingsPresenter(
 
     override fun onViewAttached() {
         super.onViewAttached()
-        backgroundScope.launch {
-            userProfileServiceFacade.getSelectedUserProfile()?.let {
-                // _reputation.value = it.reputation // TODO reputation?
-                setProfileAge(it)
-                setProfileId(it)
-                setBotId(it)
-                setNickname(it)
+
+        presenterScope.launch {
+            val reputationScore: ReputationScoreVO? = withContext(IODispatcher) {
+                userProfileServiceFacade.getSelectedUserProfile()?.let {
+                    // _reputation.value = it.reputation // TODO reputation?
+                    setProfileAge(it)
+                    setProfileId(it)
+                    setBotId(it)
+                    setNickname(it)
+                }
+                userRepository.fetch()?.let {
+                    // The following should be local to the app
+                    setLastActivity(it)
+                    setTradeTerms(it)
+                    setStatement(it)
+                }
+
+                reputationServiceFacade.getReputation(profileId.value).getOrNull()
             }
-            userRepository.fetch()?.let {
-                // The following should be local to the app
-                setLastActivity(it)
-                setTradeTerms(it)
-                setStatement(it)
-            }
-            reputationServiceFacade.getReputation(profileId.value).getOrNull().let {
-                _reputation.value = it?.totalScore.toString() ?: DEFAULT_UNKNOWN_VALUE
-            }
-            _uniqueAvatar.value = userRepository.fetch()?.uniqueAvatar
+
+            _reputation.value = reputationScore?.totalScore?.toString() ?: DEFAULT_UNKNOWN_VALUE
+
+            val user = withContext(IODispatcher) { userRepository.fetch() }
+            user?.let { _uniqueAvatar.value = it.uniqueAvatar }
         }
     }
 
@@ -122,22 +132,25 @@ class UserProfileSettingsPresenter(
     }
 
     override fun onSave() {
-        backgroundScope.launch {
-            enableInteractive(false)
-            setShowLoading(true)
+        disableInteractive()
+        setShowLoading(true)
+        presenterScope.launch {
             try {
-                userRepository.fetch()!!.let {
-                    it.statement = statement.value
-                    it.tradeTerms = tradeTerms.value
-                    userRepository.update(it)
+                withContext(IODispatcher) {
+                    userRepository.fetch()?.let { user ->
+                        user.statement = statement.value
+                        user.tradeTerms = tradeTerms.value
+                        userRepository.update(user)
+
+                        // avoid flicker
+                        delay(500L)
+                    }
                 }
-                // avoid flicker
-                delay(500L)
             } catch (e: Exception) {
                 log.e(e) { "Failed to save user profile settings" }
             } finally {
                 setShowLoading(false)
-                enableInteractive(true)
+                enableInteractive()
             }
         }
     }
@@ -151,7 +164,7 @@ class UserProfileSettingsPresenter(
     }
 
     private fun setShowLoading(show: Boolean = true) {
-        uiScope.launch {
+        presenterScope.launch {
             _showLoading.value = show
         }
     }

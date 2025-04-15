@@ -25,9 +25,6 @@ class OpenTradeListPresenter(
     override fun onViewAttached() {
     }
 
-    override fun onViewUnattaching() {
-    }
-
     fun onOpenTradeGuide() {
         // _tradeGuideVisible.value = true
         navigateTo(Routes.TradeGuideOverview)
@@ -39,17 +36,15 @@ class OpenTradeListPresenter(
 
     fun onConfirmTradeRules(value: Boolean) {
         _tradeGuideVisible.value = false
-        presenterScope.launch {
+        this.presenterScope.launch {
             settingsServiceFacade.confirmTradeRules(value)
         }
     }
 
     fun onSelect(openTradeItem: TradeItemPresentationModel) {
         if (tradeRulesConfirmed.value) {
-            backgroundScope.launch {
-                tradesServiceFacade.selectOpenTrade(openTradeItem.tradeId)
-                navigateTo(Routes.OpenTrade)
-            }
+            tradesServiceFacade.selectOpenTrade(openTradeItem.tradeId)
+            navigateTo(Routes.OpenTrade)
         } else {
             log.w { "User hasn't accepted trade rules yet, showing dialog" }
             // TODO show dialogue to open trade guide

@@ -2,6 +2,8 @@ package network.bisq.mobile.presentation.ui.uicases.settings
 
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.account.UserDefinedFiatAccountPayloadVO
 import network.bisq.mobile.domain.data.replicated.account.UserDefinedFiatAccountVO
 import network.bisq.mobile.domain.data.repository.SettingsRepository
@@ -21,8 +23,10 @@ open class PaymentAccountPresenter(
 
 
     override fun selectAccount(account: UserDefinedFiatAccountVO) {
-        backgroundScope.launch {
-            accountsServiceFacade.setSelectedAccount(account)
+        presenterScope.launch {
+            withContext(IODispatcher) {
+                accountsServiceFacade.setSelectedAccount(account)
+            }
         }
     }
 
@@ -33,7 +37,7 @@ open class PaymentAccountPresenter(
             return
         }
 
-        backgroundScope.launch {
+        ioScope.launch {
             val newAccount = UserDefinedFiatAccountVO(
                 accountName = newName,
                 UserDefinedFiatAccountPayloadVO(
@@ -54,7 +58,7 @@ open class PaymentAccountPresenter(
         }
 
         if (selectedAccount.value != null) {
-            backgroundScope.launch {
+            ioScope.launch {
                 val newAccount = UserDefinedFiatAccountVO(
                     accountName = newName,
                     UserDefinedFiatAccountPayloadVO(
@@ -69,7 +73,7 @@ open class PaymentAccountPresenter(
 
     override fun deleteCurrentAccount() {
         if (selectedAccount.value != null) {
-            backgroundScope.launch {
+            ioScope.launch {
                 runCatching {
                     accountsServiceFacade.removeAccount(selectedAccount.value!!)
                     showSnackbar("Account deleted") // TODO:i18n
@@ -83,7 +87,7 @@ open class PaymentAccountPresenter(
 
     override fun onViewAttached() {
         super.onViewAttached()
-        backgroundScope.launch {
+        ioScope.launch {
             accountsServiceFacade.getAccounts()
             accountsServiceFacade.getSelectedAccount()
         }
