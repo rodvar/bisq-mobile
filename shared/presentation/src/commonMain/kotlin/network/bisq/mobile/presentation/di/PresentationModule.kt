@@ -7,7 +7,7 @@ import network.bisq.mobile.presentation.ui.AppPresenter
 import network.bisq.mobile.presentation.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.ui.components.molecules.TopBarPresenter
 import network.bisq.mobile.presentation.ui.helpers.TimeProvider
-import network.bisq.mobile.presentation.ui.uicases.GettingStartedPresenter
+import network.bisq.mobile.presentation.ui.uicases.DashboardPresenter
 import network.bisq.mobile.presentation.ui.uicases.ITabContainerPresenter
 import network.bisq.mobile.presentation.ui.uicases.TabContainerPresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferAmountPresenter
@@ -92,9 +92,17 @@ val presentationModule = module {
 
     single<SettingsPresenter> { SettingsPresenter(get(), get()) } bind ISettingsPresenter::class
 
-    single<UserProfileSettingsPresenter> { UserProfileSettingsPresenter(get(), get(), get(), get(), get()) } bind IUserProfileSettingsPresenter::class
+    single<UserProfileSettingsPresenter> {
+        UserProfileSettingsPresenter(
+            get(),
+            get(),
+            get(),
+            get(),
+            get()
+        )
+    } bind IUserProfileSettingsPresenter::class
 
-    single<GettingStartedPresenter> { GettingStartedPresenter(get(), get(), get(), get()) }
+    single<DashboardPresenter> { DashboardPresenter(get(), get(), get(), get()) }
 
     single {
         CreateProfilePresenter(
@@ -135,7 +143,7 @@ val presentationModule = module {
 
     // Offerbook
     single<OfferbookMarketPresenter> { OfferbookMarketPresenter(get(), get()) }
-    single<OfferbookPresenter> { OfferbookPresenter(get(), get(), get(), get()) }
+    single<OfferbookPresenter> { OfferbookPresenter(get(), get(), get(), get(), get(), get(), get()) }
 
     // Take offer
     single { TakeOfferPresenter(get(), get(), get()) }

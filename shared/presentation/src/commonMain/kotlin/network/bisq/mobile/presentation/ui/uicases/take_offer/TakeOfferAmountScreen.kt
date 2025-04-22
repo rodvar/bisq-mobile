@@ -38,14 +38,14 @@ fun TakeOfferTradeAmountScreen() {
         Spacer(modifier = Modifier.height(128.dp))
 
         BisqAmountSelector(
-            presenter.quoteCurrencyCode,
-            presenter.formattedMinAmountWithCode,
-            presenter.formattedMaxAmountWithCode,
-            presenter.sliderPosition,
-            presenter.formattedQuoteAmount,
-            presenter.formattedBaseAmount,
-            { sliderValue -> presenter.onSliderValueChanged(sliderValue) },
-            { textInput -> presenter.onTextValueChanged(textInput) }
+            quoteCurrencyCode = presenter.quoteCurrencyCode,
+            formattedMinAmount = presenter.formattedMinAmountWithCode,
+            formattedMaxAmount = presenter.formattedMaxAmountWithCode,
+            initialSliderPosition = presenter.sliderPosition,
+            formattedFiatAmount = presenter.formattedQuoteAmount,
+            formattedBtcAmount = presenter.formattedBaseAmount,
+            onSliderValueChange = { sliderValue -> presenter.onSliderValueChanged(sliderValue) },
+            onTextValueChange = { textInput -> presenter.onTextValueChanged(textInput) }
         )
     }
 }
