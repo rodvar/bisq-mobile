@@ -19,9 +19,9 @@ import network.bisq.mobile.domain.data.replicated.chat.reactions.BisqEasyOpenTra
 import network.bisq.mobile.domain.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
+import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
-import network.bisq.mobile.domain.utils.Logging
 import java.util.Optional
 import kotlin.jvm.optionals.getOrNull
 
@@ -29,7 +29,7 @@ import kotlin.jvm.optionals.getOrNull
 class NodeTradeChatMessagesServiceFacade(
     applicationService: AndroidApplicationService.Provider,
     private val tradesServiceFacade: TradesServiceFacade
-) : TradeChatMessagesServiceFacade, Logging {
+) : ServiceFacade(), TradeChatMessagesServiceFacade {
 
     // Dependencies
     private val bisqEasyOpenTradeChannelService: BisqEasyOpenTradeChannelService by lazy { applicationService.chatService.get().bisqEasyOpenTradeChannelService }
@@ -41,16 +41,12 @@ class NodeTradeChatMessagesServiceFacade(
     private val openTradeItems: StateFlow<List<TradeItemPresentationModel>> get() = tradesServiceFacade.openTradeItems
 
     // Misc
-    private var active = false
     private var channelsPin: Pin? = null
     private val reactionsPinByMessageId: MutableMap<String, Pin> = mutableMapOf()
     private val pinsByTradeId: MutableMap<String, MutableSet<Pin>> = mutableMapOf()
 
     override fun activate() {
-        if (active) {
-            log.w { "deactivating first" }
-            deactivate()
-        }
+        super<ServiceFacade>.activate()
 
         channelsPin = bisqEasyOpenTradeChannelService.channels.addObserver(object : CollectionObserver<BisqEasyOpenTradeChannel?> {
             override fun add(channel: BisqEasyOpenTradeChannel?) {
@@ -69,21 +65,15 @@ class NodeTradeChatMessagesServiceFacade(
                 handleChannelsCleared()
             }
         })
-
-        active = true
     }
 
     override fun deactivate() {
-        if (!active) {
-            log.w { "Skipping deactivation as its already deactivated" }
-            return
-        }
         channelsPin?.unbind()
 
         unbindAllReactionsPins()
         unbindAllPinsByTradeId()
 
-        active = false
+        super<ServiceFacade>.deactivate()
     }
 
     override suspend fun sendChatMessage(text: String, citationVO: CitationVO?): Result<Unit> {

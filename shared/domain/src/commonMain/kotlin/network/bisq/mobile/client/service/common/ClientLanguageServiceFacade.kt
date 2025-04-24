@@ -1,19 +1,13 @@
 package network.bisq.mobile.client.service.common
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import network.bisq.mobile.client.websocket.subscription.WebSocketEventObserver
-import network.bisq.mobile.domain.data.IODispatcher
+import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.common.LanguageServiceFacade
-import network.bisq.mobile.domain.utils.Logging
 
-class ClientLanguageServiceFacade(
-    private val json: Json
-) : LanguageServiceFacade, Logging {
+class ClientLanguageServiceFacade : ServiceFacade(), LanguageServiceFacade {
 
     // Properties
     private val _i18nPairs: MutableStateFlow<List<Pair<String, String>>> = MutableStateFlow(emptyList())
@@ -23,20 +17,14 @@ class ClientLanguageServiceFacade(
     override val allPairs: StateFlow<List<Pair<String, String>>> = _allPairs
 
     private val _defaultLanguage: MutableStateFlow<String> = MutableStateFlow("en")
-    private val _i18nObserver: MutableStateFlow<WebSocketEventObserver?> = MutableStateFlow(null)
-    private val _allPairsObserver: MutableStateFlow<WebSocketEventObserver?> = MutableStateFlow(null)
-
-    override fun setDefaultLanguage(languageCode: String) {
-        _defaultLanguage.value = languageCode
-    }
 
     // Misc
-    private val ioScope = CoroutineScope(IODispatcher)
-    private var job: Job? = null
 
     // Life cycle
     override fun activate() {
-        job = ioScope.launch {
+        super<ServiceFacade>.activate()
+
+        serviceScope.launch(Dispatchers.Default) {
 
             _i18nPairs.value = listOf(
                 "en" to "English (English)",
@@ -131,19 +119,15 @@ class ClientLanguageServiceFacade(
         }
     }
 
+    override fun deactivate() {
+        super<ServiceFacade>.deactivate()
+    }
+
+    override fun setDefaultLanguage(languageCode: String) {
+        _defaultLanguage.value = languageCode
+    }
+
     override suspend fun sync() {
         activate()
-//        val subscriberId = _i18nObserver.value?.webSocketEvent?.value?.subscriberId ?: ""
-//        apiGateway.syncI18NCodes(subscriberId, _defaultLanguage.value)
-//        apiGateway.syncAllLanguageCodes(subscriberId, _defaultLanguage.value)
-    }
-
-    override fun deactivate() {
-        cancelJob()
-    }
-
-    private fun cancelJob() {
-        job?.cancel()
-        job = null
     }
 }

@@ -6,8 +6,8 @@ import bisq.security.SecurityService
 import bisq.security.pow.ProofOfWork
 import bisq.user.UserService
 import bisq.user.identity.NymIdGenerator
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,12 +15,11 @@ import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.mapping.Mappings
 import network.bisq.mobile.android.node.service.AndroidNodeCatHashService
 import network.bisq.mobile.domain.PlatformImage
-import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.user.identity.UserIdentityVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
+import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
-import network.bisq.mobile.domain.utils.Logging
 import java.security.KeyPair
 import java.util.Random
 import kotlin.math.max
@@ -32,23 +31,17 @@ import kotlin.math.min
  * It uses in a in-memory model for the relevant data required for the presenter to reflect the domains state.
  * Persistence is done inside the Bisq 2 libraries.
  */
-class NodeUserProfileServiceFacade(private val applicationService: AndroidApplicationService.Provider) :
-    UserProfileServiceFacade, Logging {
+class NodeUserProfileServiceFacade(private val applicationService: AndroidApplicationService.Provider) : ServiceFacade(),
+    UserProfileServiceFacade {
 
     companion object {
         private const val AVATAR_VERSION = 0
     }
 
     // Dependencies
-    private val securityService: SecurityService by lazy {
-        applicationService.securityService.get()
-    }
-    private val userService: UserService by lazy {
-        applicationService.userService.get()
-    }
-    private val catHashService: AndroidNodeCatHashService by lazy {
-        applicationService.androidCatHashService.get()
-    }
+    private val securityService: SecurityService by lazy { applicationService.securityService.get() }
+    private val userService: UserService by lazy { applicationService.userService.get() }
+    private val catHashService: AndroidNodeCatHashService by lazy { applicationService.androidCatHashService.get() }
 
     // Properties
     private val _selectedUserProfile: MutableStateFlow<UserProfileVO?> = MutableStateFlow(null)
@@ -56,38 +49,21 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
 
 
     // Misc
-    private var active = false
-    private val ioScope = CoroutineScope(IODispatcher)
-    private var jobs: MutableSet<Job> = mutableSetOf()
-
     private var pubKeyHash: ByteArray? = null
     private var keyPair: KeyPair? = null
     private var proofOfWork: ProofOfWork? = null
 
 
     override fun activate() {
-        if (active) {
-            log.w { "deactivating first" }
-            deactivate()
-        }
+        super<ServiceFacade>.activate()
 
-        jobs += ioScope.launch {
+        serviceScope.launch(Dispatchers.Default) {
             _selectedUserProfile.value = getSelectedUserProfile()
         }
-
-        active = true
     }
 
     override fun deactivate() {
-        if (!active) {
-            log.w { "Skipping deactivation as its already deactivated" }
-            return
-        }
-
-        jobs.map { it.cancel() }
-        jobs.clear()
-
-        active = false
+        super<ServiceFacade>.deactivate()
     }
 
     // API
@@ -146,9 +122,7 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
 
     override suspend fun getSelectedUserProfile(): UserProfileVO? {
         return userService.userIdentityService.selectedUserIdentity?.userProfile?.let {
-            Mappings.UserProfileMapping.fromBisq2Model(
-                it
-            )
+            Mappings.UserProfileMapping.fromBisq2Model(it)
         }
     }
 
@@ -167,22 +141,15 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
     }
 
     // Private
-    private fun createSimulatedDelay(powDuration: Long) {
-        try {
-            // Proof of work creation for difficulty 65536 takes about 50 ms to 100 ms on a 4 GHz Intel Core i7.
-            // Target duration would be 200-1000 ms, but it is hard to find the right difficulty that works
-            // well also for low-end CPUs. So we take a rather safe lower difficulty value and add here some
-            // delay to not have a too fast flicker-effect in the UI when recreating the nym.
-            // We add a min delay of 200 ms with some randomness to make the usage of the proof of work more
-            // visible.
-            val random: Int = Random().nextInt(800)
-            // Limit to 200-2000 ms
-            Thread.sleep(
-                min(1000.0, max(200.0, (200 + random - powDuration).toDouble()))
-                    .toLong()
-            )
-        } catch (e: InterruptedException) {
-            throw RuntimeException(e)
-        }
+    private suspend fun createSimulatedDelay(powDuration: Long) {
+        // Proof of work creation for difficulty 65536 takes about 50 ms to 100 ms on a 4 GHz Intel Core i7.
+        // Target duration would be 200-1000 ms, but it is hard to find the right difficulty that works
+        // well also for low-end CPUs. So we take a rather safe lower difficulty value and add here some
+        // delay to not have a too fast flicker-effect in the UI when recreating the nym.
+        // We add a min delay of 200 ms with some randomness to make the usage of the proof of work more
+        // visible.
+        val random: Int = Random().nextInt(800)
+        // Limit to 200-2000 ms
+        delay(min(1000.0, max(200.0, (200 + random - powDuration).toDouble())).toLong())
     }
 }

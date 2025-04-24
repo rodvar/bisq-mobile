@@ -2,10 +2,10 @@ package network.bisq.mobile.domain.service.bootstrap
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import network.bisq.mobile.domain.LifeCycleAware
-import network.bisq.mobile.domain.utils.Logging
+import network.bisq.mobile.domain.service.ServiceFacade
 
-abstract class ApplicationBootstrapFacade : LifeCycleAware, Logging {
+@Suppress("RedundantOverride")
+abstract class ApplicationBootstrapFacade : ServiceFacade() {
     companion object {
         var isDemo = false
     }
@@ -23,4 +23,12 @@ abstract class ApplicationBootstrapFacade : LifeCycleAware, Logging {
     }
 
     protected var isActive = false
+
+    override fun activate() {
+        super.activate()
+    }
+
+    override fun deactivate() {
+        super.deactivate()
+    }
 }

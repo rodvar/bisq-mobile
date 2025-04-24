@@ -1,14 +1,12 @@
 package network.bisq.mobile.client.service.chat.trade
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.websocket.subscription.WebSocketEventPayload
-import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.chat.CitationVO
 import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
 import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
@@ -17,17 +15,17 @@ import network.bisq.mobile.domain.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
+import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
-import network.bisq.mobile.domain.utils.Logging
 
 class ClientTradeChatMessagesServiceFacade(
     private val tradesServiceFacade: TradesServiceFacade,
     private val userProfileServiceFacade: UserProfileServiceFacade,
     private val apiGateway: TradeChatMessagesApiGateway,
     private val json: Json
-) : TradeChatMessagesServiceFacade, Logging {
+) : ServiceFacade(), TradeChatMessagesServiceFacade {
 
     // Properties
     private val selectedTrade: StateFlow<TradeItemPresentationModel?> get() = tradesServiceFacade.selectedTrade
@@ -40,49 +38,32 @@ class ClientTradeChatMessagesServiceFacade(
     private val allChatReactions: StateFlow<Set<BisqEasyOpenTradeMessageReactionVO>> = _allChatReactions
 
     // Misc
-    private var active = false
-    private val ioScope = CoroutineScope(IODispatcher)
-    private var jobs: MutableSet<Job> = mutableSetOf()
-
     override fun activate() {
-        if (active) {
-            log.w { "deactivating first" }
-            deactivate()
-        }
+        super<ServiceFacade>.activate()
 
-        jobs += ioScope.launch {
+        serviceScope.launch(Dispatchers.Default) {
             selectedTrade.collect { _ -> updateChatMessages() }
         }
-        jobs += ioScope.launch {
+        serviceScope.launch(Dispatchers.Default) {
             selectedUserProfileId.collect { _ -> updateChatMessages() }
         }
-        jobs += ioScope.launch {
+        serviceScope.launch(Dispatchers.Default) {
             allBisqEasyOpenTradeMessages.collect { _ -> updateChatMessages() }
         }
-        jobs += ioScope.launch {
+        serviceScope.launch(Dispatchers.Default) {
             allChatReactions.collect { _ -> updateChatMessages() }
         }
 
-        jobs += ioScope.launch {
+        serviceScope.launch {
             subscribeTradeChats()
         }
-        jobs += ioScope.launch {
+        serviceScope.launch {
             subscribeChatReactions()
         }
-
-        active = true
     }
 
     override fun deactivate() {
-        if (!active) {
-            log.w { "Skipping deactivation as its already deactivated" }
-            return
-        }
-
-        jobs.forEach { it.cancel() }
-        jobs.clear()
-
-        active = false
+        super<ServiceFacade>.deactivate()
     }
 
     private suspend fun subscribeTradeChats() {

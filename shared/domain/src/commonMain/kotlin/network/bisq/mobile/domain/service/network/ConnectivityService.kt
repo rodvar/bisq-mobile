@@ -9,29 +9,31 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import network.bisq.mobile.domain.data.IODispatcher
-import network.bisq.mobile.domain.utils.Logging
+import network.bisq.mobile.domain.service.ServiceFacade
 
 /**
  * Base definition for the connectivity service. Each app type should implement / override the default
  * based on its network type.
  */
-abstract class ConnectivityService: Logging {
+@Suppress("RedundantOverride")
+abstract class ConnectivityService : ServiceFacade() {
     companion object {
         const val TIMEOUT = 5000L
         const val PERIOD = 10000L // default check every 10 sec
         const val ROUND_TRIP_SLOW_THRESHOLD = 500L
 
-        const val DEFAULT_AVERAGE_TRIP_TIME = -1L // invalid
+        private const val DEFAULT_AVERAGE_TRIP_TIME = -1L // invalid
         const val MIN_REQUESTS_TO_ASSESS_SPEED = 3 // invalid
 
         private var sessionTotalRequests = 0L
         private var averageTripTime = DEFAULT_AVERAGE_TRIP_TIME
 
-        suspend fun newRequestRoundTripTime(timeInMs: Long) {
+        fun newRequestRoundTripTime(timeInMs: Long) {
             averageTripTime = when (averageTripTime) {
                 DEFAULT_AVERAGE_TRIP_TIME -> {
                     timeInMs
                 }
+
                 else -> {
                     (averageTripTime + timeInMs) / 2
                 }
@@ -39,6 +41,7 @@ abstract class ConnectivityService: Logging {
             sessionTotalRequests++
         }
     }
+
     enum class ConnectivityStatus {
         DISCONNECTED,
         SLOW,
@@ -49,6 +52,15 @@ abstract class ConnectivityService: Logging {
     private var job: Job? = null
     private val _status = MutableStateFlow(ConnectivityStatus.DISCONNECTED)
     val status: StateFlow<ConnectivityStatus> = _status
+
+
+    override fun activate() {
+        super.activate()
+    }
+
+    override fun deactivate() {
+        super.deactivate()
+    }
 
     /**
      * Starts monitoring connectivity every given period (ms). Default is 10 seconds.
@@ -108,6 +120,6 @@ abstract class ConnectivityService: Logging {
 //            log.d { "Current average trip time is ${averageTripTime}ms" }
             return averageTripTime > ROUND_TRIP_SLOW_THRESHOLD
         }
-        return false // asume is not slow on non mature connections
+        return false // assume is not slow on non mature connections
     }
 }

@@ -1,20 +1,18 @@
 package network.bisq.mobile.client.service.user_profile
 
 import io.ktor.util.decodeBase64Bytes
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import network.bisq.mobile.domain.PlatformImage
-import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.user.identity.UserIdentityVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
+import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
-import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.domain.utils.hexToByteArray
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.max
@@ -24,7 +22,7 @@ import kotlin.random.Random
 class ClientUserProfileServiceFacade(
     private val apiGateway: UserProfileApiGateway,
     private val clientCatHashService: ClientCatHashService<PlatformImage>
-) : UserProfileServiceFacade, Logging {
+) : ServiceFacade(), UserProfileServiceFacade {
 
     private var keyMaterialResponse: KeyMaterialResponse? = null
 
@@ -33,34 +31,16 @@ class ClientUserProfileServiceFacade(
     override val selectedUserProfile: StateFlow<UserProfileVO?> = _selectedUserProfile
 
     // Misc
-    private var active = false
-    private val ioScope = CoroutineScope(IODispatcher)
-    private var jobs: MutableSet<Job> = mutableSetOf()
-
-
     override fun activate() {
-        if (active) {
-            log.w { "deactivating first" }
-            deactivate()
-        }
+        super<ServiceFacade>.activate()
 
-        jobs += ioScope.launch {
+        serviceScope.launch(Dispatchers.Default) {
             _selectedUserProfile.value = getSelectedUserProfile()
         }
-
-        active = true
     }
 
     override fun deactivate() {
-        if (!active) {
-            log.w { "Skipping deactivation as its already deactivated" }
-            return
-        }
-
-        jobs.forEach { it.cancel() }
-        jobs.clear()
-
-        active = false
+        super<ServiceFacade>.deactivate()
     }
 
 
@@ -146,8 +126,7 @@ class ClientUserProfileServiceFacade(
         // The delay should avoid a too fast flicker-effect in the UI when recreating the nym,
         // and should make the usage of the proof of work more visible.
         val random: Int = Random.nextInt(800)
-        val delayDuration = min(1000.0, max(200.0, (200 + random - requestDuration).toDouble()))
-            .toLong()
+        val delayDuration = min(1000.0, max(200.0, (200 + random - requestDuration).toDouble())).toLong()
         delay(delayDuration)
     }
 }

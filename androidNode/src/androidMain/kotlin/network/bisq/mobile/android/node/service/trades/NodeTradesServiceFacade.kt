@@ -38,15 +38,16 @@ import network.bisq.mobile.android.node.mapping.TradeItemPresentationDtoFactory
 import network.bisq.mobile.domain.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.domain.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.trades.TakeOfferStatus
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
-import network.bisq.mobile.domain.utils.Logging
 import java.util.Optional
 import kotlin.jvm.optionals.getOrNull
 import kotlin.time.Duration.Companion.seconds
 
 
-class NodeTradesServiceFacade(applicationService: AndroidApplicationService.Provider) : TradesServiceFacade, Logging {
+class NodeTradesServiceFacade(applicationService: AndroidApplicationService.Provider) :
+    ServiceFacade(), TradesServiceFacade {
 
     // Dependencies
     private val marketPriceService: MarketPriceService by lazy { applicationService.bondedRolesService.get().marketPriceService }
@@ -71,16 +72,13 @@ class NodeTradesServiceFacade(applicationService: AndroidApplicationService.Prov
     override val selectedTrade: StateFlow<TradeItemPresentationModel?> get() = _selectedTrade
 
     // Misc
-    private var active = false
     private var tradesPin: Pin? = null
     private var channelsPin: Pin? = null
     private val pinsByTradeId: MutableMap<String, MutableSet<Pin>> = mutableMapOf()
 
     override fun activate() {
-        if (active) {
-            log.w { "deactivating first" }
-            deactivate()
-        }
+        super<ServiceFacade>.activate()
+
         tradesPin = bisqEasyTradeService.trades.addObserver(object : CollectionObserver<BisqEasyTrade?> {
             override fun add(trade: BisqEasyTrade?) {
                 if (trade != null) {
@@ -116,20 +114,15 @@ class NodeTradesServiceFacade(applicationService: AndroidApplicationService.Prov
                 handleChannelsCleared()
             }
         })
-        active = true
     }
 
     override fun deactivate() {
-        if (!active) {
-            log.w { "Skipping deactivation as its already deactivated" }
-            return
-        }
         channelsPin?.unbind()
         tradesPin?.unbind()
 
         unbindAllPinsByTradeId()
 
-        active = false
+        super<ServiceFacade>.deactivate()
     }
 
     // API
@@ -221,7 +214,7 @@ class NodeTradesServiceFacade(applicationService: AndroidApplicationService.Prov
         try {
             val (channel, trade, userName) = getTradeChannelUserNameTriple()
             val paymentMethod = selectedTrade.value!!.bisqEasyTradeModel.contract.baseSidePaymentMethodSpec.paymentMethod
-            val key = "bisqEasy.tradeState.info.buyer.phase1a.tradeLogMessage.$paymentMethod";
+            val key = "bisqEasy.tradeState.info.buyer.phase1a.tradeLogMessage.$paymentMethod"
             val encoded = Res.encode(
                 key,
                 userName,
@@ -276,13 +269,13 @@ class NodeTradesServiceFacade(applicationService: AndroidApplicationService.Prov
             val paymentMethod = trade.contract.baseSidePaymentMethodSpec.paymentMethod
             val paymentRailName = paymentMethod.paymentRail.name
             val proofType = Res.get("bisqEasy.tradeState.info.seller.phase3a.tradeLogMessage.paymentProof.$paymentRailName")
-            if (paymentProof == null) {
-                encoded = Res.encode(
+            encoded = if (paymentProof == null) {
+                Res.encode(
                     "bisqEasy.tradeState.info.seller.phase3a.tradeLogMessage.noProofProvided",
                     userName
                 )
             } else {
-                encoded = Res.encode(
+                Res.encode(
                     "bisqEasy.tradeState.info.seller.phase3a.tradeLogMessage",
                     userName,
                     proofType,
@@ -375,7 +368,7 @@ class NodeTradesServiceFacade(applicationService: AndroidApplicationService.Prov
                 }
             }
 
-            bisqEasyTradeService.takeOffer(bisqEasyTrade);
+            bisqEasyTradeService.takeOffer(bisqEasyTrade)
             takeOfferStatus.value = TakeOfferStatus.SENT
             val contract: BisqEasyContract = bisqEasyTrade.contract
 
