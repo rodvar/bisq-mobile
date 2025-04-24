@@ -1,5 +1,6 @@
 package network.bisq.mobile.android.node.service.settings
 
+import bisq.common.locale.LocaleRepository
 import bisq.common.observable.Pin
 import bisq.settings.ChatNotificationType
 import bisq.settings.SettingsService
@@ -11,9 +12,23 @@ import network.bisq.mobile.domain.data.replicated.chat.notifications.ChatChannel
 import network.bisq.mobile.domain.data.replicated.settings.SettingsVO
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.utils.Logging
+import java.util.*
 
 class NodeSettingsServiceFacade(applicationService: AndroidApplicationService.Provider) : SettingsServiceFacade,
     Logging {
+
+    private val languageToLocaleMap = mapOf(
+        "af-ZA" to Locale("af", "ZA"),
+        "cs" to Locale("cs", "CZ"),
+        "de" to Locale("de", "DE"),
+        "en" to Locale("en", "US"),
+        "es" to Locale("es", "ES"),
+        "it" to Locale("it", "IT"),
+        "pcm" to Locale("pcm", "NG"),
+        "pt-BR" to Locale("pt", "BR"),
+        "ru" to Locale("ru", "RU")
+    )
+
     // Dependencies
     private val settingsService: SettingsService by lazy { applicationService.settingsService.get() }
 
@@ -31,10 +46,13 @@ class NodeSettingsServiceFacade(applicationService: AndroidApplicationService.Pr
         settingsService.setTradeRulesConfirmed(value)
     }
 
-    private val _languageCode: MutableStateFlow<String> = MutableStateFlow("en")
+    private val _languageCode: MutableStateFlow<String> = MutableStateFlow("")
     override val languageCode: StateFlow<String> get() = _languageCode
     override suspend fun setLanguageCode(value: String) {
         settingsService.setLanguageCode(value)
+        val locale = languageToLocaleMap[value] ?: Locale("en", "US")
+        LocaleRepository.setDefaultLocale(locale)
+        _languageCode.value = value
     }
 
     private val _supportedLanguageCodes: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())

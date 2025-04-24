@@ -3,6 +3,7 @@ package network.bisq.mobile.presentation.ui.uicases
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.IODispatcher
@@ -14,7 +15,7 @@ import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
 open class DashboardPresenter(
-    mainPresenter: MainPresenter,
+    private val mainPresenter: MainPresenter,
     private val bisqStatsRepository: BisqStatsRepository,
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
     private val offersServiceFacade: OffersServiceFacade
@@ -73,6 +74,13 @@ open class DashboardPresenter(
                     }
                 }
             }
+
+            launch {
+                mainPresenter.languageCode.collect {
+                    marketPriceServiceFacade.refreshSelectedFormattedMarketPrice()
+                }
+            }
+
             enableInteractive()
         }
     }
