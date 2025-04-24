@@ -8,34 +8,61 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
 import network.bisq.mobile.presentation.ui.components.atoms.button.FloatingButton
 import network.bisq.mobile.presentation.ui.components.atoms.icons.ChatIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
+import network.bisq.mobile.presentation.ui.components.molecules.inputfield.PaymentProofType
+import network.bisq.mobile.presentation.ui.components.organisms.trades.*
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
+import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.*
 import org.koin.compose.koinInject
 
 @Composable
 fun OpenTradeScreen() {
     val presenter: OpenTradePresenter = koinInject()
+    val headerPresenter: TradeDetailsHeaderPresenter = koinInject()
+    val buyerState1aPresenter: BuyerState1aPresenter = koinInject()
+    val sellerState3aPresenter: SellerState3aPresenter = koinInject()
+    val buyerState4Presenter: BuyerState4Presenter = koinInject()
+    val sellerState4Presenter: SellerState4Presenter = koinInject()
+
     RememberPresenterLifecycle(presenter)
     val focusManager = LocalFocusManager.current
 
     val tradeAbortedBoxVisible by presenter.tradeAbortedBoxVisible.collectAsState()
     val tradeProcessBoxVisible by presenter.tradeProcessBoxVisible.collectAsState()
     val isInMediation by presenter.isInMediation.collectAsState()
-    val showCloseTradeDialog = false //presenter.showCloseTradeDialog.collectAsState().value
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
+
+    val tradeCloseType by headerPresenter.tradeCloseType.collectAsState()
+    val showInterruptionConfirmationDialog by headerPresenter.showInterruptionConfirmationDialog.collectAsState()
+    val showMediationConfirmationDialog by headerPresenter.showMediationConfirmationDialog.collectAsState()
+
+    val buyerState1aAddressFieldType by buyerState1aPresenter.bitcoinLnAddressFieldType.collectAsState()
+    val buyerState1aShowInvalidAddressDialog by buyerState1aPresenter.showInvalidAddressDialog.collectAsState()
+    val sellerState3aShowInvalidAddressDialog by sellerState3aPresenter.showInvalidAddressDialog.collectAsState()
+    val sellerState3aIsLightning by sellerState3aPresenter.isLightning.collectAsState()
+    val buyerState4ShowCloseTradeDialog by buyerState4Presenter.showCloseTradeDialog.collectAsState()
+    val sellerState4ShowCloseTradeDialog by sellerState4Presenter.showCloseTradeDialog.collectAsState()
+
+    val shouldBlurBg by remember {
+        derivedStateOf {
+            showInterruptionConfirmationDialog ||
+                    showMediationConfirmationDialog ||
+                    buyerState1aShowInvalidAddressDialog ||
+                    sellerState3aShowInvalidAddressDialog ||
+                    buyerState4ShowCloseTradeDialog ||
+                    sellerState4ShowCloseTradeDialog
+        }
+    }
 
     RememberPresenterLifecycle(presenter, {
         presenter.setTradePaneScrollState(scrollState)
@@ -51,11 +78,11 @@ fun OpenTradeScreen() {
                 ChatIcon(modifier = Modifier.size(34.dp))
             }
         },
+        shouldBlurBg = shouldBlurBg,
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .blur(if (showCloseTradeDialog) 12.dp else 0.dp)
                 .clickable(
                     interactionSource = MutableInteractionSource(),
                     indication = null
@@ -89,5 +116,52 @@ fun OpenTradeScreen() {
             }
         }
     }
+
+    if (showInterruptionConfirmationDialog) {
+        CancelTradeDialog(
+            onCancelConfirm = { headerPresenter.onInterruptTrade() },
+            onDismiss = { headerPresenter.onCloseInterruptionConfirmationDialog() },
+            isBuyer = headerPresenter.directionEnum.isBuy,
+            isRejection = tradeCloseType == TradeDetailsHeaderPresenter.TradeCloseType.REJECT
+        )
+    }
+
+    if (showMediationConfirmationDialog) {
+        OpenMediationDialog(
+            onCancelConfirm = headerPresenter::onOpenMediation,
+            onDismiss = headerPresenter::onCloseMediationConfirmationDialog,
+        )
+    }
+
+    if (buyerState1aShowInvalidAddressDialog) {
+        InvalidAddressConfirmationDialog(
+            addressType = buyerState1aAddressFieldType,
+            onConfirm = buyerState1aPresenter::onSend,
+            onDismiss = { buyerState1aPresenter.setShowInvalidAddressDialog(false) },
+        )
+    }
+
+    if (sellerState3aShowInvalidAddressDialog) {
+        InvalidPaymentProofConfirmationDialog(
+            paymentProofType = if (sellerState3aIsLightning) PaymentProofType.LightningPreImage else PaymentProofType.BitcoinTx,
+            onDismiss = { sellerState3aPresenter.setShowInvalidAddressDialog(false) },
+            onConfirm = sellerState3aPresenter::confirmSend,
+        )
+    }
+
+    if (buyerState4ShowCloseTradeDialog) {
+        CloseTradeDialog(
+            onDismiss = buyerState4Presenter::onDismissCloseTrade,
+            onConfirm = buyerState4Presenter::onConfirmCloseTrade,
+        )
+    }
+
+    if (sellerState4ShowCloseTradeDialog) {
+        CloseTradeDialog(
+            onDismiss = sellerState4Presenter::onDismissCloseTrade,
+            onConfirm = sellerState4Presenter::onConfirmCloseTrade,
+        )
+    }
+
 }
 
