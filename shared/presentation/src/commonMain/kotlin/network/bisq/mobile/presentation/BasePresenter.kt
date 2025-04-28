@@ -107,6 +107,7 @@ interface ViewPresenter {
  */
 abstract class BasePresenter(private val rootPresenter: MainPresenter?) : ViewPresenter, Logging {
     companion object {
+        const val EXIT_WARNING_TIMEOUT = 3000L
         var isDemo = false
     }
 
@@ -269,27 +270,42 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) : ViewPr
         }
     }
 
+    // Add a flag to track if we've shown the exit warning
+    private var exitWarningShown = false
+
     override fun onMainBackNavigation() {
         when {
             isAtHome() -> {
-                showSnackbar("Swipe one more time to exit")
-                goBack()
+                if (exitWarningShown) {
+                    rootPresenter?.exitApp()
+                    exitWarningShown = false // Reset after action
+                } else {
+                    // Show warning first time
+                    showSnackbar("Press/Swipe back again to exit")
+                    exitWarningShown = true
+
+                    // Set a timer to reset the warning state after a few seconds
+                    presenterScope.launch {
+                        delay(EXIT_WARNING_TIMEOUT) // 3 seconds timeout for exit warning
+                        exitWarningShown = false
+                    }
+                }
             }
 
             isAtMainScreen() -> {
+                // Reset the exit warning when navigating to home
+                exitWarningShown = false
                 navigateToTab(Routes.TabHome, saveStateOnPopUp = true, shouldLaunchSingleTop = true, shouldRestoreState = false)
             }
 
             else -> {
-                // normal back navigation
+                // Reset the exit warning for normal back navigation
+                exitWarningShown = false
                 goBack()
             }
         }
     }
 
-    //    actual fun exitApp() {
-//        UIApplication.sharedApplication.performSelector(NSSelectorFromString("suspend"))
-//    }
     override fun goBack(): Boolean {
         disableInteractive()
         var wentBack = false
@@ -302,7 +318,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) : ViewPr
                     if (rootNavigator.currentBackStack.value.size > 1) {
                         wentBack = rootNavigator.popBackStack()
                     } else {
-                        exitApp()
+                        rootPresenter?.exitApp()
                     }
                 } else {
                     wentBack = rootNavigator.popBackStack()
@@ -439,6 +455,11 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) : ViewPr
 
     private fun isRoot() = rootPresenter == null
 
+    fun exitApp() {
+        if (isRoot()) {
+            exitApp(view)
+        }
+    }
     open fun navigateToUrl(url: String) {
         rootPresenter?.navigateToUrl(url)
     }
