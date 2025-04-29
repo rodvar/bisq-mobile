@@ -8,11 +8,6 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 class Trade(var tradeId: String = "") : BaseModel() {
-    var makerNetworkId: String = ""
-    var takerNetworkId: String = ""
-    var offerAmount: Double = 0.0
-    var offerCurrency: String = ""
-    var price: Double = 0.0
     var status: String = ""
     var createdAt: Long = Clock.System.now().toEpochMilliseconds()
     var updatedAt: Long = Clock.System.now().toEpochMilliseconds()

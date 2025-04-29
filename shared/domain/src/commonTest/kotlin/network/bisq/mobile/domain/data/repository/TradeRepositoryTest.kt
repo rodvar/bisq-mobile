@@ -42,22 +42,21 @@ class TradeRepositoryTest : KoinTest {
     @Test
     fun testCreateAndFetchById() = runBlocking {
         // Create a trade
-        val trade = createSampleTrade("1", "BTC", "OPEN")
+        val trade = createSampleTrade("1", "OPEN")
         tradeRepository.create(trade)
 
         // Fetch by ID
         val fetchedTrade = tradeRepository.fetchById("1")
         assertNotNull(fetchedTrade)
         assertEquals("1", fetchedTrade.tradeId)
-        assertEquals("BTC", fetchedTrade.offerCurrency)
         assertEquals("OPEN", fetchedTrade.status)
     }
 
     @Test
     fun testFetchAll() = runBlocking {
         // Create multiple trades
-        val trade1 = createSampleTrade("1", "BTC", "OPEN")
-        val trade2 = createSampleTrade("2", "ETH", "CLOSED")
+        val trade1 = createSampleTrade("1", "OPEN")
+        val trade2 = createSampleTrade("2", "CLOSED")
         tradeRepository.create(trade1)
         tradeRepository.create(trade2)
 
@@ -70,13 +69,12 @@ class TradeRepositoryTest : KoinTest {
     @Test
     fun testUpdate() = runBlocking {
         // Create a trade
-        val trade = createSampleTrade("1", "BTC", "OPEN")
+        val trade = createSampleTrade("1", "OPEN")
         tradeRepository.create(trade)
 
         // Update the trade
         val updatedTrade = trade.apply {
             status = "IN_PROGRESS"
-            offerAmount = 2.0
         }
         tradeRepository.update(updatedTrade)
 
@@ -84,13 +82,12 @@ class TradeRepositoryTest : KoinTest {
         val fetchedTrade = tradeRepository.fetchById("1")
         assertNotNull(fetchedTrade)
         assertEquals("IN_PROGRESS", fetchedTrade.status)
-        assertEquals(2.0, fetchedTrade.offerAmount)
     }
 
     @Test
     fun testDelete() = runBlocking {
         // Create a trade
-        val trade = createSampleTrade("1", "BTC", "OPEN")
+        val trade = createSampleTrade("1", "OPEN")
         tradeRepository.create(trade)
 
         // Delete the trade
@@ -104,9 +101,9 @@ class TradeRepositoryTest : KoinTest {
     @Test
     fun testFindByStatus() = runBlocking {
         // Create trades with different statuses
-        val trade1 = createSampleTrade("1", "BTC", "OPEN")
-        val trade2 = createSampleTrade("2", "ETH", "CLOSED")
-        val trade3 = createSampleTrade("3", "LTC", "OPEN")
+        val trade1 = createSampleTrade("1", "OPEN")
+        val trade2 = createSampleTrade("2",  "CLOSED")
+        val trade3 = createSampleTrade("3",  "OPEN")
         tradeRepository.create(trade1)
         tradeRepository.create(trade2)
         tradeRepository.create(trade3)
@@ -118,25 +115,9 @@ class TradeRepositoryTest : KoinTest {
     }
 
     @Test
-    fun testFindByCurrency() = runBlocking {
-        // Create trades with different currencies
-        val trade1 = createSampleTrade("1", "BTC", "OPEN")
-        val trade2 = createSampleTrade("2", "ETH", "CLOSED")
-        val trade3 = createSampleTrade("3", "BTC", "CLOSED")
-        tradeRepository.create(trade1)
-        tradeRepository.create(trade2)
-        tradeRepository.create(trade3)
-
-        // Find by currency
-        val btcTrades = tradeRepository.findByCurrency("BTC")
-        assertEquals(2, btcTrades.size)
-        assertEquals(setOf("1", "3"), btcTrades.map { it.tradeId }.toSet())
-    }
-
-    @Test
     fun testUpdateStatus() = runBlocking {
         // Create a trade
-        val trade = createSampleTrade("1", "BTC", "OPEN")
+        val trade = createSampleTrade("1", "OPEN")
         tradeRepository.create(trade)
 
         // Update status
@@ -157,12 +138,9 @@ class TradeRepositoryTest : KoinTest {
         assertNull(updatedTrade)
     }
 
-    private fun createSampleTrade(id: String, currency: String, status: String): Trade {
+    private fun createSampleTrade(id: String, status: String): Trade {
         return Trade(id).apply {
-            offerCurrency = currency
             this.status = status
-            offerAmount = 1.0
-            price = 50000.0
             createdAt = Clock.System.now().toEpochMilliseconds()
             updatedAt = createdAt
         }

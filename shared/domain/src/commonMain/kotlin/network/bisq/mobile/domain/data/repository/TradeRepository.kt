@@ -30,16 +30,6 @@ open class TradeRepository(
     }
     
     /**
-     * Finds trades by currency.
-     * 
-     * @param currency The currency to filter by
-     * @return List of trades with the specified currency
-     */
-    suspend fun findByCurrency(currency: String): List<Trade> {
-        return fetchAll().filter { it.offerCurrency == currency }
-    }
-    
-    /**
      * Updates the status of a trade.
      * 
      * @param tradeId The ID of the trade to update
