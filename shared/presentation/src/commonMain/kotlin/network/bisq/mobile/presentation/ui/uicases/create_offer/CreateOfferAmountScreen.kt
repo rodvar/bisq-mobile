@@ -21,6 +21,7 @@ import network.bisq.mobile.presentation.ui.components.molecules.RangeAmountSelec
 import network.bisq.mobile.presentation.ui.components.molecules.ToggleTab
 import network.bisq.mobile.presentation.ui.components.organisms.create_offer.ReputationBasedBuyerLimitsPopup
 import network.bisq.mobile.presentation.ui.components.organisms.create_offer.ReputationBasedSellerLimitsPopup
+import network.bisq.mobile.presentation.ui.helpers.AmountValidator
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPresenter.AmountType
 import org.koin.compose.koinInject
@@ -43,6 +44,8 @@ fun CreateOfferAmountSelectorScreen() {
         stepsLength = 6,
         prevOnClick = { presenter.onBack() },
         nextOnClick = { presenter.onNext() },
+        nextDisabled = !presenter.amountValid.collectAsState().value,
+        snackbarHostState = presenter.getSnackState(),
         shouldBlurBg = showLimitPopup,
     ) {
 
@@ -76,32 +79,34 @@ fun CreateOfferAmountSelectorScreen() {
                 quoteCurrencyCode = presenter.quoteCurrencyCode,
                 formattedMinAmount = presenter.formattedMinAmountWithCode,
                 formattedMaxAmount = presenter.formattedMaxAmountWithCode,
-                initialSliderPosition = presenter.fixedAmountSliderPosition,
-                maxSliderValue = presenter.reputationBasedMaxSliderValue,
-                rightMarkerSliderValue = presenter.rightMarkerSliderValue,
-                formattedFiatAmount = presenter.formattedQuoteSideFixedAmount,
-                formattedBtcAmount = presenter.formattedBaseSideFixedAmount,
+                sliderPosition = presenter.fixedAmountSliderPosition.collectAsState().value,
+                maxSliderValue = presenter.reputationBasedMaxSliderValue.collectAsState().value,
+                rightMarkerSliderValue = presenter.rightMarkerSliderValue.collectAsState().value,
+                formattedFiatAmount = presenter.formattedQuoteSideFixedAmount.collectAsState().value,
+                formattedBtcAmount = presenter.formattedBaseSideFixedAmount.collectAsState().value,
                 onSliderValueChange = { presenter.onFixedAmountSliderValueChange(it) },
-                onTextValueChange = { presenter.onFixedAmountTextValueChange(it) }
+                onTextValueChange = { presenter.onFixedAmountTextValueChange(it) },
+                validateTextField = { presenter.validateTextField(it) },
             )
         } else {
             RangeAmountSelector(
                 formattedMinAmount = presenter.formattedMinAmountWithCode,
                 formattedMaxAmount = presenter.formattedMaxAmountWithCode,
                 quoteCurrencyCode = presenter.quoteCurrencyCode,
-                minRangeInitialSliderValue = presenter.minRangeInitialSliderValue,
+                minRangeSliderValue = presenter.minRangeSliderValue.collectAsState().value,
                 onMinRangeSliderValueChange = { presenter.onMinRangeSliderValueChange(it) },
-                maxRangeInitialSliderValue = presenter.maxRangeInitialSliderValue,
+                maxRangeSliderValue = presenter.maxRangeSliderValue.collectAsState().value,
                 onMaxRangeSliderValueChange = { presenter.onMaxRangeSliderValueChange(it) },
-                maxSliderValue = presenter.reputationBasedMaxSliderValue,
-                rightMarkerSliderValue = presenter.rightMarkerSliderValue,
-                formattedQuoteSideMinRangeAmount = presenter.formattedQuoteSideMinRangeAmount,
-                formattedBaseSideMinRangeAmount = presenter.formattedBaseSideMinRangeAmount,
-                formattedQuoteSideMaxRangeAmount = presenter.formattedQuoteSideMaxRangeAmount,
-                formattedBaseSideMaxRangeAmount = presenter.formattedBaseSideMaxRangeAmount,
-
+                maxSliderValue = presenter.reputationBasedMaxSliderValue.collectAsState().value,
+                rightMarkerSliderValue = presenter.rightMarkerSliderValue.collectAsState().value,
+                formattedQuoteSideMinRangeAmount = presenter.formattedQuoteSideMinRangeAmount.collectAsState().value,
+                formattedBaseSideMinRangeAmount = presenter.formattedBaseSideMinRangeAmount.collectAsState().value,
+                formattedQuoteSideMaxRangeAmount = presenter.formattedQuoteSideMaxRangeAmount.collectAsState().value,
+                formattedBaseSideMaxRangeAmount = presenter.formattedBaseSideMaxRangeAmount.collectAsState().value,
                 onMinAmountTextValueChange = { presenter.onMinAmountTextValueChange(it) },
-                onMaxAmountTextValueChange = { presenter.onMaxAmountTextValueChange(it) }
+                onMaxAmountTextValueChange = { presenter.onMaxAmountTextValueChange(it) },
+                validateRangeMinTextField = { presenter.validateTextField(it) },
+                validateRangeMaxTextField = { presenter.validateTextField(it) },
             )
         }
 

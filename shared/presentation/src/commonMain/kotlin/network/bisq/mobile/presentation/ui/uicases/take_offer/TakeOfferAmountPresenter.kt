@@ -2,6 +2,7 @@ package network.bisq.mobile.presentation.ui.uicases.take_offer
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import network.bisq.mobile.domain.toDoubleOrNullLocaleAware
 import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory
@@ -14,6 +15,7 @@ import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.helpers.AmountValidator
 import network.bisq.mobile.presentation.ui.navigation.Routes
 import kotlin.math.roundToLong
 
@@ -23,7 +25,9 @@ class TakeOfferAmountPresenter(
     private val takeOfferPresenter: TakeOfferPresenter
 ) : BasePresenter(mainPresenter) {
 
-    var sliderPosition: Float = 0.5f
+    var _sliderPosition: MutableStateFlow<Float> = MutableStateFlow(0.5f)
+    var sliderPosition: StateFlow<Float> = _sliderPosition
+
     lateinit var quoteCurrencyCode: String
     lateinit var formattedMinAmount: String
     lateinit var formattedMinAmountWithCode: String
@@ -41,7 +45,11 @@ class TakeOfferAmountPresenter(
     private lateinit var quoteAmount: FiatVO
     private lateinit var baseAmount: CoinVO
 
+    private var _amountValid: MutableStateFlow<Boolean> = MutableStateFlow(true)
+    val amountValid: StateFlow<Boolean> = _amountValid
+
     override fun onViewAttached() {
+        super.onViewAttached()
         runCatching {
             takeOfferModel = takeOfferPresenter.takeOfferModel
             val offerListItem = takeOfferModel.offerItemPresentationVO
@@ -57,14 +65,16 @@ class TakeOfferAmountPresenter(
             maxAmount = minOf(maxAmount, rangeAmountSpec.maxAmount)
 
             formattedMinAmount = AmountFormatter.formatAmount(FiatVOFactory.from(minAmount, quoteCurrencyCode))
-            formattedMinAmountWithCode = AmountFormatter.formatAmount(FiatVOFactory.from(minAmount, quoteCurrencyCode), true, true)
-            formattedMaxAmountWithCode = AmountFormatter.formatAmount(FiatVOFactory.from(maxAmount, quoteCurrencyCode), true, true)
+            formattedMinAmountWithCode =
+                AmountFormatter.formatAmount(FiatVOFactory.from(minAmount, quoteCurrencyCode), true, true)
+            formattedMaxAmountWithCode =
+                AmountFormatter.formatAmount(FiatVOFactory.from(maxAmount, quoteCurrencyCode), true, true)
 
             _formattedQuoteAmount.value = offerListItem.formattedQuoteAmount
             _formattedBaseAmount.value = offerListItem.formattedBaseAmount.value
 
-            sliderPosition = 0.5f
-            applySliderValue(sliderPosition)
+            _sliderPosition.value = 0.5f
+            applySliderValue(sliderPosition.value)
         }.onFailure { e ->
             log.e(e) { "Failed to present view" }
         }
@@ -75,7 +85,25 @@ class TakeOfferAmountPresenter(
     }
 
     fun onTextValueChanged(textInput: String) {
-        //todo parse input string and apply it to model
+        val _value = textInput.toDoubleOrNullLocaleAware()
+        if (_value != null) {
+            val valueInFraction = getFractionForFiat(_value)
+            _amountValid.value = valueInFraction in 0f..1f
+            onSliderValueChanged(valueInFraction)
+        } else {
+            _formattedQuoteAmount.value = ""
+            _amountValid.value = false
+        }
+    }
+
+    fun validateTextField(value: String): String? {
+        return AmountValidator.validate(value, minAmount, maxAmount)
+    }
+
+    fun getFractionForFiat(value: Double): Float {
+        val range = (maxAmount - minAmount).takeIf { it != 0L } ?: return 0f
+        val inFraction = ((value * 10000) - minAmount) / range
+        return inFraction.toFloat()
     }
 
     fun onBack() {
@@ -95,7 +123,7 @@ class TakeOfferAmountPresenter(
 
     private fun applySliderValue(sliderPosition: Float) {
         try {
-            this.sliderPosition = sliderPosition
+            _sliderPosition.value = sliderPosition
             val range = maxAmount - minAmount
             val value: Float = minAmount + (sliderPosition * range)
             val roundedFiatValue: Long = (value / 10000.0f).roundToLong() * 10000

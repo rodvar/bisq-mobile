@@ -6,14 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.domain.getDecimalSeparator
 import network.bisq.mobile.presentation.ui.components.atoms.AmountSlider
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.BtcSatsText
@@ -26,19 +23,18 @@ fun BisqAmountSelector(
     quoteCurrencyCode: String,
     formattedMinAmount: String,
     formattedMaxAmount: String,
-    initialSliderPosition: Float,
-    maxSliderValue: StateFlow<Float?> = MutableStateFlow(null),
-    leftMarkerSliderValue: StateFlow<Float?> = MutableStateFlow(null),
-    rightMarkerSliderValue: StateFlow<Float?> = MutableStateFlow(null),
-    formattedFiatAmount: StateFlow<String>,
-    formattedBtcAmount: StateFlow<String>,
+    sliderPosition: Float,
+    maxSliderValue: Float? = null,
+    leftMarkerSliderValue: Float? = null,
+    rightMarkerSliderValue: Float? = null,
+    formattedFiatAmount: String,
+    formattedBtcAmount: String,
     onSliderValueChange: (sliderValue: Float) -> Unit,
-    onTextValueChange: (String) -> Unit
+    onTextValueChange: (String) -> Unit,
+    validateTextField: ((String) -> String?)? = null,
 ) {
-    val formattedFiatAmountValue = formattedFiatAmount.collectAsState().value
-    val formattedBtcAmountValue = formattedBtcAmount.collectAsState().value
-
-    val initialSliderValue = remember { MutableStateFlow(initialSliderPosition) }
+    val decimalSeparator = getDecimalSeparator()
+    val formattedFiatAmountValueInt = formattedFiatAmount.substringBefore(decimalSeparator)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -47,22 +43,27 @@ fun BisqAmountSelector(
     ) {
 
         FiatInputField(
-            text = formattedFiatAmountValue,
+            text = formattedFiatAmountValueInt,
             onValueChanged = { onTextValueChange.invoke(it) },
-            enabled = false, //TODO when setting to true, its not working yet, probably due bidirectional binding issues
-            currency = quoteCurrencyCode
+            currency = quoteCurrencyCode,
+            validation = {
+                if (validateTextField != null) {
+                    return@FiatInputField validateTextField(it)
+                }
+                return@FiatInputField null
+            }
         )
 
-        BtcSatsText(formattedBtcAmountValue)
+        BtcSatsText(formattedBtcAmount)
 
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             BisqGap.V3()
 
             AmountSlider(
-                value = initialSliderValue,
-                maxValue = maxSliderValue,
-                leftMarkerValue = leftMarkerSliderValue,
-                rightMarkerValue = rightMarkerSliderValue,
+                value = sliderPosition,
+                max = maxSliderValue,
+                leftMarker = leftMarkerSliderValue,
+                rightMarker = rightMarkerSliderValue,
                 onValueChange = { onSliderValueChange(it) }
             )
 

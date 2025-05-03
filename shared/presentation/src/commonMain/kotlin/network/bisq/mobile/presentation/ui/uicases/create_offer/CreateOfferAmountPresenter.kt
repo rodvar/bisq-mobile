@@ -1,14 +1,17 @@
 package network.bisq.mobile.presentation.ui.uicases.create_offer
 
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import network.bisq.mobile.domain.toDoubleOrNullLocaleAware
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory.from
+import network.bisq.mobile.domain.data.replicated.common.monetary.MonetaryVOExtensions.asDouble
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOExtensions.toBaseSideMonetary
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
@@ -17,6 +20,7 @@ import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.domain.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.domain.formatters.AmountFormatter
+import network.bisq.mobile.domain.getGroupingSeparator
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import network.bisq.mobile.domain.service.reputation.ReputationServiceFacade
@@ -31,6 +35,7 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.i18n.i18nPlural
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.helpers.AmountValidator
 import network.bisq.mobile.presentation.ui.navigation.Routes
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPresenter.AmountType
 import kotlin.math.roundToLong
@@ -55,10 +60,11 @@ class CreateOfferAmountPresenter(
     val amountType: StateFlow<AmountType> = _amountType
 
     // FIXED_AMOUNT
-    var fixedAmountSliderPosition: Float = 0.5f
+    private val _fixedAmountSliderPosition: MutableStateFlow<Float> = MutableStateFlow(0.5f)
+    val fixedAmountSliderPosition: StateFlow<Float> = _fixedAmountSliderPosition
 
-    private val _reputationBasedMaxValue: MutableStateFlow<Float?> = MutableStateFlow(null)
-    val reputationBasedMaxSliderValue: StateFlow<Float?> = _reputationBasedMaxValue
+    private val _reputationBasedMaxSliderValue: MutableStateFlow<Float?> = MutableStateFlow(null)
+    val reputationBasedMaxSliderValue: StateFlow<Float?> = _reputationBasedMaxSliderValue
 
     private val _rightMarkerValue: MutableStateFlow<Float?> = MutableStateFlow(null)
     val rightMarkerSliderValue: StateFlow<Float?> = _rightMarkerValue
@@ -71,8 +77,10 @@ class CreateOfferAmountPresenter(
     val formattedBaseSideFixedAmount: StateFlow<String> = _formattedBaseSideFixedAmount
 
     // RANGE_AMOUNT
-    var minRangeInitialSliderValue: Float = 0.1f
-    var maxRangeInitialSliderValue: Float = 0.9f
+    private val _minRangeSliderValue: MutableStateFlow<Float> = MutableStateFlow(0.1f)
+    var minRangeSliderValue: StateFlow<Float> = _minRangeSliderValue
+    private val _maxRangeSliderValue: MutableStateFlow<Float> = MutableStateFlow(0.9f)
+    var maxRangeSliderValue: StateFlow<Float> = _maxRangeSliderValue
     private var rangeSliderPosition: ClosedFloatingPointRange<Float> = 0.0f..1.0f
     private val _formattedQuoteSideMinRangeAmount = MutableStateFlow("")
     val formattedQuoteSideMinRangeAmount: StateFlow<String> = _formattedQuoteSideMinRangeAmount
@@ -117,6 +125,9 @@ class CreateOfferAmountPresenter(
         _showLimitPopup.value = newValue
     }
 
+    private var _amountValid: MutableStateFlow<Boolean> = MutableStateFlow(true)
+    val amountValid: StateFlow<Boolean> = _amountValid
+
     override fun onViewAttached() {
         super.onViewAttached()
         createOfferModel = createOfferPresenter.createOfferModel
@@ -137,15 +148,17 @@ class CreateOfferAmountPresenter(
         formattedMaxAmountWithCode =
             AmountFormatter.formatAmount(FiatVOFactory.from(maxAmount, quoteCurrencyCode), true, true)
 
-        fixedAmountSliderPosition = createOfferModel.fixedAmountSliderPosition
-        applyFixedAmountSliderValue(fixedAmountSliderPosition)
+        _fixedAmountSliderPosition.value = createOfferModel.fixedAmountSliderPosition
+        applyFixedAmountSliderValue(fixedAmountSliderPosition.value)
 
         rangeSliderPosition = createOfferModel.rangeSliderPosition
         applyRangeAmountSliderValue(rangeSliderPosition)
+        _minRangeSliderValue.value = rangeSliderPosition.start
+        _maxRangeSliderValue.value = rangeSliderPosition.endInclusive
 
         _isBuy.value = createOfferModel.direction.isBuy
 
-        updateAmountLimitInfo()
+        updateAmountLimitInfo(true)
     }
 
     fun onSelectAmountType(value: AmountType) {
@@ -154,15 +167,39 @@ class CreateOfferAmountPresenter(
     }
 
     fun onFixedAmountTextValueChange(textInput: String) {
-        //todo parse input string and apply it to model
+        val _value = textInput.toDoubleOrNullLocaleAware()
+        if (_value != null) {
+            val valueInFraction = getFractionForFiat(_value)
+            applyFixedAmountSliderValue(valueInFraction)
+            updateAmountLimitInfo()
+        } else {
+            _formattedQuoteSideFixedAmount.value = ""
+            _amountValid.value = false
+        }
     }
 
     fun onMinAmountTextValueChange(textInput: String) {
-        //todo parse input string and apply it to model
+        val _value = textInput.toDoubleOrNullLocaleAware()
+        if (_value != null) {
+            val valueInFraction = getFractionForFiat(_value)
+            applyMinRangeAmountSliderValue(valueInFraction)
+            updateAmountLimitInfo()
+        } else {
+            _formattedQuoteSideMinRangeAmount.value = ""
+            _amountValid.value = false
+        }
     }
 
     fun onMaxAmountTextValueChange(textInput: String) {
-        //todo parse input string and apply it to model
+        val _value = textInput.toDoubleOrNullLocaleAware()
+        if (_value != null) {
+            val valueInFraction = getFractionForFiat(_value)
+            applyMaxRangeAmountSliderValue(valueInFraction)
+            updateAmountLimitInfo()
+        } else {
+            _formattedQuoteSideMaxRangeAmount.value = ""
+            _amountValid.value = false
+        }
     }
 
     fun onFixedAmountSliderValueChange(value: Float) {
@@ -180,11 +217,11 @@ class CreateOfferAmountPresenter(
         updateAmountLimitInfo()
     }
 
-    private fun updateAmountLimitInfo() {
+    private fun updateAmountLimitInfo(firstLoad: Boolean = false) {
         if (isBuy.value) {
             updateBuyersAmountLimitInfo()
         } else {
-            updateSellerAmountLimitInfo()
+            updateSellerAmountLimitInfo(firstLoad)
         }
     }
 
@@ -193,12 +230,18 @@ class CreateOfferAmountPresenter(
         updateAmountLimitInfo()
     }
 
+    fun getFractionForFiat(value: Double): Float {
+        val range = (maxAmount - minAmount).takeIf { it != 0L } ?: return 0f
+        val inFraction = ((value * 10000) - minAmount) / range
+        return inFraction.toFloat()
+    }
+
     private fun updateBuyersAmountLimitInfo() {
         if (!isBuy.value) {
             return
         }
 
-        _reputationBasedMaxValue.value = null
+        _reputationBasedMaxSliderValue.value = null
         val market = createOfferModel.market ?: return
 
         val fixedOrMinAmount: FiatVO = if (amountType.value == AmountType.FIXED_AMOUNT) {
@@ -218,7 +261,8 @@ class CreateOfferAmountPresenter(
             val peersScoreByUserProfileId = withContext(IODispatcher) {
                 getPeersScoreByUserProfileId()
             }
-            val numPotentialTakers = peersScoreByUserProfileId.filter { (_, value) -> withTolerance(value) >= requiredReputation }.count()
+            val numPotentialTakers =
+                peersScoreByUserProfileId.filter { (_, value) -> withTolerance(value) >= requiredReputation }.count()
             _shouldShowWarningIcon.value = numPotentialTakers == 0
 
             val numSellers = "bisqEasy.tradeWizard.amount.buyer.numSellers".i18nPlural(numPotentialTakers)
@@ -231,9 +275,13 @@ class CreateOfferAmountPresenter(
             val range = maxAmount - minAmount
             _rightMarkerValue.value = (highestPossibleAmountWithTolerance - minAmount) / range
 
-            val formattedFixedOrMinAmount = AmountFormatter.formatAmount(fixedOrMinAmount, useLowPrecision = true, withCode = true)
+            val formattedFixedOrMinAmount =
+                AmountFormatter.formatAmount(fixedOrMinAmount, useLowPrecision = true, withCode = true)
             val firstPart: String =
-                "bisqEasy.tradeWizard.amount.buyer.limitInfo.overlay.info.firstPart".i18n(formattedFixedOrMinAmount, requiredReputation)
+                "bisqEasy.tradeWizard.amount.buyer.limitInfo.overlay.info.firstPart".i18n(
+                    formattedFixedOrMinAmount,
+                    requiredReputation
+                )
             val secondPart = if (numPotentialTakers == 0) {
                 "bisqEasy.tradeWizard.amount.buyer.limitInfo.overlay.info.secondPart.noSellers".i18n()
             } else {
@@ -246,38 +294,43 @@ class CreateOfferAmountPresenter(
         }
     }
 
-    private fun updateSellerAmountLimitInfo() {
+    private fun updateSellerAmountLimitInfo(firstLoad: Boolean = false) {
         val range = maxAmount - minAmount
         presenterScope.launch {
-            val userProfile: UserProfileVO? = withContext(IODispatcher) {
+            val userProfile: UserProfileVO = withContext(IODispatcher) {
                 userProfileServiceFacade.getSelectedUserProfile()
-            }
+            } ?: return@launch
 
-            userProfile?.let { profile ->
-                val reputationScore: ReputationScoreVO? = withContext(IODispatcher) {
-                    reputationServiceFacade.getReputation(profile.id).getOrNull()
-                }
-                reputationScore?.let { reputation ->
-                    _requiredReputation.value = reputation.totalScore
-                    val market = createOfferModel.market ?: return@launch
-                    getReputationBasedQuoteSideAmount(
-                        marketPriceServiceFacade,
-                        market,
-                        _requiredReputation.value
-                    )?.let { amount ->
-                        val reputationBasedMaxValue = (amount.value.toFloat() - minAmount) / range
-                        _reputationBasedMaxValue.value = reputationBasedMaxValue
-                        _rightMarkerValue.value = reputationBasedMaxValue
+            val reputationScore: ReputationScoreVO = withContext(IODispatcher) {
+                reputationServiceFacade.getReputation(userProfile.id).getOrNull()
+            } ?: return@launch
 
-                        _formattedReputationBasedMaxAmount.value = AmountFormatter.formatAmount(
-                            amount,
-                            useLowPrecision = true,
-                            withCode = true
-                        )
-                        _amountLimitInfo.value =
-                            "bisqEasy.tradeWizard.amount.seller.limitInfo".i18n(_formattedReputationBasedMaxAmount.value)
-                    }
-                }
+            _requiredReputation.value = reputationScore.totalScore
+            val market = createOfferModel.market ?: return@launch
+
+            val amount = getReputationBasedQuoteSideAmount(
+                marketPriceServiceFacade,
+                market,
+                _requiredReputation.value
+            ) ?: return@launch
+
+            val reputationBasedMaxValue = (amount.value.toFloat() - minAmount) / range
+            _reputationBasedMaxSliderValue.value = reputationBasedMaxValue
+            _rightMarkerValue.value = reputationBasedMaxValue
+
+            _formattedReputationBasedMaxAmount.value = AmountFormatter.formatAmount(
+                amount,
+                useLowPrecision = true,
+                withCode = true
+            )
+            _amountLimitInfo.value =
+                "bisqEasy.tradeWizard.amount.seller.limitInfo".i18n(_formattedReputationBasedMaxAmount.value)
+
+            if (firstLoad) {
+                // Reset values based on reputation
+                applyFixedAmountSliderValue(reputationBasedMaxValue)
+                _minRangeSliderValue.value = 0.0F
+                applyRangeAmountSliderValue(0.0F..reputationBasedMaxValue)
             }
         }
     }
@@ -288,6 +341,10 @@ class CreateOfferAmountPresenter(
     }
 
     fun onNext() {
+        if (quoteSideMaxRangeAmount.asDouble() < quoteSideMinRangeAmount.asDouble()) {
+            showSnackbar("Min should be lesser than Max") // TODO:i18n
+            return
+        }
         commitToModel()
         navigateTo(Routes.CreateOfferPrice)
     }
@@ -304,8 +361,23 @@ class CreateOfferAmountPresenter(
         enableInteractive()
     }
 
+    fun validateTextField(value: String): String? {
+        val maxRepBasedValue = if (reputationBasedMaxSliderValue.value == null)
+            0L
+        else
+            sliderValueToAmount(reputationBasedMaxSliderValue.value!!)
+        val maxAmountForValiation = if (maxRepBasedValue == 0L)
+            maxAmount
+        else
+            minOf(maxAmount, maxRepBasedValue)
+        val validateError = AmountValidator.validate(value, minAmount, maxAmountForValiation)
+        _amountValid.value = validateError == null
+        return validateError
+    }
+
     private suspend fun getNumPotentialTakers(requiredReputationScore: Long): Int {
-        return getPeersScoreByUserProfileId().filter { (_, value) -> withTolerance(value) >= requiredReputationScore }.count()
+        return getPeersScoreByUserProfileId().filter { (_, value) -> withTolerance(value) >= requiredReputationScore }
+            .count()
     }
 
     private suspend fun getPeersScoreByUserProfileId(): Map<String, Long> {
@@ -316,17 +388,20 @@ class CreateOfferAmountPresenter(
     }
 
     private fun applyRangeAmountSliderValue(rangeSliderPosition: ClosedFloatingPointRange<Float>) {
+        val separator = getGroupingSeparator().toString()
         this.rangeSliderPosition = rangeSliderPosition
 
         val range = maxAmount - minAmount
         priceQuote = createOfferPresenter.getMostRecentPriceQuote(createOfferModel.market!!)
 
-        val min = rangeSliderPosition.start;
+        val min = rangeSliderPosition.start
         val minValue: Float = minAmount + (min * range)
         val roundedMinQuoteValue: Long = (minValue / 10000f).roundToLong() * 10000
 
         quoteSideMinRangeAmount = FiatVOFactory.from(roundedMinQuoteValue, quoteCurrencyCode)
-        _formattedQuoteSideMinRangeAmount.value = AmountFormatter.formatAmount(quoteSideMinRangeAmount)
+        // iOS specific Fix: Removing the grouping separator (,), to keep displayed value, typed valid in sync,
+        // to avoid BasicTextField text reset issue
+        _formattedQuoteSideMinRangeAmount.value = AmountFormatter.formatAmount(quoteSideMinRangeAmount).replace(separator, "")
 
         baseSideMinRangeAmount =
             priceQuote.toBaseSideMonetary(quoteSideMinRangeAmount) as CoinVO
@@ -337,7 +412,7 @@ class CreateOfferAmountPresenter(
         val roundedMaxQuoteValue: Long = (maxValue / 10000f).roundToLong() * 10000
 
         quoteSideMaxRangeAmount = FiatVOFactory.from(roundedMaxQuoteValue, quoteCurrencyCode)
-        _formattedQuoteSideMaxRangeAmount.value = AmountFormatter.formatAmount(quoteSideMaxRangeAmount)
+        _formattedQuoteSideMaxRangeAmount.value = AmountFormatter.formatAmount(quoteSideMaxRangeAmount).replace(separator, "")
 
         baseSideMaxRangeAmount =
             priceQuote.toBaseSideMonetary(quoteSideMaxRangeAmount) as CoinVO
@@ -346,27 +421,33 @@ class CreateOfferAmountPresenter(
 
 
     private fun applyMinRangeAmountSliderValue(amount: Float) {
-        minRangeInitialSliderValue = amount
-        quoteSideMinRangeAmount = FiatVOFactory.from(sliderValueToAmount(minRangeInitialSliderValue), quoteCurrencyCode)
-        _formattedQuoteSideMinRangeAmount.value = AmountFormatter.formatAmount(quoteSideMinRangeAmount)
+        val separator = getGroupingSeparator().toString()
+        _minRangeSliderValue.value = amount
+        quoteSideMinRangeAmount =
+            FiatVOFactory.from(sliderValueToAmount(minRangeSliderValue.value), quoteCurrencyCode)
+        _formattedQuoteSideMinRangeAmount.value = AmountFormatter.formatAmount(quoteSideMinRangeAmount).replace(separator, "")
         priceQuote = createOfferPresenter.getMostRecentPriceQuote(createOfferModel.market!!)
         baseSideMinRangeAmount = priceQuote.toBaseSideMonetary(quoteSideMinRangeAmount) as CoinVO
         _formattedBaseSideMinRangeAmount.value = AmountFormatter.formatAmount(baseSideMinRangeAmount, false)
     }
 
     private fun applyMaxRangeAmountSliderValue(amount: Float) {
-        maxRangeInitialSliderValue = amount
-        quoteSideMaxRangeAmount = FiatVOFactory.from(sliderValueToAmount(maxRangeInitialSliderValue), quoteCurrencyCode)
-        _formattedQuoteSideMaxRangeAmount.value = AmountFormatter.formatAmount(quoteSideMaxRangeAmount)
+        val separator = getGroupingSeparator().toString()
+        _maxRangeSliderValue.value = amount
+        quoteSideMaxRangeAmount =
+            FiatVOFactory.from(sliderValueToAmount(maxRangeSliderValue.value), quoteCurrencyCode)
+        _formattedQuoteSideMaxRangeAmount.value = AmountFormatter.formatAmount(quoteSideMaxRangeAmount).replace(separator, "")
         priceQuote = createOfferPresenter.getMostRecentPriceQuote(createOfferModel.market!!)
         baseSideMaxRangeAmount = priceQuote.toBaseSideMonetary(quoteSideMaxRangeAmount) as CoinVO
         _formattedBaseSideMaxRangeAmount.value = AmountFormatter.formatAmount(baseSideMaxRangeAmount, false)
     }
 
     private fun applyFixedAmountSliderValue(amount: Float) {
-        fixedAmountSliderPosition = amount
-        quoteSideFixedAmount = FiatVOFactory.from(sliderValueToAmount(fixedAmountSliderPosition), quoteCurrencyCode)
-        _formattedQuoteSideFixedAmount.value = AmountFormatter.formatAmount(quoteSideFixedAmount)
+        val separator = getGroupingSeparator().toString()
+        _fixedAmountSliderPosition.value = amount
+        quoteSideFixedAmount =
+            FiatVOFactory.from(sliderValueToAmount(fixedAmountSliderPosition.value), quoteCurrencyCode)
+        _formattedQuoteSideFixedAmount.value = AmountFormatter.formatAmount(quoteSideFixedAmount).replace(separator, "")
         priceQuote = createOfferPresenter.getMostRecentPriceQuote(createOfferModel.market!!)
         baseSideFixedAmount = priceQuote.toBaseSideMonetary(quoteSideFixedAmount) as CoinVO
         _formattedBaseSideFixedAmount.value = AmountFormatter.formatAmount(baseSideFixedAmount, false)

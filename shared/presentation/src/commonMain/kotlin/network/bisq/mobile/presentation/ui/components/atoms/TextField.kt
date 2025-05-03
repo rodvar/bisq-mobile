@@ -58,6 +58,7 @@ fun BisqTextField(
     isTextArea: Boolean = false,
     keyboardType: KeyboardType = KeyboardType.Unspecified,
     paddingValues: PaddingValues = PaddingValues(all = BisqUIConstants.ScreenPadding),
+    maxLength: Int = 0,
     disabled: Boolean = false,
     color: Color = BisqTheme.colors.light_grey20,
     showCopy: Boolean = false,
@@ -67,6 +68,11 @@ fun BisqTextField(
     validation: ((String) -> String?)? = null,
     numberWithTwoDecimals: Boolean = false,
     modifier: Modifier = Modifier,
+    textStyle: TextStyle = TextStyle(
+        color = color,
+        fontSize = 18.sp,
+        textDecoration = TextDecoration.None
+    ),
 ) {
     var hasInteracted by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
@@ -128,7 +134,7 @@ fun BisqTextField(
             validationError = validation?.invoke(value)
         }
     }
-    
+
     // Re-validate, whenever validation function itself changes
     // Applicable in cases, where the validation() changes based on
     // change in other parameters like BitcoinLnAddressField::type
@@ -183,6 +189,9 @@ fun BisqTextField(
                     if (valueSuffix != null && cleanValue.endsWith(valueSuffix)) {
                         cleanValue = cleanValue.removeSuffix(valueSuffix)
                     }
+                    if (maxLength != 0 && cleanValue.length > maxLength) {
+                        return@BasicTextField
+                    }
                     if (numberWithTwoDecimals) {
                         val separator = getDecimalSeparator().toString()
                         val escapedSeparator = Regex.escape(separator)
@@ -227,17 +236,13 @@ fun BisqTextField(
                 singleLine = !isTextArea,
                 maxLines = if (isTextArea) 4 else 1,
                 minLines = if (isTextArea) 2 else 1,
-                textStyle = TextStyle(
-                    color = color,
-                    fontSize = 18.sp,
-                    textDecoration = TextDecoration.None
-                ),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = keyboardType,
                     imeAction = imeAction
                 ),
                 cursorBrush = SolidColor(BisqTheme.colors.primary),
                 enabled = !disabled,
+                textStyle = textStyle,
                 decorationBox = { innerTextField ->
 
                     Row(

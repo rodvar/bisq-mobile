@@ -1,31 +1,13 @@
 package network.bisq.mobile.presentation.ui.components.molecules.inputfield
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -33,76 +15,82 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
+import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 
 @Composable
 fun FiatInputField(
     text: String,
     onValueChanged: (String) -> Unit = {},
-    label: String = "",
     enabled: Boolean = true,
     currency: String,
     paddingValues: PaddingValues = PaddingValues(all = 0.dp),
-    indicatorColor: Color = BisqTheme.colors.primary,
+    textAlign: TextAlign = TextAlign.End,
+    validation: ((String) -> String?)? = null,
+    smallFont: Boolean = false
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    var validationError: String? by remember { mutableStateOf(null) }
+    val maxLength = 8
 
-    val keyboardController = LocalSoftwareKeyboardController.current
+    // This triggers double validation, when user types value in the field
+    // But is necessary to re-validate when value changes from outside.
+    LaunchedEffect(text) {
+        if (validation != null) {
+            validationError = validation(text)
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(paddingValues)
-            .clip(shape = RoundedCornerShape(6.dp))
+            .clip(shape = RoundedCornerShape(BisqUIConstants.ScreenPaddingHalf))
             .background(color = BisqTheme.colors.dark_grey40)
-            .drawBehind {
-                if (isFocused) {
-                    drawLine(
-                        color = indicatorColor,
-                        start = Offset(0f, size.height),
-                        end = Offset(size.width, size.height),
-                        strokeWidth = 4.dp.toPx()
-                    )
-                }
-            }
+            .border(
+                1.dp,
+                if (validationError == null) BisqTheme.colors.transparent else BisqTheme.colors.danger,
+                RoundedCornerShape(BisqUIConstants.ScreenPaddingHalf)
+            )
     ) {
-        BasicTextField(
+        val fontSize = if (smallFont) {
+            if (text.length < 6)
+                24.sp
+            else if (text.length < 8)
+                20.sp
+            else
+                16.sp
+        } else {
+            32.sp
+        }
+        BisqTextField(
             value = text,
-            onValueChange = onValueChanged,
-            enabled = enabled,
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth()
-                .onFocusChanged { focusState ->
-                    isFocused = focusState.isFocused
-                },
+            onValueChange = { newValue, isValid ->
+                onValueChanged(newValue)
+            },
+            keyboardType = KeyboardType.Number,
+            rightSuffix = {
+                if (smallFont)
+                    BisqText.h6Regular(currency, modifier = Modifier.offset(y = (-2).dp))
+                else
+                    BisqText.h5Regular(currency, modifier = Modifier.offset(y = (-2).dp))
+            },
+            indicatorColor = BisqTheme.colors.transparent,
             textStyle = TextStyle(
                 color = Color.White,
-                fontSize = 32.sp,
-                textAlign = TextAlign.End,
+                fontSize = fontSize,
+                textAlign = textAlign,
                 textDecoration = TextDecoration.None
             ),
-            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-            keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
-            cursorBrush = SolidColor(BisqTheme.colors.primary),
-            decorationBox = { innerTextField ->
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    if (label.isNotEmpty()) {
-                        BisqText.h5RegularGrey(
-                            text = label,
-                            modifier = Modifier.align(Alignment.CenterVertically)
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        innerTextField()
-                    }
-
-                    BisqText.h5Regular(currency, modifier = Modifier.offset(y = (-2).dp))
+            validation = {
+                if (validation != null) {
+                    validationError = validation(it)
+                    return@BisqTextField null
                 }
-            }
+                return@BisqTextField null
+            },
+            maxLength = maxLength,
+            disabled = !enabled,
         )
     }
 }
