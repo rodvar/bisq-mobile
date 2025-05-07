@@ -1,6 +1,5 @@
 package network.bisq.mobile.presentation.ui.uicases.create_offer
 
-import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,14 +14,12 @@ import network.bisq.mobile.domain.data.replicated.common.monetary.MonetaryVOExte
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOExtensions.toBaseSideMonetary
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
-import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.domain.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.domain.formatters.AmountFormatter
 import network.bisq.mobile.domain.getGroupingSeparator
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
-import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import network.bisq.mobile.domain.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits
@@ -47,10 +44,7 @@ class CreateOfferAmountPresenter(
     private val createOfferPresenter: CreateOfferPresenter,
     private val userProfileServiceFacade: UserProfileServiceFacade,
     private val reputationServiceFacade: ReputationServiceFacade,
-    private val offersServiceFacade: OffersServiceFacade,
 ) : BasePresenter(mainPresenter) {
-
-    val offerbookListItems: StateFlow<List<OfferItemPresentationModel>> = offersServiceFacade.offerbookListItems
 
     lateinit var headline: String
     lateinit var quoteCurrencyCode: String
@@ -128,6 +122,7 @@ class CreateOfferAmountPresenter(
     private var _amountValid: MutableStateFlow<Boolean> = MutableStateFlow(true)
     val amountValid: StateFlow<Boolean> = _amountValid
 
+    // Life cycle
     override fun onViewAttached() {
         super.onViewAttached()
         createOfferModel = createOfferPresenter.createOfferModel
@@ -161,45 +156,34 @@ class CreateOfferAmountPresenter(
         updateAmountLimitInfo(true)
     }
 
+    // Handlers
     fun onSelectAmountType(value: AmountType) {
         _amountType.value = value
         updateAmountLimitInfo()
     }
 
     fun onFixedAmountTextValueChange(textInput: String) {
-        val _value = textInput.toDoubleOrNullLocaleAware()
-        if (_value != null) {
-            val valueInFraction = getFractionForFiat(_value)
-            applyFixedAmountSliderValue(valueInFraction)
-            updateAmountLimitInfo()
-        } else {
-            _formattedQuoteSideFixedAmount.value = ""
-            _amountValid.value = false
-        }
+        handleAmountTextChange(
+            textInput,
+            { valueInFraction -> applyFixedAmountSliderValue(valueInFraction) },
+            { _formattedQuoteSideFixedAmount.value = "" }
+        )
     }
 
     fun onMinAmountTextValueChange(textInput: String) {
-        val _value = textInput.toDoubleOrNullLocaleAware()
-        if (_value != null) {
-            val valueInFraction = getFractionForFiat(_value)
-            applyMinRangeAmountSliderValue(valueInFraction)
-            updateAmountLimitInfo()
-        } else {
-            _formattedQuoteSideMinRangeAmount.value = ""
-            _amountValid.value = false
-        }
+        handleAmountTextChange(
+            textInput,
+            { valueInFraction -> applyMinRangeAmountSliderValue(valueInFraction) },
+            { _formattedQuoteSideMinRangeAmount.value = "" }
+        )
     }
 
     fun onMaxAmountTextValueChange(textInput: String) {
-        val _value = textInput.toDoubleOrNullLocaleAware()
-        if (_value != null) {
-            val valueInFraction = getFractionForFiat(_value)
-            applyMaxRangeAmountSliderValue(valueInFraction)
-            updateAmountLimitInfo()
-        } else {
-            _formattedQuoteSideMaxRangeAmount.value = ""
-            _amountValid.value = false
-        }
+        handleAmountTextChange(
+            textInput,
+            { valueInFraction -> applyMaxRangeAmountSliderValue(valueInFraction) },
+            { _formattedQuoteSideMaxRangeAmount.value = "" }
+        )
     }
 
     fun onFixedAmountSliderValueChange(value: Float) {
@@ -217,6 +201,52 @@ class CreateOfferAmountPresenter(
         updateAmountLimitInfo()
     }
 
+    fun onRangeAmountSliderChanged(value: ClosedFloatingPointRange<Float>) {
+        applyRangeAmountSliderValue(value)
+        updateAmountLimitInfo()
+    }
+
+    fun onBack() {
+        commitToModel()
+        navigateBack()
+    }
+
+    fun onNext() {
+        if (quoteSideMaxRangeAmount.asDouble() < quoteSideMinRangeAmount.asDouble()) {
+            showSnackbar("Min should be lesser than Max") // TODO:i18n
+            return
+        }
+        commitToModel()
+        navigateTo(Routes.CreateOfferPrice)
+    }
+
+    fun navigateToReputation() {
+        disableInteractive()
+        navigateToUrl("https://bisq.wiki/Reputation")
+        enableInteractive()
+    }
+
+    fun navigateToBuildReputation() {
+        disableInteractive()
+        navigateToUrl("https://bisq.wiki/Reputation#How_to_build_reputation")
+        enableInteractive()
+    }
+
+    fun validateTextField(value: String): String? {
+        val maxRepBasedValue = if (reputationBasedMaxSliderValue.value == null)
+            0L
+        else
+            sliderValueToAmount(reputationBasedMaxSliderValue.value!!)
+        val maxAmountForValiation = if (maxRepBasedValue == 0L)
+            maxAmount
+        else
+            minOf(maxAmount, maxRepBasedValue)
+        val validateError = AmountValidator.validate(value, minAmount, maxAmountForValiation)
+        _amountValid.value = validateError == null
+        return validateError
+    }
+
+    // private
     private fun updateAmountLimitInfo(firstLoad: Boolean = false) {
         if (isBuy.value) {
             updateBuyersAmountLimitInfo()
@@ -225,15 +255,20 @@ class CreateOfferAmountPresenter(
         }
     }
 
-    fun onRangeAmountSliderChanged(value: ClosedFloatingPointRange<Float>) {
-        applyRangeAmountSliderValue(value)
-        updateAmountLimitInfo()
-    }
-
-    fun getFractionForFiat(value: Double): Float {
-        val range = (maxAmount - minAmount).takeIf { it != 0L } ?: return 0f
-        val inFraction = ((value * 10000) - minAmount) / range
-        return inFraction.toFloat()
+    private fun handleAmountTextChange(
+        textInput: String,
+        onValueParsed: (Float) -> Unit,
+        onInvalidInput: () -> Unit
+    ) {
+        val _value = textInput.toDoubleOrNullLocaleAware()
+        if (_value != null) {
+            val valueInFraction = getFractionForFiat(_value)
+            onValueParsed(valueInFraction)
+            updateAmountLimitInfo()
+        } else {
+            onInvalidInput()
+            _amountValid.value = false
+        }
     }
 
     private fun updateBuyersAmountLimitInfo() {
@@ -335,46 +370,6 @@ class CreateOfferAmountPresenter(
         }
     }
 
-    fun onBack() {
-        commitToModel()
-        navigateBack()
-    }
-
-    fun onNext() {
-        if (quoteSideMaxRangeAmount.asDouble() < quoteSideMinRangeAmount.asDouble()) {
-            showSnackbar("Min should be lesser than Max") // TODO:i18n
-            return
-        }
-        commitToModel()
-        navigateTo(Routes.CreateOfferPrice)
-    }
-
-    fun navigateToReputation() {
-        disableInteractive()
-        navigateToUrl("https://bisq.wiki/Reputation")
-        enableInteractive()
-    }
-
-    fun navigateToBuildReputation() {
-        disableInteractive()
-        navigateToUrl("https://bisq.wiki/Reputation#How_to_build_reputation")
-        enableInteractive()
-    }
-
-    fun validateTextField(value: String): String? {
-        val maxRepBasedValue = if (reputationBasedMaxSliderValue.value == null)
-            0L
-        else
-            sliderValueToAmount(reputationBasedMaxSliderValue.value!!)
-        val maxAmountForValiation = if (maxRepBasedValue == 0L)
-            maxAmount
-        else
-            minOf(maxAmount, maxRepBasedValue)
-        val validateError = AmountValidator.validate(value, minAmount, maxAmountForValiation)
-        _amountValid.value = validateError == null
-        return validateError
-    }
-
     private suspend fun getNumPotentialTakers(requiredReputationScore: Long): Int {
         return getPeersScoreByUserProfileId().filter { (_, value) -> withTolerance(value) >= requiredReputationScore }
             .count()
@@ -401,7 +396,8 @@ class CreateOfferAmountPresenter(
         quoteSideMinRangeAmount = FiatVOFactory.from(roundedMinQuoteValue, quoteCurrencyCode)
         // iOS specific Fix: Removing the grouping separator (,), to keep displayed value, typed valid in sync,
         // to avoid BasicTextField text reset issue
-        _formattedQuoteSideMinRangeAmount.value = AmountFormatter.formatAmount(quoteSideMinRangeAmount).replace(separator, "")
+        _formattedQuoteSideMinRangeAmount.value =
+            AmountFormatter.formatAmount(quoteSideMinRangeAmount).replace(separator, "")
 
         baseSideMinRangeAmount =
             priceQuote.toBaseSideMonetary(quoteSideMinRangeAmount) as CoinVO
@@ -412,7 +408,8 @@ class CreateOfferAmountPresenter(
         val roundedMaxQuoteValue: Long = (maxValue / 10000f).roundToLong() * 10000
 
         quoteSideMaxRangeAmount = FiatVOFactory.from(roundedMaxQuoteValue, quoteCurrencyCode)
-        _formattedQuoteSideMaxRangeAmount.value = AmountFormatter.formatAmount(quoteSideMaxRangeAmount).replace(separator, "")
+        _formattedQuoteSideMaxRangeAmount.value =
+            AmountFormatter.formatAmount(quoteSideMaxRangeAmount).replace(separator, "")
 
         baseSideMaxRangeAmount =
             priceQuote.toBaseSideMonetary(quoteSideMaxRangeAmount) as CoinVO
@@ -425,7 +422,8 @@ class CreateOfferAmountPresenter(
         _minRangeSliderValue.value = amount
         quoteSideMinRangeAmount =
             FiatVOFactory.from(sliderValueToAmount(minRangeSliderValue.value), quoteCurrencyCode)
-        _formattedQuoteSideMinRangeAmount.value = AmountFormatter.formatAmount(quoteSideMinRangeAmount).replace(separator, "")
+        _formattedQuoteSideMinRangeAmount.value =
+            AmountFormatter.formatAmount(quoteSideMinRangeAmount).replace(separator, "")
         priceQuote = createOfferPresenter.getMostRecentPriceQuote(createOfferModel.market!!)
         baseSideMinRangeAmount = priceQuote.toBaseSideMonetary(quoteSideMinRangeAmount) as CoinVO
         _formattedBaseSideMinRangeAmount.value = AmountFormatter.formatAmount(baseSideMinRangeAmount, false)
@@ -436,7 +434,8 @@ class CreateOfferAmountPresenter(
         _maxRangeSliderValue.value = amount
         quoteSideMaxRangeAmount =
             FiatVOFactory.from(sliderValueToAmount(maxRangeSliderValue.value), quoteCurrencyCode)
-        _formattedQuoteSideMaxRangeAmount.value = AmountFormatter.formatAmount(quoteSideMaxRangeAmount).replace(separator, "")
+        _formattedQuoteSideMaxRangeAmount.value =
+            AmountFormatter.formatAmount(quoteSideMaxRangeAmount).replace(separator, "")
         priceQuote = createOfferPresenter.getMostRecentPriceQuote(createOfferModel.market!!)
         baseSideMaxRangeAmount = priceQuote.toBaseSideMonetary(quoteSideMaxRangeAmount) as CoinVO
         _formattedBaseSideMaxRangeAmount.value = AmountFormatter.formatAmount(baseSideMaxRangeAmount, false)
@@ -457,6 +456,12 @@ class CreateOfferAmountPresenter(
         val range = maxAmount - minAmount
         val value: Float = minAmount + (amount * range)
         return (value / 10000f).roundToLong() * 10000
+    }
+
+    private fun getFractionForFiat(value: Double): Float {
+        val range = (maxAmount - minAmount).takeIf { it != 0L } ?: return 0f
+        val inFraction = ((value * 10000) - minAmount) / range
+        return inFraction.toFloat()
     }
 
     private fun commitToModel() {
