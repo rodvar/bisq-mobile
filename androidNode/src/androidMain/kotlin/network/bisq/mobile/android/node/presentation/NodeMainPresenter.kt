@@ -52,10 +52,23 @@ class NodeMainPresenter(
 
     override fun onViewAttached() {
         super.onViewAttached()
-        log.d { "Make sure the service is initialized" }
-
         runCatching {
-            if (!applicationServiceCreated) {
+            if (applicationServiceCreated) {
+                log.d { "Application service already created, ensuring its activated" }
+                settingsServiceFacade.activate()
+                offersServiceFacade.activate()
+                marketPriceServiceFacade.activate()
+                tradesServiceFacade.activate()
+                tradeChatMessagesServiceFacade.activate()
+                languageServiceFacade.activate()
+
+                accountsServiceFacade.activate()
+                explorerServiceFacade.activate()
+                mediationServiceFacade.activate()
+                reputationServiceFacade.activate()
+                userProfileServiceFacade.activate()
+            } else {
+                log.d { "Application service not created, creating.." }
                 val filesDirsPath = (view as Activity).filesDir.toPath()
                 val applicationContext = (view as Activity).applicationContext
                 val applicationService =
@@ -92,19 +105,7 @@ class NodeMainPresenter(
                     }
                 applicationServiceCreated = true
                 connectivityService.startMonitoring()
-            } else {
-                settingsServiceFacade.activate()
-                offersServiceFacade.activate()
-                marketPriceServiceFacade.activate()
-                tradesServiceFacade.activate()
-                tradeChatMessagesServiceFacade.activate()
-                languageServiceFacade.activate()
-
-                accountsServiceFacade.activate()
-                explorerServiceFacade.activate()
-                mediationServiceFacade.activate()
-                reputationServiceFacade.activate()
-                userProfileServiceFacade.activate()
+                log.d { "Application service created, monitoring connectivity.." }
             }
         }.onFailure { e ->
             // TODO give user feedback (we could have a general error screen covering usual
@@ -119,11 +120,40 @@ class NodeMainPresenter(
     }
 
     override fun onDestroying() {
-//        TODO for notifications to work even if the app gets killed this needs to be commented out
-//        but it can't be done yet because of lack of support in bisq2 jars
-        provider.applicationService.onStop()
-        applicationServiceCreated = false
+        log.i { "Destroying NodeMainPresenter" }
+
+        if (applicationServiceCreated) {
+            try {
+                log.i { "Stopping application service, ensuring persistent services stop" }
+                provider.applicationService.shutdown().join()
+                stopPersistentServices()
+                applicationServiceCreated = false
+                log.i { "Application service stopped successfully" }
+            } catch (e: Exception) {
+                log.e("Error stopping application service", e)
+            }
+        }
+        
         super.onDestroying()
+    }
+
+    private fun stopPersistentServices() {
+        try {
+            // Explicitly stop services that might continue running
+            val networkService = provider.applicationService.networkService
+            networkService.shutdown().join()
+            
+            // Stop UserIdentityService
+            provider.applicationService.identityService.shutdown().join()
+            // TODO need to implement ? Stop AuthenticatedDataStorageService (part of persistence service)
+//            provider.applicationService.persistenceService.shutdown().join()
+            // Stop PeerExchangeService (part of network service)
+            // This is already covered by networkService.shutdown() but we'll be explicit
+            
+            log.i { "Persistent services stopped successfully" }
+        } catch (e: Exception) {
+            log.e("Error stopping persistent services", e)
+        }
     }
 
     private fun deactivateServices() {
