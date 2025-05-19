@@ -1,0 +1,106 @@
+# Detailed Test Scenarios
+
+## Trusted Node Connection Tests
+
+### Connection Setup
+1. Enter valid WebSocket URL (ws://hostname:port)
+2. Verify connection status changes to "Connected"
+3. Verify node version is displayed
+4. Verify compatibility check passes
+
+### Error Handling
+1. Enter invalid URL format
+2. Verify validation error is displayed
+3. Enter valid URL but to non-existent server
+4. Verify appropriate timeout and error message
+5. Connect to incompatible API version
+6. Verify version incompatibility message
+
+### Connection Persistence
+1. Connect to trusted node
+2. Force close the app
+3. Reopen the app
+4. Verify connection is re-established automatically
+
+## Reputation System Tests
+
+### Account Age Import
+1. Navigate to reputation section
+2. Select "Import Account Age"
+3. Follow the 4-step process
+4. Copy Profile ID to Bisq 1
+5. Generate JSON data in Bisq 1
+6. Paste JSON data in mobile app
+7. Verify account age is imported successfully
+
+### Signed Witness Import
+1. Navigate to reputation section
+2. Select "Import Signed Witness"
+3. Follow the 4-step process
+4. Copy Profile ID to Bisq 1
+5. Generate signed witness JSON in Bisq 1
+6. Paste JSON data in mobile app
+7. Verify signed witness is imported successfully
+
+## Notification Service Tests
+
+### Background Service
+1. Install androidNode app
+2. Connect to trusted node
+3. Reboot device
+4. Verify service starts automatically
+5. Verify notifications are received without opening app
+
+### Notification Preferences
+1. Navigate to settings
+2. Change notification preferences
+3. Trigger events that would cause notifications
+4. Verify notifications respect user preferences
+
+## Internationalization Tests
+
+### Language Switching
+1. Navigate to settings
+2. Change language to each supported language
+3. Verify UI updates immediately
+4. Verify all text is translated
+5. Verify no missing translations or placeholder text
+
+### Special Character Handling
+1. Switch to languages with special characters (Russian, etc.)
+2. Verify special characters display correctly
+3. Enter text with special characters
+4. Verify input and display work correctly
+
+## WebSocket Client Tests
+
+### Connection Stability
+1. Connect to trusted node
+2. Put device in airplane mode
+3. Wait 30 seconds
+4. Disable airplane mode
+5. Verify connection re-establishes automatically
+
+### Message Processing
+1. Connect to trusted node
+2. Send various types of messages
+3. Verify all message types are processed correctly
+4. Verify UI updates based on message content
+
+## Boot Completed Tests (androidNode)
+
+### Service Auto-Start
+1. Install androidNode app
+2. Connect to trusted node
+3. Reboot device
+4. Verify service starts automatically without user interaction
+5. Verify connection is established
+6. Verify notifications work correctly
+
+### Battery Optimization
+1. Enable battery optimization for app
+2. Reboot device
+3. Verify service behavior with optimization
+4. Disable battery optimization
+5. Reboot device
+6. Verify improved service reliability

@@ -1,0 +1,156 @@
+# Bisq Mobile Test Plan
+
+## 1. Installation & Setup
+- [ ] androidClient installs successfully on Android 11+ devices
+- [ ] androidNode installs successfully on Android 11+ devices
+- [ ] iosClient installs successfully on iOS 16+ devices
+- [ ] App icon displays correctly on all platforms
+- [ ] First-time launch shows proper onboarding screens
+
+## 2. Trusted Node Connection
+- [ ] Can connect to local trusted node (ws://10.0.2.2:8090)
+- [ ] Can connect to remote trusted node in cloud VM
+- [ ] Connection status is correctly displayed
+- [ ] Error messages are shown for invalid URLs
+- [ ] Error messages are shown for incompatible API versions
+- [ ] Connection persists after app restart
+- [ ] Reconnection works after network interruption
+- [ ] Connection timeout is handled gracefully
+
+## 3. Profile Creation & Management
+- [ ] Can create a new profile with nickname
+- [ ] Profile ID is generated and displayed correctly
+- [ ] Can view profile details
+- [ ] Can edit profile nickname
+- [ ] Profile data persists across app restarts
+- [ ] Profile image/avatar can be set (if implemented)
+
+## 4. Navigation & UI
+- [ ] Bottom navigation works correctly
+- [ ] Screen transitions are smooth
+- [ ] Back button behavior is consistent
+- [ ] UI is responsive on different screen sizes
+- [ ] Dark/light mode switching works correctly (if implemented)
+- [ ] UI elements follow Bisq design system
+- [ ] Accessibility features work correctly
+
+## 5. Localization & Internationalization
+- [ ] English text displays correctly
+- [ ] German text displays correctly
+- [ ] Spanish text displays correctly
+- [ ] Italian text displays correctly
+- [ ] Portuguese (Brazil) text displays correctly
+- [ ] Russian text displays correctly
+- [ ] Pidgin English (pcm) text displays correctly
+- [ ] Afrikaans (af_ZA) text displays correctly
+- [ ] Czech text displays correctly
+- [ ] RTL languages display correctly (if implemented)
+- [ ] Date and number formats follow locale conventions
+
+## 6. Reputation System
+- [ ] Account age import from Bisq 1 works correctly
+- [ ] Signed witness import from Bisq 1 works correctly
+- [ ] Reputation score is displayed correctly
+- [ ] Reputation details screen shows correct information
+- [ ] Can navigate through all reputation tabs
+
+## 7. Chat & Messaging
+- [ ] Can view public chat rooms
+- [ ] Can send messages in public chats
+- [ ] Can create private chats
+- [ ] Messages are delivered correctly
+- [ ] Message timestamps are displayed correctly
+- [ ] Unread message indicators work correctly
+- [ ] Message notifications appear when app is in background
+
+## 8. Notifications
+- [ ] Push notifications work on Android
+- [ ] Push notifications work on iOS
+- [ ] Notification settings can be configured
+- [ ] Notifications appear for new messages
+- [ ] Notifications appear for trade events (if implemented)
+- [ ] Clicking notification opens correct screen
+- [ ] Background service starts correctly on boot (Android)
+
+## 9. Trade Functionality (if implemented)
+- [ ] Can view available offers
+- [ ] Can create new offers
+- [ ] Can take existing offers
+- [ ] Trade flow proceeds correctly
+- [ ] Trade status updates in real-time
+- [ ] Trade notifications work correctly
+- [ ] Can complete trade process end-to-end
+
+## 10. Payment Methods
+- [ ] Can view supported payment methods
+- [ ] Payment method details display correctly
+- [ ] Can select payment methods for trades (if implemented)
+- [ ] Payment method localization is correct
+
+## 11. Settings
+- [ ] Can access settings screen
+- [ ] Can change notification settings
+- [ ] Can change language settings
+- [ ] Can change network settings
+- [ ] Settings persist across app restarts
+- [ ] Can view app version and build information
+
+## 12. Security
+- [ ] App works correctly with system security features
+- [ ] Sensitive data is properly protected
+- [ ] App handles screen lock/unlock correctly
+- [ ] App handles background/foreground transitions securely
+
+## 13. Performance
+- [ ] App startup time is reasonable (<3 seconds)
+- [ ] UI remains responsive during network operations
+- [ ] Memory usage remains stable during extended use
+- [ ] Battery consumption is reasonable
+- [ ] App handles low memory conditions gracefully
+
+## 14. Error Handling
+- [ ] Network errors are handled gracefully
+- [ ] Error messages are clear and actionable
+- [ ] App recovers from crashes properly
+- [ ] Error states have appropriate UI feedback
+
+## 15. Platform-Specific Tests
+
+### 15.1 Android-Specific
+- [ ] androidClient works with different Android versions (11, 12, 13, 14)
+- [ ] androidNode background service starts on boot
+- [ ] androidNode maintains connection when app is in background
+- [ ] Notifications work with different Android notification settings
+- [ ] App respects Android battery optimization settings
+- [ ] App works correctly with split-screen mode
+
+### 15.2 iOS-Specific
+- [ ] iosClient works with different iOS versions (16, 17)
+- [ ] App handles iOS background restrictions correctly
+- [ ] UI adapts correctly to iOS dynamic type settings
+- [ ] App works correctly with iOS accessibility features
+- [ ] App handles iOS app switching correctly
+- [ ] UI elements follow iOS design guidelines where appropriate
+
+## 16. Regression Tests
+- [ ] All fixed bugs remain fixed
+- [ ] Core functionality works after updates
+- [ ] UI remains consistent after updates
+- [ ] Performance remains stable after updates
+
+## 17. androidNode Specific Tests
+- [ ] Node connects to Bisq network correctly
+- [ ] Node maintains connection in background
+- [ ] Node processes messages correctly
+- [ ] Node handles Bisq protocol correctly
+- [ ] Node synchronizes data correctly
+- [ ] Node handles restarts gracefully
+- [ ] Node service auto-starts after device reboot
+- [ ] Node maintains state across app updates
+
+## 18. Integration Tests
+- [ ] androidClient can connect to local androidNode
+- [ ] androidClient can connect to remote trusted node
+- [ ] iosClient can connect to remote trusted node
+- [ ] Data synchronizes correctly between clients and nodes
+- [ ] Real-time updates work correctly across platforms
