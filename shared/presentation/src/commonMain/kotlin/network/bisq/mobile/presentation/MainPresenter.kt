@@ -2,18 +2,24 @@ package network.bisq.mobile.presentation
 
 import androidx.annotation.CallSuper
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import network.bisq.mobile.android.node.BuildNodeConfig
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.domain.UrlLauncher
+import network.bisq.mobile.domain.data.model.TradeReadState
+import network.bisq.mobile.domain.data.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.getDeviceLanguageCode
 import network.bisq.mobile.domain.service.network.ConnectivityService
 import network.bisq.mobile.domain.service.notifications.OpenTradesNotificationService
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
+import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.setDefaultLocale
 import network.bisq.mobile.presentation.ui.AppPresenter
+import network.bisq.mobile.presentation.ui.BisqConfig
 import network.bisq.mobile.presentation.ui.navigation.Routes
-
 
 /**
  * Main Presenter as an example of implementation for now.
@@ -22,8 +28,11 @@ open class MainPresenter(
     private val connectivityService: ConnectivityService,
     private val openTradesNotificationService: OpenTradesNotificationService,
     private val settingsService: SettingsServiceFacade,
+    private val tradesServiceFacade: TradesServiceFacade,
+    private val tradeReadStateRepository: TradeReadStateRepository,
     private val urlLauncher: UrlLauncher
 ) : BasePresenter(null), AppPresenter {
+
     override lateinit var navController: NavHostController
     override lateinit var tabNavController: NavHostController
 
@@ -36,6 +45,14 @@ open class MainPresenter(
 
     final override val languageCode: StateFlow<String> = settingsService.languageCode
 
+    private val _tradesWithUnreadMessages: MutableStateFlow<Map<String, Int>> = MutableStateFlow(emptyMap())
+    override val tradesWithUnreadMessages: StateFlow<Map<String, Int>> = _tradesWithUnreadMessages
+
+    private val _readMessageCountsByTrade = MutableStateFlow(emptyMap<String, Int>())
+    override val readMessageCountsByTrade: StateFlow<Map<String, Int>> = _readMessageCountsByTrade
+
+    private var job: Job? = null
+
     init {
         val localeCode = getDeviceLanguageCode()
         val screenWidth = getScreenWidthDp()
@@ -44,9 +61,39 @@ open class MainPresenter(
         log.i { "iOS Client Version: ${BuildConfig.IOS_APP_VERSION}" }
         log.i { "Android Client Version: ${BuildConfig.ANDROID_APP_VERSION}" }
         log.i { "Android Node Version: ${BuildNodeConfig.APP_VERSION}" }
-        log.i { "Device language code: $localeCode"}
-        log.i { "Screen width: $screenWidth"}
-        log.i { "Small screen: ${_isSmallScreen.value}"}
+        log.i { "Device language code: $localeCode" }
+        log.i { "Screen width: $screenWidth" }
+        log.i { "Small screen: ${_isSmallScreen.value}" }
+
+        val notificationTimerFlow = flow {
+            while (true) {
+                emit(Unit)
+                delay(BisqConfig.NOTIFICATION_SYNC_INTERVAL)
+            }
+        }
+
+        job = ioScope.launch {
+            combine(
+                tradesServiceFacade.openTradeItems,
+                tradesServiceFacade.selectedTrade,
+                notificationTimerFlow.onStart { emit(Unit) }
+            ) { tradeList, selectedTrade, _ ->
+                tradeList
+            }.collect {
+                val readState = tradeReadStateRepository.fetch() ?: TradeReadState()
+                _readMessageCountsByTrade.value = readState.map
+                _tradesWithUnreadMessages.value = it.map { trade ->
+                    val chatSize = trade.bisqEasyOpenTradeChannelModel.chatMessages.value.size
+                    return@map trade.tradeId to chatSize
+                }.filter { idSizePair ->
+                    val recordedSize = readState.map[idSizePair.first]
+                    if (recordedSize != null && recordedSize >= idSizePair.second) {
+                        return@filter false
+                    }
+                    return@filter true
+                }.toMap()
+            }
+        }
     }
 
     @CallSuper
@@ -62,6 +109,7 @@ open class MainPresenter(
             }
             .take(1)
             .launchIn(presenterScope)
+
     }
 
     override fun onResume() {
@@ -76,6 +124,7 @@ open class MainPresenter(
 
     @CallSuper
     override fun onDestroying() {
+        job?.cancel()
         // to stop notification service and fully kill app (no zombie mode)
         onResumeServices()
         super.onDestroying()
@@ -113,4 +162,5 @@ open class MainPresenter(
     }
 
     override fun isDemo(): Boolean = false
+
 }

@@ -67,7 +67,7 @@ import org.koin.dsl.module
 
 val presentationModule = module {
     single<MainPresenter> {
-        ClientMainPresenter(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
+        ClientMainPresenter(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     } bind AppPresenter::class
 
     single<TopBarPresenter> { TopBarPresenter(get(), get(), get(), get()) } bind ITopBarPresenter::class
@@ -88,7 +88,7 @@ val presentationModule = module {
     factory<AgreementPresenter> { AgreementPresenter(get(), get()) } bind IAgreementPresenter::class
 
     single { OnBoardingPresenter(get(), get(), get()) } bind IOnboardingPresenter::class
-    single { TabContainerPresenter(get(), get()) } bind ITabContainerPresenter::class
+    single { TabContainerPresenter(get(), get(), get()) } bind ITabContainerPresenter::class
 
     single<SettingsPresenter> { SettingsPresenter(get(), get()) } bind ISettingsPresenter::class
 
@@ -169,9 +169,9 @@ val presentationModule = module {
     single { TradeDetailsHeaderPresenter(get(), get(), get()) }
     factory { InterruptedTradePresenter(get(), get(), get()) }
     factory { TradeFlowPresenter(get(), get(), get()) }
-    factory { OpenTradePresenter(get(), get(), get()) }
+    factory { OpenTradePresenter(get(), get(), get(), get()) }
 
-    single { TradeChatPresenter(get(), get(), get(), get()) }
+    single { TradeChatPresenter(get(), get(), get(), get(), get()) }
 
     single { TradeGuidePresenter(get(), get()) } bind TradeGuidePresenter::class
     single { WalletGuidePresenter(get()) } bind WalletGuidePresenter::class
