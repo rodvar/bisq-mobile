@@ -1,0 +1,31 @@
+# Test Environment Setup
+
+## Required Devices
+- Android phone with Android 11+
+- Android phone with Android 14 (latest)
+- iPhone with iOS 16+
+- iPhone with iOS 17 (latest)
+- Android tablet (optional for layout testing)
+- iPad (optional for layout testing)
+
+## Required Software
+- Bisq 1 desktop application (for reputation import testing)
+- Bisq 2 trusted node instance (local or cloud)
+- Charles Proxy or similar for network debugging
+- Android Studio with Logcat for debugging
+- Xcode with Console for iOS debugging
+
+## Test Accounts
+- Create test profiles with various reputation levels
+- Prepare Bisq 1 accounts with account age and signed witness data
+
+## Network Conditions
+- Test on WiFi
+- Test on cellular data
+- Test with poor network conditions (can be simulated)
+- Test with network interruptions
+
+## VM Setup for Remote Node Testing
+- Set up a cloud VM with Bisq trusted node
+- Configure firewall to allow WebSocket connections
+- Use the script in connect_test_vm.sh as reference

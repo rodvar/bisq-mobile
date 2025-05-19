@@ -1,0 +1,64 @@
+# Automated Testing Guidelines
+
+## UI Testing with Compose Multiplatform
+
+The project uses Compose Multiplatform for UI, which supports testing via the `runComposeUiTest` function. Reference the existing test in `shared/presentation/src/commonTest/kotlin/network/bisq/mobile/presentation/ExampleTest.kt`.
+
+Example test structure:
+```kotlin
+@OptIn(ExperimentalTestApi::class)
+@Test
+fun myTest() = runComposeUiTest {
+    // Set up the UI to test
+    setContent {
+        MyComponent()
+    }
+    
+    // Perform assertions and actions
+    onNodeWithTag("elementTag").assertIsDisplayed()
+    onNodeWithTag("buttonTag").performClick()
+    onNodeWithTag("resultTag").assertTextEquals("Expected Result")
+}
+```
+
+## Key Areas for Automation
+
+1. **Connection Flow**
+   - Test connection to trusted node
+   - Validate error handling
+   - Test reconnection logic
+
+2. **Navigation**
+   - Test navigation between main screens
+   - Verify back stack behavior
+   - Test deep linking (if implemented)
+
+3. **Profile Management**
+   - Test profile creation
+   - Test profile editing
+   - Verify data persistence
+
+4. **Internationalization**
+   - Test UI with different languages
+   - Verify text fits in UI components
+   - Test RTL layout if supported
+
+5. **WebSocket Client**
+   - Test message handling
+   - Test reconnection logic
+   - Test error handling
+
+## Test Data Management
+
+- Create mock implementations of repositories
+- Use test-specific resource bundles
+- Implement test doubles for network services
+
+## CI Integration
+
+The project has a GitHub Actions workflow in `.github/workflows/ci.yml` that can be extended to run automated tests.
+
+Current CI workflow:
+- Builds the project
+- Runs unit tests
+- Could be extended to run UI tests on emulators

@@ -1,0 +1,40 @@
+# Bug Report Template
+
+## Bug Details
+
+**Title:** [Concise description of the issue]
+
+**Severity:** [Critical/High/Medium/Low]
+
+**App Version:** [e.g., 1.0.0]
+
+**Platform:** [androidClient/androidNode/iosClient]
+
+**Device:** [e.g., Pixel 7, iPhone 14]
+
+**OS Version:** [e.g., Android 14, iOS 17.1]
+
+**Reproducibility:** [Always/Sometimes/Rarely]
+
+## Description
+[Detailed description of the bug]
+
+## Steps to Reproduce
+1. [First step]
+2. [Second step]
+3. [And so on...]
+
+## Expected Behavior
+[What should happen]
+
+## Actual Behavior
+[What actually happens]
+
+## Screenshots/Logs
+[Attach screenshots, logs, or screen recordings if available]
+
+## Additional Context
+[Any other information that might be relevant]
+
+## Possible Fix
+[If you have suggestions on how to fix the issue]
