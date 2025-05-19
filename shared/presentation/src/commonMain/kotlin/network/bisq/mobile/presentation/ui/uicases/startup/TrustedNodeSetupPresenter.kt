@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.ui.uicases.startup
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -20,7 +21,7 @@ class TrustedNodeSetupPresenter(
     private val webSocketClientProvider: WebSocketClientProvider
 ) : BasePresenter(mainPresenter), ITrustedNodeSetupPresenter {
 
-    private val _isBisqApiUrlValid = MutableStateFlow(false)
+    private val _isBisqApiUrlValid = MutableStateFlow(true)
     override val isBisqApiUrlValid: StateFlow<Boolean> = _isBisqApiUrlValid
 
     private val _isBisqApiVersionValid = MutableStateFlow(true)
@@ -82,29 +83,39 @@ class TrustedNodeSetupPresenter(
 
     override fun testConnection(isWorkflow: Boolean) {
         _isLoading.value = true
-        log.i { "Test: " + _bisqApiUrl.value }
+        log.d { "Test: ${_bisqApiUrl.value} isWorkflow $isWorkflow" }
         val connectionSettings = WebSocketClientProvider.parseUri(_bisqApiUrl.value)
         presenterScope.launch {
             val success = withContext(IODispatcher) {
-                webSocketClientProvider.testClient(connectionSettings.first, connectionSettings.second)
+                return@withContext webSocketClientProvider.testClient(connectionSettings.first, connectionSettings.second)
             }
-            _isLoading.value = false
 
             if (success) {
-                val validateVersion = withContext(IODispatcher) {
+                val isCompatibleVersion = withContext(IODispatcher) {
                     updateTrustedNodeSettings()
+                    delay(250L)
+                    webSocketClientProvider.get().await()
                     validateVersion()
                 }
-                if (validateVersion) {
+                if (isCompatibleVersion) {
+                    log.d { "Connected successfully to ${_bisqApiUrl.value} is workflow: $isWorkflow" }
                     showSnackbar("Connected successfully to ${_bisqApiUrl.value}, settings updated")
                     if (!isWorkflow) {
+                        _isLoading.value = false
                         navigateBack()
                     }
+                    _isConnected.value = true
+                } else {
+                    webSocketClientProvider.get().disconnect(isTest = true)
+                    log.d { "Invalid version cannot connect" }
+                    showSnackbar("Trusted node incompatible version, cannot connect")
+                    _isConnected.value = false
                 }
-                _isConnected.value = true
+                _isLoading.value = false
             } else {
                 showSnackbar("Could not connect to given url ${_bisqApiUrl.value}, please try again with another setup")
                 _isConnected.value = false
+                _isLoading.value = false
             }
         }
     }

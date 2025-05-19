@@ -8,13 +8,9 @@ import io.ktor.util.collections.ConcurrentMap
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -67,7 +63,14 @@ class WebSocketClient(
     companion object {
         const val DEMO_URL = "ws://demo.bisq:21"
         const val DELAY_TO_RECONNECT = 3000L
+        const val MAX_RECONNECT_ATTEMPTS = 5
+        const val MAX_RECONNECT_DELAY = 30000L // 30 seconds max delay
     }
+
+    // Add these properties to track reconnection state
+    private var reconnectAttempts = 0
+    private var isReconnecting = false
+    private var reconnectJob: Job? = null
 
     private val webSocketUrl: String = "ws://$host:$port/websocket"
     private var session: DefaultClientWebSocketSession? = null
@@ -87,27 +90,34 @@ class WebSocketClient(
     val _webSocketClientStatus = MutableStateFlow(WebSocketClientStatus.DISCONNECTED)
     val webSocketClientStatus: StateFlow<WebSocketClientStatus> = _webSocketClientStatus
 
+    private var listenerJob: Job? = null
+
     fun isConnected(): Boolean = webSocketClientStatus.value == WebSocketClientStatus.CONNECTED || isDemo()
 
     fun isDemo(): Boolean = webSocketUrl.startsWith(DEMO_URL)
 
     suspend fun connect(isTest: Boolean = false) {
-        log.i("Connecting to websocket at: $webSocketUrl")
         try {
-            if (webSocketClientStatus.value != WebSocketClientStatus.CONNECTED) {
-                _webSocketClientStatus.value = WebSocketClientStatus.CONNECTING
-                session = httpClient.webSocketSession { url(webSocketUrl) }
-                if (session?.isActive == true) {
-                    _webSocketClientStatus.value = WebSocketClientStatus.CONNECTED
-                    CoroutineScope(IODispatcher).launch { startListening() }
-                    connectionReady.complete(true)
-                    if (!isTest) {
-                        log.d { "Websocket connected" }
-                    }
+            if (webSocketClientStatus.value == WebSocketClientStatus.CONNECTED) {
+                throw IllegalStateException("Cannot connect an already connected client, please call disconnect first")
+            }
+            _webSocketClientStatus.value = WebSocketClientStatus.CONNECTING
+            session = httpClient.webSocketSession { url(webSocketUrl) }
+            if (session?.isActive == true) {
+                _webSocketClientStatus.value = WebSocketClientStatus.CONNECTED
+                if (!isTest) {
+                    listenerJob = ioScope.launch { startListening() }
                 }
+                if (!connectionReady.isCompleted) {
+                    connectionReady.complete(true)
+                }
+                log.d { "Websocket connected successfully" }
+                
+                // Reset reconnect attempts on successful connection
+                reconnectAttempts = 0
             }
         } catch (e: Exception) {
-            log.e("Connecting websocket failed", e)
+            log.e("Connecting websocket failed $webSocketUrl", e)
             _webSocketClientStatus.value = WebSocketClientStatus.DISCONNECTED
             if (isTest) {
                 throw e
@@ -117,7 +127,19 @@ class WebSocketClient(
         }
     }
 
-    suspend fun disconnect(isTest: Boolean = false) {
+    /**
+     * @param isTest true if the connection of this client was a test connection
+     * @param isReconnect true if this was called from a reconnect method
+     */
+    suspend fun disconnect(isTest: Boolean = false, isReconnect: Boolean = false) {
+        log.d { "disconnecting socket isTest $isTest isReconnected $isReconnect" }
+        if (!isReconnect) {
+            reconnectJob?.cancel()
+            reconnectJob = null
+        }
+        listenerJob?.cancel()
+        listenerJob = null
+        connectionReady = CompletableDeferred<Boolean>()
         requestResponseHandlersMutex.withLock {
             requestResponseHandlers.values.forEach { it.dispose() }
             requestResponseHandlers.clear()
@@ -127,16 +149,49 @@ class WebSocketClient(
         session = null
         _webSocketClientStatus.value = WebSocketClientStatus.DISCONNECTED
         if (!isTest) {
-            log.d { "WS disconnected" }
+            log.d { "WS client disconnected" }
         }
     }
 
     private fun reconnect() {
-        ioScope.launch {
-            log.d { "Launching reconnect" }
-            disconnect()
-            delay(DELAY_TO_RECONNECT) // Delay before reconnecting
-            connect()  // Try reconnecting recursively
+        // Cancel any existing reconnect job
+        reconnectJob?.cancel()
+        
+        // Only proceed if we're not already reconnecting
+        if (isReconnecting) {
+            log.d { "Reconnect already in progress, skipping" }
+            return
+        }
+        
+        reconnectJob = ioScope.launch {
+            isReconnecting = true
+            log.d { "Launching reconnect attempt #${reconnectAttempts + 1}" }
+            
+            try {
+                // Implement exponential backoff
+                val delayMillis = minOf(
+                    DELAY_TO_RECONNECT * (1 shl minOf(reconnectAttempts, 4)), // Exponential backoff
+                    MAX_RECONNECT_DELAY
+                )
+                
+                log.d { "Waiting ${delayMillis}ms before reconnect attempt" }
+                disconnect(false, true)
+                delay(delayMillis)
+                
+                // Check if we've exceeded max attempts
+                if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                    log.w { "Maximum reconnect attempts ($MAX_RECONNECT_ATTEMPTS) reached" }
+                    _webSocketClientStatus.value = WebSocketClientStatus.DISCONNECTED
+                    // Reset counter for future reconnects
+                    reconnectAttempts = 0
+                    return@launch
+                }
+                
+                reconnectAttempts++
+                connect()
+            } finally {
+                isReconnecting = false
+            }
         }
     }
 
@@ -161,6 +216,8 @@ class WebSocketClient(
             }
         }
     }
+
+    suspend fun await() = connectionReady.await()
 
     private fun fakeResponse(webSocketRequest: WebSocketRequest): WebSocketResponse {
         webSocketRequest as WebSocketRestApiRequest
@@ -250,13 +307,17 @@ class WebSocketClient(
                         }
                     }
                 }
+                
+                // If we get here, the loop exited normally (session closed gracefully)
+                log.d { "WebSocket session closed normally" }
+                _webSocketClientStatus.value = WebSocketClientStatus.DISCONNECTED
+                
             } catch (e: Exception) {
-                log.e(e) { "Exception ocurred whilst listening for WS messages - triggering reconnect" }
-            } finally {
-                log.d { "Not listening for WS messages anymore - launching reconnect" }
-                reconnect()
+                log.e(e) { "Exception occurred whilst listening for WS messages - triggering reconnect" }
+                // Only reconnect on exception
+//                TODO this needs more work
+//                reconnect()
             }
-
         }
     }
 

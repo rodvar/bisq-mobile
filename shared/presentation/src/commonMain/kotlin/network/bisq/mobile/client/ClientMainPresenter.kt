@@ -45,6 +45,8 @@ open class ClientMainPresenter(
     urlLauncher: UrlLauncher
 ) : MainPresenter(connectivityService, openTradesNotificationService, settingsServiceFacade, urlLauncher) {
 
+    private var lastConnectedStatus: Boolean? = null
+
     override fun onViewAttached() {
         super.onViewAttached()
         validateVersion()
@@ -55,7 +57,6 @@ open class ClientMainPresenter(
     override fun onViewUnattaching() {
         // For Tor we might want to leave it running while in background to avoid delay of re-connect
         // when going into foreground again.
-        // presenterScope.launch {  webSocketClient.disconnect() }
         deactivateServices()
         super.onViewUnattaching()
     }
@@ -64,9 +65,12 @@ open class ClientMainPresenter(
         connectivityService.startMonitoring()
         presenterScope.launch {
             webSocketClientProvider.get().webSocketClientStatus.collect {
-                if (webSocketClientProvider.get().isConnected()) {
+                if (webSocketClientProvider.get().isConnected() && lastConnectedStatus != true) {
                     log.d { "connectivity status changed to $it - reconnecting services" }
                     reactiveServices()
+                    lastConnectedStatus = true
+                } else {
+                    lastConnectedStatus = false
                 }
             }
         }

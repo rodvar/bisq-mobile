@@ -1,8 +1,11 @@
 package network.bisq.mobile.client.websocket
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
@@ -13,8 +16,8 @@ import kotlin.concurrent.Volatile
  * Provider to handle dynamic host/port changes
  */
 class WebSocketClientProvider(
-    defaultHost: String,
-    defaultPort: Int,
+    private val defaultHost: String,
+    private val defaultPort: Int,
     private val settingsRepository: SettingsRepository,
     private val clientFactory: (String, Int) -> WebSocketClient) : Logging {
 
@@ -30,40 +33,12 @@ class WebSocketClientProvider(
 
     @Volatile
     private var currentClient: WebSocketClient? = null
-
-    init {
-        // Listen to changes in WebSocket configuration and update the client
-        // TODO we might need to replicate this for changes in settings to reconnect to channels
-        ioScope.launch {
-            try {
-                settingsRepository.data.collect { newSettings ->
-                    var host = defaultHost
-                    var port = defaultPort
-                    newSettings?.bisqApiUrl?.takeIf { it.isNotBlank() }?.let { url ->
-                        log.d { "new bisq url $url "}
-                        parseUri(url).apply {
-                            host = first
-                            port = second
-                        }
-                    }
-                    // only update if there was actually a change
-                    if (currentClient == null || currentClient!!.host != host || currentClient!!.port != port) {
-                        if (currentClient?.isConnected() == true) {
-                            currentClient?.disconnect()
-                        }
-                        log.d { "Websocket client updated with url $host:$port" }
-                        currentClient = createClient(host, port)
-                    }
-                }
-            } catch (e: Exception) {
-                log.e(e) { "Error updating WebSocket client with new settings." }
-            }
-        }
-    }
+    private var connectionReady = CompletableDeferred<Boolean>()
 
     suspend fun testClient(host: String, port: Int): Boolean {
         val client = createClient(host, port)
-        val url = "ws://$host:$port"
+        // not including path websocket will get connection refused
+        val url = "ws://$host:$port/websocket"
         return try {
             if (client.isDemo()) {
                 ApplicationBootstrapFacade.isDemo = true
@@ -71,7 +46,7 @@ class WebSocketClientProvider(
             }
             // if connection is refused, catch will execute returning false
             client.connect(true)
-            return client.isConnected()
+            return true
         } catch (e: Exception) {
             log.e("Error testing connection to $url: ${e.message}")
             false
@@ -87,9 +62,51 @@ class WebSocketClientProvider(
     fun get(): WebSocketClient {
         if (currentClient == null) {
             runBlocking {
+                lunchObserveSettingsChange()
                 settingsRepository.fetch()
+                connectionReady.await()
             }
         }
         return currentClient!!
+    }
+
+    private fun lunchObserveSettingsChange() {
+        // Listen to changes in WebSocket configuration and update the client
+        ioScope.launch {
+            try {
+                val mutex = Mutex()
+                settingsRepository.data.collect { newSettings ->
+                    mutex.withLock {
+                        var host = defaultHost
+                        var port = defaultPort
+                        newSettings?.bisqApiUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                            log.d { "new bisq url detected $url "}
+                            parseUri(url).apply {
+                                host = first
+                                port = second
+                            }
+                        }
+                        // only update if there was actually a change
+                        if (currentClient == null || currentClient!!.host != host || currentClient!!.port != port) {
+                            if (currentClient != null) {
+                                log.d { "trusted node changing from ${currentClient!!.host}:${currentClient!!.port} to $host:$port" }
+                            }
+                            if (currentClient?.isConnected() == true) {
+                                currentClient?.disconnect()
+                            }
+                            currentClient = createClient(host, port)
+                            log.d { "Websocket client updated with url $host:$port" }
+                            log.d { "Websocket client - connecting" }
+                            currentClient?.connect()
+                            if (!connectionReady.isCompleted) {
+                                connectionReady.complete(true)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                log.e(e) { "Error updating WebSocket client with new settings." }
+            }
+        }
     }
 }

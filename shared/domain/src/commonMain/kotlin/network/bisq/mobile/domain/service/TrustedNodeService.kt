@@ -1,6 +1,8 @@
 package network.bisq.mobile.domain.service
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.domain.data.IODispatcher
@@ -16,6 +18,8 @@ class TrustedNodeService(private val webSocketClientProvider: WebSocketClientPro
     var isConnected: Boolean = false
     private var observingConnectivity = false
 
+    private var connectivityObserverJob: Job? = null
+
     /**
      * Connects to the trusted node, throws an exception if connection fails
      */
@@ -26,15 +30,16 @@ class TrustedNodeService(private val webSocketClientProvider: WebSocketClientPro
         runCatching {
             // first test connect and proceed to establish it if test passes
             webSocketClientProvider.get().let {
-                if (!it.isDemo()) {
+                if (!it.isDemo() && !it.isConnected()) {
                     it.connect(true)
+                    delay(250L)
                     it.connect()
                 }
             }
         }.onSuccess {
             log.d { "Connected to trusted node" }
         }.onFailure {
-            log.e(it) { "ERROR: FAILED to connect to trusted node - details above" }
+            log.e(it) { "ERROR: FAILED to connect to trusted node - ${it.message}" }
             throw it
         }
     }
@@ -44,9 +49,9 @@ class TrustedNodeService(private val webSocketClientProvider: WebSocketClientPro
     }
 
     private fun observeConnectivity() {
-        ioScope.launch {
+        connectivityObserverJob = ioScope.launch {
             webSocketClientProvider.get().webSocketClientStatus.collect {
-                log.d { "connectivity status changed - connected = $it" }
+                log.d { "connectivity status changed to $it" }
                 isConnected = webSocketClientProvider.get().isConnected()
             }
         }
