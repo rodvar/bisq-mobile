@@ -2,6 +2,7 @@ package network.bisq.mobile.client.websocket
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -20,6 +21,8 @@ class WebSocketClientProvider(
     private val defaultPort: Int,
     private val settingsRepository: SettingsRepository,
     private val clientFactory: (String, Int) -> WebSocketClient) : Logging {
+    private var observeSettingsJob: Job? = null
+    private val mutex = Mutex()
 
     companion object {
         fun parseUri(uri: String): Pair<String,Int> {
@@ -59,10 +62,12 @@ class WebSocketClientProvider(
         return clientFactory(host, port)
     }
 
+    // UI usages of this call will have the currentClient avail so
+    // no need to make it suspend as its used from IO curroutines
     fun get(): WebSocketClient {
         if (currentClient == null) {
             runBlocking {
-                lunchObserveSettingsChange()
+                launchObserveSettingsChange()
                 settingsRepository.fetch()
                 connectionReady.await()
             }
@@ -70,24 +75,29 @@ class WebSocketClientProvider(
         return currentClient!!
     }
 
-    private fun lunchObserveSettingsChange() {
+    private fun launchObserveSettingsChange() {
         // Listen to changes in WebSocket configuration and update the client
-        ioScope.launch {
+        if (observeSettingsJob?.isActive == true) {
+            log.w { "already observing settings changes" }
+            return
+        }
+        observeSettingsJob = ioScope.launch {
             try {
-                val mutex = Mutex()
                 settingsRepository.data.collect { newSettings ->
                     mutex.withLock {
                         var host = defaultHost
                         var port = defaultPort
                         newSettings?.bisqApiUrl?.takeIf { it.isNotBlank() }?.let { url ->
-                            log.d { "new bisq url detected $url "}
                             parseUri(url).apply {
+                                if (isDifferentFromCurrentClient(first, second)) {
+                                    log.d { "new bisq url detected $url" }
+                                }
                                 host = first
                                 port = second
                             }
                         }
                         // only update if there was actually a change
-                        if (currentClient == null || currentClient!!.host != host || currentClient!!.port != port) {
+                        if (isDifferentFromCurrentClient(host, port)) {
                             if (currentClient != null) {
                                 log.d { "trusted node changing from ${currentClient!!.host}:${currentClient!!.port} to $host:$port" }
                             }
@@ -109,4 +119,7 @@ class WebSocketClientProvider(
             }
         }
     }
+
+    private fun isDifferentFromCurrentClient(host: String, port: Int) =
+        currentClient == null || currentClient!!.host != host || currentClient!!.port != port
 }
