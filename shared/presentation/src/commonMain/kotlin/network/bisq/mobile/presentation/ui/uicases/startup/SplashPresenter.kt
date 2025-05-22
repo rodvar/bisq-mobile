@@ -1,7 +1,6 @@
 package network.bisq.mobile.presentation.ui.uicases.startup
 
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.model.User
@@ -15,6 +14,7 @@ import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
+import kotlin.coroutines.cancellation.CancellationException
 
 open class SplashPresenter(
     mainPresenter: MainPresenter,
@@ -49,7 +49,7 @@ open class SplashPresenter(
 
     private fun navigateToNextScreen() {
         log.d { "Navigating to next screen" }
-        presenterScope.launch {
+        launchUI {
             if (!hasConnectivity()) {
                 navigateToTrustedNodeSetup()
             }
@@ -59,11 +59,11 @@ open class SplashPresenter(
             }
 
             runCatching {
-                val settings: SettingsVO = settingsServiceFacade.getSettings().getOrThrow()
-                val settingsMobile: Settings = settingsRepository.fetch() ?: Settings()
+                val profileSettings: SettingsVO = settingsServiceFacade.getSettings().getOrThrow()
+                val deviceSettings: Settings = settingsRepository.fetch() ?: Settings()
                 val user: User? = userRepository.fetch()
 
-                if (!settings.isTacAccepted) {
+                if (!profileSettings.isTacAccepted) {
                     navigateToAgreement()
                 } else {
                     // only fetch profile with connectivity
@@ -77,14 +77,15 @@ open class SplashPresenter(
                         // 2b) xClients being able to connect with remote instance happening successfuly as part of services init?
                         navigateToHome()
                         // Scenario 2: Loading up for first time for both androidNode and xClients
-                    } else if (settingsMobile.firstLaunch) {
+                    } else if (deviceSettings.firstLaunch) {
                         navigateToOnboarding()
                         // Scenario 3: Handle others based on app type
                     } else {
-                        doCustomNavigationLogic(settingsMobile, hasProfile)
+                        doCustomNavigationLogic(deviceSettings, hasProfile)
                     }
                 }
             }.onFailure {
+                if (it is CancellationException) return@launchUI
                 log.e(it) { "Failed to navigate out of splash" }
             }
         }
