@@ -4,8 +4,11 @@ import androidx.compose.foundation.pager.PagerState
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
@@ -57,11 +60,15 @@ open class OnBoardingPresenter(
         launchIO {
             settingsRepository.fetch()
             val deviceSettings: Settings? = settingsRepository.data.value
-            _buttonText.value = if (deviceSettings?.bisqApiUrl?.isNotEmpty() == true)
-                CREATE_PROFILE_TEXT
-            else
-                SETUP_CONNECTION_TEXT
+            _buttonText.value = mainButtonText(deviceSettings)
         }
+    }
+
+    protected open fun mainButtonText(deviceSettings: Settings?): String {
+        return if (deviceSettings?.bisqApiUrl?.isNotEmpty() == true)
+            CREATE_PROFILE_TEXT
+        else
+            SETUP_CONNECTION_TEXT
     }
 
     override fun onNextButtonClick(coroutineScope: CoroutineScope, pagerState: PagerState) {
@@ -85,7 +92,11 @@ open class OnBoardingPresenter(
                 doCustomNavigationLogic(remoteBisqUrl.isNotEmpty(), hasProfile)
 
             } else {
-                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                // Let the UI handle the animation in the composable
+                // This is safe because we're using the coroutineScope passed from the composable
+                coroutineScope.launch {
+                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                }
             }
         }
     }
