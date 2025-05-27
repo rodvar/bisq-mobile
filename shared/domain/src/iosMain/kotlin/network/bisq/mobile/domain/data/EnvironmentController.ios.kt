@@ -9,7 +9,7 @@ actual fun provideIsSimulator(): Boolean {
 }
 
 actual fun provideApiHost(): String {
-    return BuildConfig.WS_IOS_HOST.takeIf { it.isNotEmpty() } ?: "localhost"
+    return BuildConfig.WS_IOS_HOST.takeIf { it.isNotEmpty() } ?: "127.0.0.1"
 }
 
 actual fun provideApiPort(): Int {

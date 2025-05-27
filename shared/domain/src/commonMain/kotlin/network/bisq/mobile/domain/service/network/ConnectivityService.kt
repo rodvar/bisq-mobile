@@ -114,7 +114,7 @@ abstract class ConnectivityService : ServiceFacade() {
         // default nth
     }
 
-    protected abstract fun isConnected(): Boolean
+    abstract fun isConnected(): Boolean
 
     /**
      * Default implementation uses round trip average measuring.

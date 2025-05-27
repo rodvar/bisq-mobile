@@ -11,6 +11,7 @@ import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.repository.SettingsRepository
+import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
@@ -18,6 +19,7 @@ import network.bisq.mobile.presentation.ui.navigation.Routes
 
 class TrustedNodeSetupPresenter(
     mainPresenter: MainPresenter,
+    private val userRepository: UserRepository,
     private val settingsRepository: SettingsRepository,
     private val settingsServiceFacade: SettingsServiceFacade,
     private val webSocketClientProvider: WebSocketClientProvider
@@ -158,15 +160,39 @@ class TrustedNodeSetupPresenter(
     private suspend fun updateTrustedNodeSettings() {
         val currentSettings = settingsRepository.fetch()
         val updatedSettings = Settings().apply {
-            bisqApiUrl = _bisqApiUrl.value
-            firstLaunch = currentSettings?.firstLaunch ?: true
+            this.bisqApiUrl = _bisqApiUrl.value
+            this.firstLaunch = currentSettings?.firstLaunch ?: this.firstLaunch
+            this.showChatRulesWarnBox = currentSettings?.showChatRulesWarnBox ?: this.showChatRulesWarnBox
+            this.id = currentSettings?.id ?: this.id
+            this.forceReconnect = true
         }
         settingsRepository.update(updatedSettings)
     }
 
     override fun navigateToNextScreen() {
-        // access to profile setup should be handled by splash
-        goBackToSetupScreen()
+        launchUI {
+            try {
+                // Check if user exists in local repository
+                val user = withContext(IODispatcher) {
+                    userRepository.fetch()
+                }
+                if (user?.uniqueAvatar != null) {
+                    // If user exists locally, navigate to home
+                    log.d { "User profile exists locally, navigating to home" }
+                    navigateTo(Routes.TabContainer) {
+                        it.popUpTo(Routes.Splash.name) { inclusive = true }
+                    }
+                } else {
+                    // If no local user, navigate to profile creation
+                    log.d { "No local user profile, navigating to profile creation" }
+                    navigateTo(Routes.CreateProfile)
+                }
+            } catch (e: Exception) {
+                log.e(e) { "Error checking user profile status" }
+                // Default to going back if we can't determine profile status
+                goBackToSetupScreen()
+            }
+        }
     }
 
     override fun goBackToSetupScreen() {

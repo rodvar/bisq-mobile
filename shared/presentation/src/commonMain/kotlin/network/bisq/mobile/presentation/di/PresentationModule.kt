@@ -115,7 +115,8 @@ val presentationModule = module {
     single {
         TrustedNodeSetupPresenter(
             get(),
-            settingsRepository = get(),
+            get(),
+            get(),
             get(),
             get()
         )

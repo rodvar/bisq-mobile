@@ -8,4 +8,5 @@ open class Settings : BaseModel() {
     //todo better rely on the source data alone (has user profile, has bisqApiUrl set) as otherwise we can get out of sync
     open var firstLaunch: Boolean = true
     open var showChatRulesWarnBox: Boolean = true
+    open var forceReconnect: Boolean = false
 }

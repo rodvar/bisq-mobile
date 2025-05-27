@@ -138,7 +138,7 @@ class WebSocketClientProvider(
                             try {
                                 val (newHost, newPort) = parseUri(url)
 
-                                if (isDifferentFromCurrentClient(newHost, newPort)) {
+                                if (isDifferentFromCurrentClient(newHost, newPort) || newSettings.forceReconnect) {
                                     if (currentClient != null) {
                                         log.d { "trusted node changing from ${currentClient!!.host}:${currentClient!!.port} to $newHost:$newPort" }
                                     }
@@ -149,6 +149,9 @@ class WebSocketClientProvider(
                                     log.d { "Websocket client updated with url $newHost:$newPort" }
                                     log.d { "Websocket client - connecting" }
                                     currentClient?.connect()
+                                    if (newSettings.forceReconnect) {
+                                        settingsRepository.update(newSettings.apply { forceReconnect = false })
+                                    }
                                     if (!connectionReady.isCompleted) {
                                         connectionReady.complete(true)
                                     }

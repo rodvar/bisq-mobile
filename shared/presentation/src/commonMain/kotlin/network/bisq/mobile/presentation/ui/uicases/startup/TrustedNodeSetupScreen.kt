@@ -114,7 +114,6 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                     BisqButton(
                         iconOnly = { QuestionIcon() },
                         backgroundColor = BisqTheme.colors.backgroundColor,
-                        onClick = { /* presenter.navigateToNextScreen() */ },
                         disabled = isLoading,
                     )
                 },

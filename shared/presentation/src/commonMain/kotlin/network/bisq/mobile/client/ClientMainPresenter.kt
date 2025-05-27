@@ -62,11 +62,15 @@ open class ClientMainPresenter(
         super.onViewUnattaching()
     }
 
+    override fun isConnected(): Boolean {
+        return webSocketClientProvider.get().isConnected()
+    }
+
     private fun listenForConnectivity() {
         connectivityService.startMonitoring()
         launchUI {
             webSocketClientProvider.get().webSocketClientStatus.collect {
-                if (webSocketClientProvider.get().isConnected() && lastConnectedStatus != true) {
+                if (isConnected() && lastConnectedStatus != true) {
                     log.d { "connectivity status changed to $it - reconnecting services" }
                     reactivateServices()
                     lastConnectedStatus = true
