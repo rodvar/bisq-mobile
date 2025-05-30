@@ -117,6 +117,7 @@ class OfferbookMarketPresenter(
     }
 
     override fun onViewAttached() {
+        super.onViewAttached()
         startUpdatingMarketPrices()
     }
 
