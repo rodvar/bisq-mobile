@@ -131,18 +131,18 @@ val presentationModule = module {
 
     // Take offer
     single { TakeOfferPresenter(get(), get(), get()) }
-    single { TakeOfferAmountPresenter(get(), get(), get()) }
-    single { TakeOfferPaymentMethodPresenter(get(), get()) }
-    single { TakeOfferReviewPresenter(get(), get(), get()) }
+    factory { TakeOfferAmountPresenter(get(), get(), get()) }
+    factory { TakeOfferPaymentMethodPresenter(get(), get()) }
+    factory { TakeOfferReviewPresenter(get(), get(), get()) }
 
     // Create offer
     single { CreateOfferPresenter(get(), get(), get()) }
-    single { CreateOfferDirectionPresenter(get(), get(), get(), get()) }
-    single { CreateOfferMarketPresenter(get(), get(), get()) }
-    single { CreateOfferPricePresenter(get(), get(), get()) }
-    single { CreateOfferAmountPresenter(get(), get(), get(), get(), get()) }
-    single { CreateOfferPaymentMethodPresenter(get(), get()) }
-    single { CreateOfferReviewPresenter(get(), get()) }
+    factory { CreateOfferDirectionPresenter(get(), get(), get(), get()) }
+    factory { CreateOfferMarketPresenter(get(), get(), get()) }
+    factory { CreateOfferPricePresenter(get(), get(), get()) }
+    factory { CreateOfferAmountPresenter(get(), get(), get(), get(), get()) }
+    factory { CreateOfferPaymentMethodPresenter(get(), get()) }
+    factory { CreateOfferReviewPresenter(get(), get()) }
 
     // Trade Seller
     factory { SellerState1Presenter(get(), get(), get()) }

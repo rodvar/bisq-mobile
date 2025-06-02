@@ -7,6 +7,7 @@ import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory.from
+import network.bisq.mobile.domain.data.replicated.common.monetary.MonetaryVOExtensions.asDouble
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOExtensions.toBaseSideMonetary
 import network.bisq.mobile.domain.data.replicated.offer.amount.spec.RangeAmountSpecVO
@@ -48,8 +49,7 @@ class TakeOfferAmountPresenter(
     private var _amountValid: MutableStateFlow<Boolean> = MutableStateFlow(true)
     val amountValid: StateFlow<Boolean> = _amountValid
 
-    override fun onViewAttached() {
-        super.onViewAttached()
+    init {
         runCatching {
             takeOfferModel = takeOfferPresenter.takeOfferModel
             val offerListItem = takeOfferModel.offerItemPresentationVO
@@ -73,10 +73,14 @@ class TakeOfferAmountPresenter(
             _formattedQuoteAmount.value = offerListItem.formattedQuoteAmount
             _formattedBaseAmount.value = offerListItem.formattedBaseAmount.value
 
-            _sliderPosition.value = 0.5f
+            val valueInFraction = if (takeOfferModel.quoteAmount.value == 0L)
+                0.5F
+            else
+                getFractionForFiat(takeOfferModel.quoteAmount.asDouble())
+            _sliderPosition.value = valueInFraction
             applySliderValue(sliderPosition.value)
         }.onFailure { e ->
-            log.e(e) { "Failed to present view" }
+            log.e(e) { "Failed to init" }
         }
     }
 
@@ -88,7 +92,6 @@ class TakeOfferAmountPresenter(
         val _value = textInput.toDoubleOrNullLocaleAware()
         if (_value != null) {
             val valueInFraction = getFractionForFiat(_value)
-            _amountValid.value = valueInFraction in 0f..1f
             onSliderValueChanged(valueInFraction)
         } else {
             _formattedQuoteAmount.value = ""
@@ -123,6 +126,7 @@ class TakeOfferAmountPresenter(
 
     private fun applySliderValue(sliderPosition: Float) {
         try {
+            _amountValid.value = sliderPosition in 0f..1f
             _sliderPosition.value = sliderPosition
             val range = maxAmount - minAmount
             val value: Float = minAmount + (sliderPosition * range)

@@ -22,13 +22,12 @@ class CreateOfferPaymentMethodPresenter(
 
     private lateinit var createOfferModel: CreateOfferPresenter.CreateOfferModel
 
-    override fun onViewAttached() {
-        selectedBaseSidePaymentMethods.value = emptySet()
-        selectedQuoteSidePaymentMethods.value = emptySet()
-
+    init {
         createOfferModel = createOfferPresenter.createOfferModel
 
-        val quoteCurrencyCode = createOfferModel.market!!.quoteCurrencyCode
+        val quoteCurrencyCode = createOfferModel.market?.quoteCurrencyCode
+            ?: throw IllegalStateException("Market must be initialized before creating payment method presenter")
+
         val isBuy = createOfferModel.direction.isBuy
         quoteSideHeadline = if (isBuy)
             "bisqEasy.takeOffer.paymentMethods.subtitle.fiat.buyer".i18n(quoteCurrencyCode)
@@ -43,6 +42,9 @@ class CreateOfferPaymentMethodPresenter(
         // availableQuoteSidePaymentMethods = createOfferModel.availableQuoteSidePaymentMethods.subList(0, 3)  // for dev testing to avoid scroll
         availableQuoteSidePaymentMethods = createOfferModel.availableQuoteSidePaymentMethods
         availableBaseSidePaymentMethods = createOfferModel.availableBaseSidePaymentMethods
+
+        selectedQuoteSidePaymentMethods.value = createOfferModel.selectedQuoteSidePaymentMethods.toMutableSet()
+        selectedBaseSidePaymentMethods.value = createOfferModel.selectedBaseSidePaymentMethods.toMutableSet()
     }
 
     override fun onViewUnattaching() {
@@ -62,7 +64,11 @@ class CreateOfferPaymentMethodPresenter(
         if (selectedQuoteSidePaymentMethods.value.contains(value)) {
             selectedQuoteSidePaymentMethods.update { it - value }
         } else {
-            selectedQuoteSidePaymentMethods.update { it + value }
+            if (selectedQuoteSidePaymentMethods.value.size == 4) {
+                showSnackbar("bisqEasy.tradeWizard.paymentMethods.warn.maxMethodsReached".i18n())
+            } else {
+                selectedQuoteSidePaymentMethods.update { it + value }
+            }
         }
     }
 
