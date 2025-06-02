@@ -17,10 +17,13 @@ val versionCodeValue = (project.findProperty("node.android.version.code") as Str
 val sharedVersion = project.findProperty("shared.version") as String
 
 kotlin {
+    // using JDK21 for full bisq2 compatibility
+    jvmToolchain(21)
+    
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
+            jvmTarget.set(JvmTarget.JVM_21)
         }
     }
 
@@ -163,8 +166,10 @@ android {
         buildConfig = true
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        // for bisq2 jars full compatibility
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+        isCoreLibraryDesugaringEnabled = true
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -238,13 +243,15 @@ dependencies {
     implementation(libs.koin.core)
     implementation(libs.koin.android)
     implementation(libs.logging.kermit)
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 }
 
-// ensure tests run on J17
+// ensure tests run on the same Java version as the main code
 tasks.withType<Test> {
     javaLauncher.set(
         javaToolchains.launcherFor {
-            languageVersion.set(JavaLanguageVersion.of(17))
+            languageVersion.set(JavaLanguageVersion.of(21)) // Update from 17 to 21
         }
     )
 }
