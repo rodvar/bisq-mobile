@@ -22,13 +22,26 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // for androidNode till we get bisq-core libs published to a public repo
+        // always, for faster builds
         mavenLocal()
+        
+        // Check if we're running in CI environment
+        val isCi = System.getenv("CI") == "true"
+        if (isCi) {
+            // Use the remote Maven repository for CI builds
+            maven {
+                url = uri("http://104.154.164.188");
+                isAllowInsecureProtocol = true
+                credentials {
+                    username = "bisq-ci"
+                    password = System.getenv("MAVEN_PASSWORD") ?: "bisq-mobile-ci-21!"
+                }
+            }
+        }
+
         maven {
             url = uri("https://jitpack.io")
         }
-    }
-    repositories {
     }
 }
 
