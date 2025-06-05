@@ -47,6 +47,18 @@
 -keep class com.android.** { *; }
 -keep class org.gradle.** { *; }
 
+# Keep ASM classes needed by Apache Commons Compress
+-dontwarn org.objectweb.asm.**
+-keep class org.objectweb.asm.** { *; }
+
+# If ASM is not directly included, add this dependency
+# This tells ProGuard not to worry about these missing classes
+-dontwarn org.apache.commons.compress.harmony.pack200.**
+-dontwarn org.apache.commons.compress.harmony.unpack200.**
+
+# Keep Apache Commons Compress classes
+-keep class org.apache.commons.compress.** { *; }
+
 # Keep any native methods
 -keepclasseswithmembernames class * {
     native <methods>;

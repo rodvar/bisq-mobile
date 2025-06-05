@@ -46,6 +46,7 @@ serializationPlugin = "2.0.21"
 protobuf = "0.9.4"
 protob = "4.28.2"
 ksp = "2.0.20-1.0.25"
+tor-android = "0.4.7.13"
 
 chimp-jsocks-lib = { strictly = '567e1cd6' }
 failsafe-lib = { strictly = '3.2.4' }
@@ -122,6 +123,9 @@ bignum = { module = 'com.ionspin.kotlin:bignum', version.ref = 'bignum-lib' }
 logging-kermit = { group = "co.touchlab", name = "kermit", version.ref = "kermit" }
 
 lombok = { module = 'org.projectlombok:lombok', version.ref = 'lombok-lib' }
+
+tor-android = { module = "io.matthewnelson.topl-android:tor-android", version.ref = "tor-android" }
+tor-binary = { module = "io.matthewnelson.topl-android:tor-binary", version.ref = "tor-android" }
 
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 jetbrains-serialization-gradle-plugin = { module = "org.jetbrains.kotlin.plugin.serialization:org.jetbrains.kotlin.plugin.serialization.gradle.plugin", version.ref = "serializationPlugin" }
