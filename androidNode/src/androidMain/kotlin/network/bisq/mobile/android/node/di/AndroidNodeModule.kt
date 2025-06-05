@@ -134,4 +134,10 @@ val androidNodeModule = module {
     single<GeneralSettingsPresenter> { NodeGeneralSettingsPresenter(get(), get(), get()) } bind IGeneralSettingsPresenter::class
 
     single<IOnboardingPresenter> { OnBoardingNodePresenter(get(), get(), get()) } bind IOnboardingPresenter::class
+
+//    TODO add in bisq2 jars and uncomment this
+//    single {
+//        val context = androidContext()
+//        AndroidTorTransportService(context, context.filesDir.absolutePath)
+//    }
 }

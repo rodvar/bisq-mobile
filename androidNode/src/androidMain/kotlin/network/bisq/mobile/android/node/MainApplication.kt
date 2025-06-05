@@ -37,6 +37,7 @@ class MainApplication : Application(), Logging {
         super.onCreate()
         setupKoinDI(this)
         setupBisqCoreStatics()
+        initializeTorService()
     }
 
     private fun setupBisqCoreStatics() {
@@ -66,5 +67,19 @@ class MainApplication : Application(), Logging {
                 || android.os.Build.MANUFACTURER.contains("Genymotion")
                 || (android.os.Build.BRAND.startsWith("generic") && android.os.Build.DEVICE.startsWith("generic"))
                 || "google_sdk".equals(android.os.Build.PRODUCT);
+    }
+
+    private fun initializeTorService() {
+        // Initialize Tor service
+//        FIME not needde if we pass in the CustomTorService to bisq2 jars
+//        val torConfig = TorConfig.Builder()
+//            .torrcConfig("DisableNetwork", "0")
+//            .torrcConfig("SOCKSPort", "9050")
+//            .build()
+//
+////        val torService = AndroidTorService(this, filesDir.absolutePath, torConfig)
+////        // Register in FacadeProvider or similar mechanism
+////        FacadeProvider.setTorTransportFacade(torService)
+//        log.d { "Tor service initialized" }
     }
 }

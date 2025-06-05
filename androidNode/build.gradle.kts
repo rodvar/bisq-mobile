@@ -3,6 +3,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
+import java.net.URL
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -245,6 +246,91 @@ dependencies {
     implementation(libs.logging.kermit)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+
+    // For tar.gz extraction in the build script
+    implementation("org.apache.commons:commons-compress:1.24.0")
+    
+    // Add ASM dependency for Commons Compress
+    implementation("org.ow2.asm:asm:9.6")
+}
+
+// Define a proper task class for configuration cache compatibility
+abstract class DownloadTorBinariesTask : DefaultTask() {
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+    
+    @get:Input
+    val torVersion = "0.4.7.13" // Check available versions
+    
+    @get:Input
+    val architectures = listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+    
+    init {
+        outputDir.set(project.layout.projectDirectory.dir("src/main/assets/tor"))
+    }
+    
+    @TaskAction
+    fun download() {
+        val assetsDir = outputDir.get().asFile
+        assetsDir.mkdirs()
+        
+        architectures.forEach { arch ->
+            val destDir = File(assetsDir, arch)
+            destDir.mkdirs()
+            
+            val torBinary = File(destDir, "tor")
+            if (!torBinary.exists()) {
+                println("Downloading Tor binary for $arch")
+                try {
+                    // Guardian Project's pre-compiled binaries
+                    val url = URL("https://guardianproject.info/releases/tor-android-binary-$torVersion-$arch.zip")
+                    
+                    // Download and extract the zip file
+                    val tempFile = File.createTempFile("tor-", ".zip")
+                    tempFile.deleteOnExit()
+                    
+                    url.openStream().use { input ->
+                        tempFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    
+                    // Extract using Apache Commons Compress
+                    tempFile.inputStream().use { fileInputStream ->
+                        org.apache.commons.compress.archivers.zip.ZipArchiveInputStream(fileInputStream).use { zipIn ->
+                            var entry = zipIn.nextZipEntry
+                            while (entry != null) {
+                                if (entry.name.endsWith("/tor") || entry.name == "tor") {
+                                    torBinary.outputStream().use { output ->
+                                        zipIn.copyTo(output)
+                                    }
+                                    torBinary.setExecutable(true)
+                                    println("Extracted Tor binary for $arch successfully")
+                                    break
+                                }
+                                entry = zipIn.nextZipEntry
+                            }
+                        }
+                    }
+                    
+                    tempFile.delete()
+                } catch (e: Exception) {
+                    println("Failed to download Tor binary for $arch: ${e.message}")
+                    e.printStackTrace()
+                }
+            } else {
+                println("Tor binary for $arch already exists")
+            }
+        }
+    }
+}
+
+// Register the task using the proper class
+tasks.register<DownloadTorBinariesTask>("downloadTorBinaries")
+
+// Make sure the download task runs before the build
+tasks.named("preBuild") {
+    dependsOn("downloadTorBinaries")
 }
 
 // ensure tests run on the same Java version as the main code
