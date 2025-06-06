@@ -6,10 +6,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.runBlocking
 import network.bisq.mobile.client.websocket.WebSocketClientProvider
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.repository.SettingsRepository
+import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
@@ -17,6 +19,7 @@ import network.bisq.mobile.presentation.ui.navigation.Routes
 
 class TrustedNodeSetupPresenter(
     mainPresenter: MainPresenter,
+    private val userRepository: UserRepository,
     private val settingsRepository: SettingsRepository,
     private val settingsServiceFacade: SettingsServiceFacade,
     private val webSocketClientProvider: WebSocketClientProvider
@@ -68,10 +71,20 @@ class TrustedNodeSetupPresenter(
     }
 
     override fun updateBisqApiUrl(newUrl: String, isValid: Boolean) {
-        // log.w { "$newUrl: $isValid" }
-        _isBisqApiUrlValid.value = isValid
         _bisqApiUrl.value = newUrl
-        _isConnected.value = false
+        _isBisqApiUrlValid.value = isValid
+    }
+
+    override fun isNewTrustedNodeUrl(): Boolean {
+        return runBlocking {
+            var isNewTrustedNode = false
+            settingsRepository.fetch()?.let {
+                if (it.bisqApiUrl.isNotBlank() && it.bisqApiUrl != _bisqApiUrl.value) {
+                    isNewTrustedNode = true
+                }
+            }
+            return@runBlocking isNewTrustedNode
+        }
     }
 
     override fun validateWsUrl(url: String): String? {
@@ -88,7 +101,9 @@ class TrustedNodeSetupPresenter(
 
     override fun testConnection(isWorkflow: Boolean) {
         if (!isWorkflow) {
-            // FIXME temporary solution to avoid changing node without the corresponding profile reset
+            // TODO implement feature to allow changing from settings
+            // this is not trivial from UI perspective, its making NavGraph related code to crash when
+            // landing back in the TabContainer Home.
             showSnackbar("If you want to use a different node, you need to remove the app storage or uninstall/reinstall")
             return
         }
@@ -106,20 +121,28 @@ class TrustedNodeSetupPresenter(
                 }
 
                 if (success) {
+                    val previousUrl = settingsRepository.fetch()?.bisqApiUrl
                     val isCompatibleVersion = withContext(IODispatcher) {
                         updateTrustedNodeSettings()
                         delay(DEFAULT_DELAY)
                         webSocketClientProvider.get().await()
                         validateVersion()
                     }
+                    
                     if (isCompatibleVersion) {
-                        log.d { "Connected successfully to ${_bisqApiUrl.value} is workflow: $isWorkflow" }
-                        showSnackbar("Connected successfully to ${_bisqApiUrl.value}, settings updated")
-                        if (!isWorkflow) {
-                            _isLoading.value = false
+                        _isConnected.value = true
+
+                        if (previousUrl != _bisqApiUrl.value) {
+                            log.d { "user setup a new trusted node ${_bisqApiUrl.value}" }
+                            withContext(IODispatcher) {
+                                userRepository.fetch()?.let {
+                                    userRepository.delete(it)
+                                }
+                            }
+                            navigateToNextScreen(isWorkflow)
+                        } else if (!isWorkflow) {
                             navigateBack()
                         }
-                        _isConnected.value = true
                     } else {
                         webSocketClientProvider.get().disconnect(isTest = true)
                         log.d { "Invalid version cannot connect" }
@@ -163,9 +186,22 @@ class TrustedNodeSetupPresenter(
         settingsRepository.update(updatedSettings)
     }
 
-    override fun navigateToNextScreen() {
+    override fun navigateToNextScreen(isWorkflow: Boolean) {
         // access to profile setup should be handled by splash
-        goBackToSetupScreen()
+        log.d { "Navigating to next screen (Workflow: $isWorkflow" }
+        // TODO handle also user scheduled to be deleted when we implement settings change trusted node
+        launchUI {
+            val user = withContext(IODispatcher) { userRepository.fetch() }
+            if (isWorkflow) {
+                if (user == null) {
+                    navigateTo(Routes.Onboarding)
+                } else {
+                    navigateTo(Routes.TabContainer)
+                }
+            } else {
+                navigateTo(Routes.TabContainer)
+            }
+        }
     }
 
     override fun goBackToSetupScreen() {
