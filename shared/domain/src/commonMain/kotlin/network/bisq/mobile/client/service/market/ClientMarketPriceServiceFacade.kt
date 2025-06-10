@@ -1,7 +1,5 @@
 package network.bisq.mobile.client.service.market
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -11,21 +9,15 @@ import network.bisq.mobile.domain.data.model.offerbook.MarketListItem
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVO
+import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.formatters.MarketPriceFormatter
-import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 
 class ClientMarketPriceServiceFacade(
     private val apiGateway: MarketPriceApiGateway,
-    private val json: kotlinx.serialization.json.Json
-) : ServiceFacade(), MarketPriceServiceFacade {
-
-    // Properties
-    private val _selectedMarketPriceItem: MutableStateFlow<MarketPriceItem?> = MutableStateFlow(null)
-    override val selectedMarketPriceItem: StateFlow<MarketPriceItem?> get() = _selectedMarketPriceItem
-
-    private val _selectedFormattedMarketPrice = MutableStateFlow("N/A")
-    override val selectedFormattedMarketPrice: StateFlow<String> = _selectedFormattedMarketPrice
+    private val json: kotlinx.serialization.json.Json,
+    settingsRepository: SettingsRepository
+) : MarketPriceServiceFacade(settingsRepository) {
 
     // Misc
     private val quotes: MutableMap<String, PriceQuoteVO> = mutableMapOf()
@@ -34,7 +26,12 @@ class ClientMarketPriceServiceFacade(
 
     // Life cycle
     override fun activate() {
-        super<ServiceFacade>.activate()
+        super.activate()
+
+        restoreSelectedMarketFromSettings {
+            selectedMarket = it
+            updateMarketPriceItem()
+        }
 
         // Use the jobsManager to launch a coroutine instead of serviceScope directly
         launchIO {
@@ -62,6 +59,8 @@ class ClientMarketPriceServiceFacade(
     override fun selectMarket(marketListItem: MarketListItem) {
         selectedMarket = marketListItem.market
         updateMarketPriceItem()
+
+        persistSelectedMarketToSettings(marketListItem)
     }
 
     override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? {
