@@ -180,7 +180,11 @@ class CreateOfferPresenter(
                 FiatVO("USD", 80000, "USD", 4, 2),
             )
         } else {
-            val marketPriceItem: MarketPriceItem = marketPriceServiceFacade.findMarketPriceItem(market)!!
+            val marketPriceItem: MarketPriceItem? = marketPriceServiceFacade.findMarketPriceItem(market)
+            if (marketPriceItem == null) {
+                log.e { "Market price item not found for market: $market" }
+                throw IllegalStateException("Market price not available for $market")
+            }
             return MarketPriceSpecVO().getPriceQuoteVO(marketPriceItem)
         }
     }
