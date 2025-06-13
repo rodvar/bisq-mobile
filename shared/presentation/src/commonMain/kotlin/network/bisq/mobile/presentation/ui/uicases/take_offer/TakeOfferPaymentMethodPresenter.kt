@@ -1,14 +1,21 @@
 package network.bisq.mobile.presentation.ui.uicases.take_offer
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.domain.service.accounts.AccountsServiceFacade
+import network.bisq.mobile.domain.data.replicated.account.UserDefinedFiatAccountVO
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
 class TakeOfferPaymentMethodPresenter(
     mainPresenter: MainPresenter,
-    private val takeOfferPresenter: TakeOfferPresenter
+    private val takeOfferPresenter: TakeOfferPresenter,
+    private val accountsServiceFacade: AccountsServiceFacade
 ) : BasePresenter(mainPresenter) {
 
     var hasMultipleQuoteSidePaymentMethods: Boolean = false
@@ -20,6 +27,17 @@ class TakeOfferPaymentMethodPresenter(
     lateinit var quoteCurrencyCode: String
 
     private lateinit var takeOfferModel: TakeOfferPresenter.TakeOfferModel
+
+    // Filtered payment methods based on user's payment accounts and currency compatibility
+    val filteredQuoteSidePaymentMethods: StateFlow<List<String>> by lazy {
+        accountsServiceFacade.accounts.map { accounts ->
+            filterPaymentMethodsByCurrency(quoteSidePaymentMethods, quoteCurrencyCode, accounts)
+        }.stateIn(
+            scope = presenterScope,
+            started = SharingStarted.Eagerly,
+            initialValue = quoteSidePaymentMethods
+        )
+    }
 
     init {
         takeOfferModel = takeOfferPresenter.takeOfferModel
@@ -45,6 +63,13 @@ class TakeOfferPaymentMethodPresenter(
             }
         }
         quoteCurrencyCode = offerListItem.bisqEasyOffer.market.quoteCurrencyCode
+    }
+
+    override fun onViewAttached() {
+        super.onViewAttached()
+        launchIO {
+            accountsServiceFacade.getAccounts()
+        }
     }
 
     override fun onViewUnattaching() {
@@ -89,7 +114,7 @@ class TakeOfferPaymentMethodPresenter(
     private fun isValid() = quoteSidePaymentMethod.value != null && baseSidePaymentMethod.value != null
 
     fun getQuoteSidePaymentMethodsImagePaths(): List<String> {
-        return getPaymentMethodsImagePaths(quoteSidePaymentMethods, "fiat")
+        return getPaymentMethodsImagePaths(filteredQuoteSidePaymentMethods.value, "fiat")
     }
 
     fun getBaseSidePaymentMethodsImagePaths(): List<String> {
@@ -101,4 +126,37 @@ class TakeOfferPaymentMethodPresenter(
             val fileName = paymentMethod.lowercase().replace("-", "_")
             "drawable/payment/$directory/$fileName.png"
         }
+
+    /**
+     * Filters payment methods based on currency compatibility with user's payment accounts.
+     * Includes payment methods that:
+     * 1. Have user accounts with matching currency
+     * 2. Have user accounts with no currency set (Any Currency)
+     */
+    private fun filterPaymentMethodsByCurrency(
+        availablePaymentMethods: List<String>,
+        tradeCurrency: String,
+        userAccounts: List<UserDefinedFiatAccountVO>
+    ): List<String> {
+        // If no user accounts, show all available payment methods
+        if (userAccounts.isEmpty()) {
+            return availablePaymentMethods
+        }
+
+        // Find accounts that support the trade currency or have no currency restriction
+        val compatibleAccounts = userAccounts.filter { account ->
+            account.currencyCodes.isEmpty() || // No currency set = "Any Currency"
+            account.currencyCodes.contains(tradeCurrency) // Exact currency match
+        }
+
+        // If no compatible accounts, return empty list (user needs to create compatible payment accounts)
+        if (compatibleAccounts.isEmpty()) {
+            return emptyList()
+        }
+
+        // For now, we return all available payment methods if user has compatible accounts
+        // In the future, this could be enhanced to filter by specific payment method types
+        // that match the user's account configurations
+        return availablePaymentMethods
+    }
 }

@@ -32,7 +32,7 @@ open class PaymentAccountPresenter(
         }
     }
 
-    override fun addAccount(newName: String, newDescription: String) {
+    override fun addAccount(newName: String, newDescription: String, currencyCodes: List<String>) {
         disableInteractive()
 
         if (accounts.value.find { it.accountName == newName } != null) {
@@ -47,7 +47,8 @@ open class PaymentAccountPresenter(
                     accountName = newName,
                     UserDefinedFiatAccountPayloadVO(
                         accountData = newDescription
-                    )
+                    ),
+                    currencyCodes = currencyCodes
                 )
                 accountsServiceFacade.addAccount(newAccount)
                 showSnackbar("Account created") // TODO:i18n
@@ -57,7 +58,7 @@ open class PaymentAccountPresenter(
         }
     }
 
-    override fun saveAccount(newName: String, newDescription: String) {
+    override fun saveAccount(newName: String, newDescription: String, currencyCodes: List<String>) {
         disableInteractive()
         if (selectedAccount.value?.accountName != newName && accounts.value.find { it.accountName == newName } != null) {
             showSnackbar("Account name exists") // TODO:i18n
@@ -72,7 +73,8 @@ open class PaymentAccountPresenter(
                         accountName = newName,
                         UserDefinedFiatAccountPayloadVO(
                             accountData = newDescription
-                        )
+                        ),
+                        currencyCodes = currencyCodes
                     )
                     accountsServiceFacade.saveAccount(newAccount)
                     showSnackbar("Account updated") // TODO:i18n
