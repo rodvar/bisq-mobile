@@ -17,15 +17,18 @@ import network.bisq.mobile.domain.data.replicated.offer.price.spec.FixPriceSpecV
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.FloatPriceSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.MarketPriceSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVOExtensions.getPriceQuoteVO
+import network.bisq.mobile.domain.data.replicated.settings.SettingsVO
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
+import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 
 class CreateOfferPresenter(
     mainPresenter: MainPresenter,
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
-    private val offersServiceFacade: OffersServiceFacade
+    private val offersServiceFacade: OffersServiceFacade,
+    private val settingsServiceFacade: SettingsServiceFacade,
 ) : BasePresenter(mainPresenter) {
     enum class PriceType {
         PERCENTAGE,
@@ -93,7 +96,8 @@ class CreateOfferPresenter(
         val latestQuote = getMostRecentPriceQuote(value)
         createOfferModel.priceQuote = latestQuote
         createOfferModel.originalPriceQuote = latestQuote
-        createOfferModel.availableQuoteSidePaymentMethods = FiatPaymentRailUtil.getPaymentRailNames(value.quoteCurrencyCode)
+        createOfferModel.availableQuoteSidePaymentMethods =
+            FiatPaymentRailUtil.getPaymentRailNames(value.quoteCurrencyCode)
     }
 
     fun commitAmount(
@@ -153,7 +157,12 @@ class CreateOfferPresenter(
             else FloatPriceSpecVO(createOfferModel.percentagePriceValue)
         }
 
-        val supportedLanguageCodes: Set<String> = setOf("en") //todo
+        val supportedLanguageCodes = runCatching {
+            settingsServiceFacade.getSettings().getOrThrow().supportedLanguageCodes
+        }.getOrElse {
+            log.w(it) { "Failed to fetch settings, defaulting to English" }
+            setOf("en")
+        }
 
         withContext(IODispatcher) {
             offersServiceFacade.createOffer(
