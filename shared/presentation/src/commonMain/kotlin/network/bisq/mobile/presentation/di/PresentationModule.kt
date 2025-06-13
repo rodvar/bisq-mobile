@@ -133,7 +133,7 @@ val presentationModule = module {
     // Take offer
     single { TakeOfferPresenter(get(), get(), get()) }
     factory { TakeOfferAmountPresenter(get(), get(), get()) }
-    factory { TakeOfferPaymentMethodPresenter(get(), get()) }
+    factory { TakeOfferPaymentMethodPresenter(get(), get(), get()) }
     factory { TakeOfferReviewPresenter(get(), get(), get()) }
 
     // Create offer

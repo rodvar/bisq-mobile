@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class UserDefinedFiatAccountVO(
     val accountName: String,
-    val accountPayload: UserDefinedFiatAccountPayloadVO
+    val accountPayload: UserDefinedFiatAccountPayloadVO,
+    val currencyCodes: List<String> = emptyList() // Empty list means "Any Currency" for backward compatibility
 )
 //data class UserDefinedFiatAccountVO(
 //    override val accountName: String,

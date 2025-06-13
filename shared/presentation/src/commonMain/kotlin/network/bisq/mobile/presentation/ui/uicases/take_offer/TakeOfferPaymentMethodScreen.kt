@@ -17,6 +17,9 @@ fun TakeOfferPaymentMethodScreen() {
     val baseSidePaymentMethod: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())
     val quoteSidePaymentMethod: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())
 
+    // Use filtered payment methods
+    val filteredQuoteSidePaymentMethods by presenter.filteredQuoteSidePaymentMethods.collectAsState()
+
     LaunchedEffect(Unit) {
         presenter.baseSidePaymentMethod.collect { value ->
             baseSidePaymentMethod.value = value?.let { setOf(it) } ?: emptySet()
@@ -42,17 +45,26 @@ fun TakeOfferPaymentMethodScreen() {
 
         BisqText.h3Regular("bisqEasy.takeOffer.paymentMethods.headline.fiatAndBitcoin".i18n())
 
-        if (presenter.hasMultipleQuoteSidePaymentMethods) {
+        // Show payment methods if there are multiple options OR if filtering resulted in fewer options
+        if (presenter.hasMultipleQuoteSidePaymentMethods || filteredQuoteSidePaymentMethods.size != presenter.quoteSidePaymentMethods.size) {
             BisqGap.V2()
             BisqGap.V2()
 
-            PaymentMethodCard(
-                title = "bisqEasy.takeOffer.paymentMethods.subtitle.fiat.buyer".i18n(presenter.quoteCurrencyCode),
-                imagePaths = presenter.getQuoteSidePaymentMethodsImagePaths(),
-                availablePaymentMethods = presenter.quoteSidePaymentMethods,
-                selectedPaymentMethods = quoteSidePaymentMethod,
-                onToggle = { selected -> presenter.onQuoteSidePaymentMethodSelected(selected) },
-            )
+            if (filteredQuoteSidePaymentMethods.isEmpty()) {
+                // Show message when no compatible payment methods are available
+                BisqText.baseRegular(
+                    "No payment methods available for ${presenter.quoteCurrencyCode}. Please create a payment account that supports this currency.",
+                    color = network.bisq.mobile.presentation.ui.theme.BisqTheme.colors.warning
+                )
+            } else {
+                PaymentMethodCard(
+                    title = "bisqEasy.takeOffer.paymentMethods.subtitle.fiat.buyer".i18n(presenter.quoteCurrencyCode),
+                    imagePaths = presenter.getQuoteSidePaymentMethodsImagePaths(),
+                    availablePaymentMethods = filteredQuoteSidePaymentMethods,
+                    selectedPaymentMethods = quoteSidePaymentMethod,
+                    onToggle = { selected -> presenter.onQuoteSidePaymentMethodSelected(selected) },
+                )
+            }
         }
 
         if (presenter.hasMultipleBaseSidePaymentMethods) {

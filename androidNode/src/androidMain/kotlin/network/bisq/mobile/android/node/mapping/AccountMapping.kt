@@ -11,12 +11,14 @@ object UserDefinedFiatAccountMapping {
             value.accountName,
             value.accountPayload.accountData
         )
+        // Note: currencyCodes are handled at the mobile app level and not passed to Bisq2 backend
     }
 
     fun fromBisq2Model(value: UserDefinedFiatAccount): UserDefinedFiatAccountVO {
         return UserDefinedFiatAccountVO(
             value.accountName,
-            UserDefinedFiatAccountPayloadMapping.fromBisq2Model(value.accountPayload)
+            UserDefinedFiatAccountPayloadMapping.fromBisq2Model(value.accountPayload),
+            emptyList() // Default to "Any Currency" for accounts from backend
         )
     }
 }

@@ -19,18 +19,20 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
+import network.bisq.mobile.presentation.ui.components.atoms.BisqCurrencyMultiSelector
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 
 @Composable
 fun AppPaymentAccountCard(
-    onConfirm: (String, String) -> Unit,
+    onConfirm: (String, String, List<String>) -> Unit,
     onCancel: () -> Unit,
 ) {
     var accountName by remember { mutableStateOf("") }
     var accountNameValid by remember { mutableStateOf(false) }
     var accountDescription by remember { mutableStateOf("") }
     var accountDescriptionValid by remember { mutableStateOf(false) }
+    var selectedCurrencies by remember { mutableStateOf(emptySet<String>()) }
 
     Column(
         modifier = Modifier.padding(
@@ -93,6 +95,16 @@ fun AppPaymentAccountCard(
                 return@BisqTextField null
             }
         )
+
+        BisqCurrencyMultiSelector(
+            selectedCurrencies = selectedCurrencies,
+            onSelectionChanged = { selectedCurrencies = it },
+            label = "Supported Currencies",
+            placeholder = "Select at least one currency",
+            isRequired = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
@@ -105,9 +117,9 @@ fun AppPaymentAccountCard(
             )
             BisqButton(
                 text = "action.save".i18n(),
-                onClick = { onConfirm(accountName, accountDescription) },
+                onClick = { onConfirm(accountName, accountDescription, selectedCurrencies.toList()) },
                 padding = PaddingValues(horizontal = 64.dp, vertical = 12.dp),
-                disabled = !accountNameValid || !accountDescriptionValid
+                disabled = !accountNameValid || !accountDescriptionValid || selectedCurrencies.isEmpty()
             )
         }
     }

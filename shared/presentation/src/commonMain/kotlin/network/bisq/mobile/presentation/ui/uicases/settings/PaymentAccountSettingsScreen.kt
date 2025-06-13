@@ -31,8 +31,8 @@ interface IPaymentAccountSettingsPresenter : ViewPresenter {
 
     fun selectAccount(account: UserDefinedFiatAccountVO)
 
-    fun addAccount(newName: String, newDescription: String)
-    fun saveAccount(newName: String, newDescription: String)
+    fun addAccount(newName: String, newDescription: String, currencyCodes: List<String>)
+    fun saveAccount(newName: String, newDescription: String, currencyCodes: List<String>)
     fun deleteCurrentAccount()
 }
 
@@ -49,6 +49,7 @@ fun PaymentAccountSettingsScreen() {
     var accountNameValid by remember { mutableStateOf(true) }
     var accountDescription by remember { mutableStateOf(selectedAccount?.accountPayload?.accountData ?: "") }
     var accountDescriptionValid by remember { mutableStateOf(true) }
+    var selectedCurrencies by remember { mutableStateOf(selectedAccount?.currencyCodes?.toSet() ?: emptySet()) }
 
     var showConfirmationDialog by remember { mutableStateOf(false) }
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -63,6 +64,7 @@ fun PaymentAccountSettingsScreen() {
     LaunchedEffect(selectedAccount) {
         accountName = selectedAccount?.accountName ?: ""
         accountDescription = selectedAccount?.accountPayload?.accountData ?: ""
+        selectedCurrencies = selectedAccount?.currencyCodes?.toSet() ?: emptySet()
     }
 
     BisqScrollScaffold(
@@ -83,8 +85,8 @@ fun PaymentAccountSettingsScreen() {
             ) {
                 AppPaymentAccountCard(
                     onCancel = { showBottomSheet = false },
-                    onConfirm = { name, description ->
-                        presenter.addAccount(name, description)
+                    onConfirm = { name, description, currencies ->
+                        presenter.addAccount(name, description, currencies)
                         showBottomSheet = false
                     },
                 )
@@ -178,6 +180,17 @@ fun PaymentAccountSettingsScreen() {
 
         BisqGap.V1()
 
+        BisqCurrencyMultiSelector(
+            selectedCurrencies = selectedCurrencies,
+            onSelectionChanged = { selectedCurrencies = it },
+            label = "Supported Currencies",
+            placeholder = "Any Currency",
+            isRequired = false,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        BisqGap.V1()
+
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
@@ -191,7 +204,7 @@ fun PaymentAccountSettingsScreen() {
             BisqButton(
                 text = "action.save".i18n(),
                 onClick = {
-                    presenter.saveAccount(accountName, accountDescription)
+                    presenter.saveAccount(accountName, accountDescription, selectedCurrencies.toList())
                 },
                 disabled = !accountNameValid || !accountDescriptionValid
             )
@@ -204,6 +217,7 @@ fun PaymentAccountSettingsScreen() {
                 presenter.deleteCurrentAccount()
                 accountName = presenter.selectedAccount.value?.accountName ?: ""
                 accountDescription = presenter.selectedAccount.value?.accountPayload?.accountData ?: ""
+                selectedCurrencies = presenter.selectedAccount.value?.currencyCodes?.toSet() ?: emptySet()
                 showConfirmationDialog = false
             },
             onDismiss = {
