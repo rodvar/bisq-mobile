@@ -9,7 +9,6 @@ import bisq.common.facades.android.AndroidJdkFacade
 import bisq.common.network.clear_net_address_types.LANAddressTypeFacade
 import bisq.common.network.clear_net_address_types.AndroidEmulatorAddressTypeFacade
 import network.bisq.mobile.android.node.di.androidNodeModule
-import network.bisq.mobile.android.node.service.tor.TorTestingService
 import network.bisq.mobile.domain.di.domainModule
 import network.bisq.mobile.domain.di.serviceModule
 import network.bisq.mobile.domain.utils.Logging
@@ -34,16 +33,13 @@ class MainApplication : Application(), Logging {
             }
         }
     }
+
     override fun onCreate() {
         super.onCreate()
-        testTor()
         setupKoinDI(this)
         setupBisqCoreStatics()
-    }
-
-    private fun testTor() {
-        val torTestingService = TorTestingService(this, filesDir)
-        torTestingService.runComprehensiveTest()
+        // Note: Tor initialization is now handled in NodeApplicationBootstrapFacade
+        // as the very first step of the bootstrap process
     }
 
     private fun setupBisqCoreStatics() {
