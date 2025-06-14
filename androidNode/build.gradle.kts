@@ -131,6 +131,8 @@ android {
             excludes.add("META-INF/NOTICE.markdown")
             pickFirsts.add("**/protobuf/**/*.class")
         }
+        // Required for kmp-tor exec resources
+        jniLibs.useLegacyPackaging = true
     }
     buildTypes {
         getByName("release") {
@@ -164,6 +166,16 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+
+    // Optional: Configure ABI splits for kmp-tor
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("x86", "armeabi-v7a", "arm64-v8a", "x86_64")
+            isUniversalApk = true
+        }
     }
     compileOptions {
         // for bisq2 jars full compatibility
@@ -243,6 +255,15 @@ dependencies {
     implementation(libs.koin.core)
     implementation(libs.koin.android)
     implementation(libs.logging.kermit)
+
+    // kmp-tor for embedded Tor support
+    implementation(libs.kmp.tor.runtime)
+    implementation(libs.kmp.tor.resource.exec)
+    implementation(libs.kmp.tor.resource.noexec)
+
+    // Android Native requires separate compilation dependencies
+    implementation(libs.kmp.tor.resource.compilation.exec)
+    implementation(libs.kmp.tor.resource.compilation.lib)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 }
