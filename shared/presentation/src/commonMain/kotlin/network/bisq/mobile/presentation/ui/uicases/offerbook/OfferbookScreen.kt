@@ -70,15 +70,11 @@ fun OfferbookScreen() {
             verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            items(sortedFilteredOffers) { item ->
+            items(items = sortedFilteredOffers, key = { it.offerId }) { item ->
                 OfferCard(
                     item,
-                    onSelectOffer = { 
-                        if (item.isInvalidDueToReputation) {
-                            presenter.showReputationRequirementInfo(item)
-                        } else {
-                            presenter.onOfferSelected(item)
-                        }
+                    onSelectOffer = {
+                        presenter.onOfferSelected(item)
                     },
                 )
             }
