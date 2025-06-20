@@ -6,6 +6,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.data.replicated.user.identity.UserIdentityVO
@@ -14,6 +16,7 @@ import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExte
 import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.utils.hexToByteArray
+import okio.ByteString.Companion.decodeBase64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.max
 import kotlin.math.min
@@ -29,6 +32,9 @@ class ClientUserProfileServiceFacade(
     // Properties
     private val _selectedUserProfile: MutableStateFlow<UserProfileVO?> = MutableStateFlow(null)
     override val selectedUserProfile: StateFlow<UserProfileVO?> = _selectedUserProfile
+
+    private val avatarMap: MutableMap<String, PlatformImage?> = mutableMapOf<String, PlatformImage?>()
+    private val avatarMapMutex = Mutex()
 
     // Misc
     override fun activate() {
@@ -134,5 +140,22 @@ class ClientUserProfileServiceFacade(
         val random: Int = Random.nextInt(800)
         val delayDuration = min(1000.0, max(200.0, (200 + random - requestDuration).toDouble())).toLong()
         delay(delayDuration)
+    }
+
+    override suspend fun getUserAvatar(userProfile: UserProfileVO): PlatformImage? {
+        return avatarMapMutex.withLock {
+            if (avatarMap[userProfile.nym] == null) {
+                val avatar = try {
+                    val pubKeyHash = userProfile.networkId.pubKey.hash.decodeBase64()!!.toByteArray()
+                    val powSolution = userProfile.proofOfWork.solutionEncoded.decodeBase64()!!.toByteArray()
+                    clientCatHashService.getImage(pubKeyHash, powSolution, userProfile.avatarVersion, 120)
+                } catch (e: Exception) {
+                    log.e {"Avatar generation failed for ${userProfile.nym}"}
+                    null
+                }
+                avatarMap[userProfile.nym] = avatar
+            }
+            return avatarMap[userProfile.nym]
+        }
     }
 }

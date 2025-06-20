@@ -1,11 +1,13 @@
 package network.bisq.mobile.presentation.ui.uicases.open_trades
 
 import kotlinx.coroutines.flow.*
+import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.formatters.NumberFormatter
 import network.bisq.mobile.domain.formatters.PriceSpecFormatter
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
+import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
@@ -14,6 +16,7 @@ class OpenTradeListPresenter(
     private val mainPresenter: MainPresenter,
     private val tradesServiceFacade: TradesServiceFacade,
     private val settingsServiceFacade: SettingsServiceFacade,
+    private val userProfileServiceFacade: UserProfileServiceFacade
 ) : BasePresenter(mainPresenter) {
 
     private val _openTradeItems: MutableStateFlow<List<TradeItemPresentationModel>> = MutableStateFlow(emptyList())
@@ -27,33 +30,36 @@ class OpenTradeListPresenter(
     private val _tradesWithUnreadMessages: MutableStateFlow<Map<String, Int>> = MutableStateFlow(emptyMap())
     val tradesWithUnreadMessages: StateFlow<Map<String, Int>> = _tradesWithUnreadMessages
 
+    private val _avatarMap: MutableStateFlow<Map<String, PlatformImage?>> = MutableStateFlow(emptyMap())
+    val avatarMap: StateFlow<Map<String, PlatformImage?>> = _avatarMap
+
     override fun onViewAttached() {
         super.onViewAttached()
         tradesServiceFacade.resetSelectedTradeToNull()
 
         launchUI {
             combine(
-                mainPresenter.tradesWithUnreadMessages,
-                tradesServiceFacade.openTradeItems,
-                mainPresenter.languageCode
+                mainPresenter.tradesWithUnreadMessages, tradesServiceFacade.openTradeItems, mainPresenter.languageCode
             ) { unreadMessages, openTrades, _ ->
                 Pair(unreadMessages, openTrades)
             }.collect { (unreadMessages, openTrades) ->
                 _tradesWithUnreadMessages.value = unreadMessages
                 _openTradeItems.value = openTrades.map {
                     it.apply {
-                        quoteAmountWithCode =
-                            "${NumberFormatter.format(it.quoteAmount.toDouble() / 10000.0)} ${it.quoteCurrencyCode}"
+                        quoteAmountWithCode = "${NumberFormatter.format(it.quoteAmount.toDouble() / 10000.0)} ${it.quoteCurrencyCode}"
                         formattedPrice = PriceSpecFormatter.getFormattedPriceSpec(it.bisqEasyOffer.priceSpec, true)
                         formattedBaseAmount = NumberFormatter.btcFormat(it.baseAmount)
                     }
                 }
             }
         }
+
+        launchAvatarLoaderJob()
     }
 
     override fun onViewUnattaching() {
         _tradesWithUnreadMessages.value = emptyMap()
+        _avatarMap.update { emptyMap() }
         super.onViewUnattaching()
     }
 
@@ -92,5 +98,22 @@ class OpenTradeListPresenter(
 
     fun onNavigateToOfferbook() {
         navigateToTab(Routes.TabOfferbook)
+    }
+
+    fun launchAvatarLoaderJob() {
+        launchIO {
+            tradesServiceFacade.openTradeItems.collect { trades ->
+                trades.forEach { trade ->
+                    val userProfile = trade.peersUserProfile
+                    if (_avatarMap.value[userProfile.nym] == null) {
+                        val currentAvatarMap = _avatarMap.value.toMutableMap()
+                        currentAvatarMap[userProfile.nym] = userProfileServiceFacade.getUserAvatar(
+                            userProfile
+                        )
+                        _avatarMap.value = currentAvatarMap
+                    }
+                }
+            }
+        }
     }
 }

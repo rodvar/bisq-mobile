@@ -4,6 +4,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.TradeReadState
 import network.bisq.mobile.domain.data.replicated.chat.CitationVO
@@ -15,6 +17,7 @@ import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.data.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
+import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
@@ -25,6 +28,7 @@ class TradeChatPresenter(
     private val tradeChatMessagesServiceFacade: TradeChatMessagesServiceFacade,
     private val settingsRepository: SettingsRepository,
     private val tradeReadStateRepository: TradeReadStateRepository,
+    private val userProfileServiceFacade: UserProfileServiceFacade,
 ) : BasePresenter(mainPresenter), Logging {
 
     val selectedTrade: StateFlow<TradeItemPresentationModel?> = tradesServiceFacade.selectedTrade
@@ -37,6 +41,9 @@ class TradeChatPresenter(
 
     private val _showChatRulesWarnBox: MutableStateFlow<Boolean> = MutableStateFlow(true)
     val showChatRulesWarnBox: StateFlow<Boolean> = _showChatRulesWarnBox
+
+    private val _avatarMap: MutableStateFlow<Map<String, PlatformImage?>> = MutableStateFlow(emptyMap())
+    val avatarMap: StateFlow<Map<String, PlatformImage?>> = _avatarMap
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -51,6 +58,18 @@ class TradeChatPresenter(
             bisqEasyOpenTradeChannelModel.chatMessages.collect { messages ->
                 _chatMessages.value = messages.toList()
 
+                messages.toList().forEach { message ->
+                    withContext(IODispatcher) {
+                        val userProfile = message.senderUserProfile
+                        if (_avatarMap.value[userProfile.nym] == null) {
+                            val image = userProfileServiceFacade.getUserAvatar(
+                                userProfile
+                            )
+                            _avatarMap.update { it + (userProfile.nym to image) }
+                        }
+                    }
+                }
+
                 withContext(IODispatcher) {
                     val readState = tradeReadStateRepository.fetch()?.map.orEmpty().toMutableMap()
                     readState[selectedTrade.tradeId] = _chatMessages.value.size
@@ -61,6 +80,7 @@ class TradeChatPresenter(
     }
 
     override fun onViewUnattaching() {
+        _avatarMap.update { emptyMap() }
         super.onViewUnattaching()
     }
 

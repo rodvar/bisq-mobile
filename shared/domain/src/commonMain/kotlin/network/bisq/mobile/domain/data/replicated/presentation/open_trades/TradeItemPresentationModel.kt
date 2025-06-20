@@ -55,10 +55,8 @@ class TradeItemPresentationModel(tradeItemPresentationDto: TradeItemPresentation
 
     fun reformat(): TradeItemPresentationModel {
         return apply {
-            quoteAmountWithCode =
-                "${NumberFormatter.format(quoteAmount.toDouble() / 10000.0)} $quoteCurrencyCode"
-            formattedPrice =
-                PriceSpecFormatter.getFormattedPriceSpec(bisqEasyOffer.priceSpec, true)
+            quoteAmountWithCode = "${NumberFormatter.format(quoteAmount.toDouble() / 10000.0)} $quoteCurrencyCode"
+            formattedPrice = PriceSpecFormatter.getFormattedPriceSpec(bisqEasyOffer.priceSpec, true)
             formattedBaseAmount = NumberFormatter.btcFormat(baseAmount)
             formattedQuoteAmount = NumberFormatter.format(quoteAmount.toDouble() / 10000.0)
         }

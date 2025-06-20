@@ -11,6 +11,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.mapping.Mappings
 import network.bisq.mobile.android.node.service.AndroidNodeCatHashService
@@ -21,6 +23,7 @@ import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExte
 import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import java.security.KeyPair
+import java.util.Base64
 import java.util.Random
 import kotlin.math.max
 import kotlin.math.min
@@ -31,8 +34,8 @@ import kotlin.math.min
  * It uses in a in-memory model for the relevant data required for the presenter to reflect the domains state.
  * Persistence is done inside the Bisq 2 libraries.
  */
-class NodeUserProfileServiceFacade(private val applicationService: AndroidApplicationService.Provider) : ServiceFacade(),
-    UserProfileServiceFacade {
+class NodeUserProfileServiceFacade(private val applicationService: AndroidApplicationService.Provider) :
+    ServiceFacade(), UserProfileServiceFacade {
 
     companion object {
         private const val AVATAR_VERSION = 0
@@ -47,6 +50,9 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
     private val _selectedUserProfile: MutableStateFlow<UserProfileVO?> = MutableStateFlow(null)
     override val selectedUserProfile: StateFlow<UserProfileVO?> = _selectedUserProfile
 
+    // TODO: Performance test for 100s of users and 1000s of offers
+    private val avatarMap: MutableMap<String, PlatformImage?> = mutableMapOf<String, PlatformImage?>()
+    private val avatarMapMutex = Mutex()
 
     // Misc
     private var pubKeyHash: ByteArray? = null
@@ -85,23 +91,14 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
         val solution = proofOfWork!!.solution
         val nym = NymIdGenerator.generate(pubKeyHash, solution)
         val profileIcon: PlatformImage = catHashService.getImage(
-            pubKeyHash,
-            solution,
-            0,
-            120.0
+            pubKeyHash, solution, 0, 120.0
         )
         result(id!!, nym!!, profileIcon)
     }
 
     override suspend fun createAndPublishNewUserProfile(nickName: String) {
         userService.userIdentityService.createAndPublishNewUserProfile(
-            nickName,
-            keyPair,
-            pubKeyHash,
-            proofOfWork,
-            AVATAR_VERSION,
-            "",
-            ""
+            nickName, keyPair, pubKeyHash, proofOfWork, AVATAR_VERSION, "", ""
         ).join()
 
         pubKeyHash = null
@@ -138,6 +135,25 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
 
         return idList
 
+    }
+
+    override suspend fun getUserAvatar(userProfile: UserProfileVO): PlatformImage? {
+        return avatarMapMutex.withLock {
+            if (avatarMap[userProfile.nym] == null) {
+                try {
+                    val avatar = catHashService.getImage(
+                        Base64.getDecoder().decode(userProfile.networkId.pubKey.hash),
+                        Base64.getDecoder().decode(userProfile.proofOfWork.solutionEncoded),
+                        userProfile.avatarVersion,
+                        120.0
+                    )
+                    avatarMap[userProfile.nym] = avatar
+                } catch (e: Exception) {
+                    log.e {"Avatar generation failed for ${userProfile.nym}"}
+                }
+            }
+            return avatarMap[userProfile.nym]
+        }
     }
 
     // Private
