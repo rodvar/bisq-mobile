@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.ui.BisqLinks
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.button.LinkButton
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
@@ -13,7 +14,7 @@ import org.koin.compose.koinInject
 
 @Composable
 fun TradeGuideSecurity() {
-    val presenter: TradeGuidePresenter = koinInject()
+    val presenter: TradeGuideSecurityPresenter = koinInject()
 
     RememberPresenterLifecycle(presenter)
 
@@ -38,7 +39,7 @@ fun TradeGuideSecurity() {
 
         LinkButton(
             "action.learnMore".i18n(),
-            link = "https://bisq.wiki/Bisq_Easy",
+            link = BisqLinks.BISQ_EASY_WIKI_URL,
             onClick = { presenter.navigateSecurityLearnMore() }
         )
     }

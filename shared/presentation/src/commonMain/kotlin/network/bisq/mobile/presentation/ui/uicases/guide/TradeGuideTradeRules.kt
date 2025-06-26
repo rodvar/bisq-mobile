@@ -5,6 +5,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.ui.BisqLinks
 import network.bisq.mobile.presentation.ui.components.atoms.BisqCheckbox
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.button.LinkButton
@@ -15,7 +16,7 @@ import org.koin.compose.koinInject
 
 @Composable
 fun TradeGuideTradeRules() {
-    val presenter: TradeGuidePresenter = koinInject()
+    val presenter: TradeGuideTradeRulesPresenter = koinInject()
     val userAgreed by presenter.tradeRulesConfirmed.collectAsState()
     var _userAgreed by remember { mutableStateOf(userAgreed) }
 
@@ -44,7 +45,7 @@ fun TradeGuideTradeRules() {
 
         LinkButton(
             "action.learnMore".i18n(),
-            link = "https://bisq.wiki/Bisq_Easy",
+            link = BisqLinks.BISQ_EASY_WIKI_URL,
             onClick = { presenter.navigateSecurityLearnMore() }
         )
 

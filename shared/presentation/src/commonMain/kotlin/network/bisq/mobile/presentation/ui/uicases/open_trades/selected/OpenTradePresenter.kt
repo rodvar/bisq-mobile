@@ -39,6 +39,10 @@ class OpenTradePresenter(
     private val _isInMediation: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isInMediation: StateFlow<Boolean> = _isInMediation
 
+    // New chat count to display over Chat FAB
+    private val _newMsgCount: MutableStateFlow<Int> = MutableStateFlow(0)
+    val newMsgCount: StateFlow<Int> = _newMsgCount
+
     private var _tradePaneScrollState: MutableStateFlow<ScrollState?> = MutableStateFlow(null)
     private var _coroutineScope: CoroutineScope? = null
 
@@ -62,14 +66,20 @@ class OpenTradePresenter(
         super.onViewAttached()
         require(tradesServiceFacade.selectedTrade.value != null)
         val openTradeItemModel = tradesServiceFacade.selectedTrade.value!!
+        var initReadCount : Int? = null
 
         collectUI(openTradeItemModel.bisqEasyTradeModel.tradeState) { tradeState ->
-            val readState = tradeReadStateRepository.fetch()?.map.orEmpty().toMutableMap()
-            readState[openTradeItemModel.tradeId] =
-                openTradeItemModel.bisqEasyOpenTradeChannelModel.chatMessages.value.size
-            tradeReadStateRepository.update(TradeReadState().apply { map = readState })
-
             tradeStateChanged(tradeState)
+        }
+
+        collectUI(openTradeItemModel.bisqEasyOpenTradeChannelModel.chatMessages) {
+            val readState = tradeReadStateRepository.fetch()?.map.orEmpty().toMutableMap()
+            readState[openTradeItemModel.tradeId] = it.size
+            tradeReadStateRepository.update(TradeReadState().apply { map = readState })
+            if (initReadCount == null) {
+                initReadCount = readState[openTradeItemModel.tradeId]
+            }
+            _newMsgCount.update { _ -> it.size - initReadCount!! }
         }
 
         collectUI(openTradeItemModel.bisqEasyOpenTradeChannelModel.isInMediation) {

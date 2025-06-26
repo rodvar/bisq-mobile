@@ -17,12 +17,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.model.BaseModel
 import network.bisq.mobile.domain.getPlatformInfo
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.domain.utils.Logging
+import network.bisq.mobile.presentation.ui.BisqLinks
 import network.bisq.mobile.presentation.ui.error.GenericErrorHandler
 import network.bisq.mobile.presentation.ui.navigation.Routes
 import org.koin.core.component.KoinComponent
@@ -477,7 +477,9 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) : ViewPr
         }
     }
     open fun navigateToUrl(url: String) {
+        disableInteractive()
         rootPresenter?.navigateToUrl(url)
+        enableInteractive()
     }
 
     override fun onCloseGenericErrorPanel() {
@@ -485,9 +487,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) : ViewPr
     }
 
     override fun navigateToReportError() {
-        disableInteractive()
-        navigateToUrl("https://github.com/bisq-network/bisq-mobile/issues")
-        enableInteractive()
+        navigateToUrl(BisqLinks.BISQ_MOBILE_GH_ISSUES)
     }
 
     protected open fun isDevMode(): Boolean {

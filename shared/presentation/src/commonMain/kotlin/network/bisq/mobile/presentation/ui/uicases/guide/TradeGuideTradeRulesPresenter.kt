@@ -5,9 +5,10 @@ import kotlinx.coroutines.flow.first
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.BisqLinks
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
-class TradeGuidePresenter(
+class TradeGuideTradeRulesPresenter(
     mainPresenter: MainPresenter,
     private val settingsServiceFacade: SettingsServiceFacade
 ) : BasePresenter(mainPresenter) {
@@ -16,18 +17,6 @@ class TradeGuidePresenter(
 
     fun prevClick() {
         navigateBack()
-    }
-
-    fun overviewNextClick() {
-        navigateTo(Routes.TradeGuideSecurity)
-    }
-
-    fun securityNextClick() {
-        navigateTo(Routes.TradeGuideProcess)
-    }
-
-    fun processNextClick() {
-        navigateTo(Routes.TradeGuideTradeRules)
     }
 
     fun tradeRulesNextClick() {
@@ -42,7 +31,7 @@ class TradeGuidePresenter(
     }
 
     fun navigateSecurityLearnMore() {
-        navigateToUrl("https://bisq.wiki/Bisq_Easy")
+        navigateToUrl(BisqLinks.BISQ_EASY_WIKI_URL)
     }
 
 }

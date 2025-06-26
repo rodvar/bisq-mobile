@@ -17,8 +17,14 @@ import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPayme
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPricePresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferReviewPresenter
-import network.bisq.mobile.presentation.ui.uicases.guide.TradeGuidePresenter
-import network.bisq.mobile.presentation.ui.uicases.guide.WalletGuidePresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.TradeGuideOverviewPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.TradeGuideProcessPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.TradeGuideSecurityPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.TradeGuideTradeRulesPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.WalletGuideDownloadPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.WalletGuideIntroPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.WalletGuideNewPresenter
+import network.bisq.mobile.presentation.ui.uicases.guide.WalletGuideReceivingPresenter
 import network.bisq.mobile.presentation.ui.uicases.offerbook.OfferbookMarketPresenter
 import network.bisq.mobile.presentation.ui.uicases.offerbook.OfferbookPresenter
 import network.bisq.mobile.presentation.ui.uicases.open_trades.OpenTradeListPresenter
@@ -152,7 +158,7 @@ val presentationModule = module {
     single { SellerState3aPresenter(get(), get()) }
     factory { SellerStateMainChain3bPresenter(get(), get(), get()) }
     factory { SellerStateLightning3bPresenter(get(), get()) }
-    single { SellerState4Presenter(get(), get()) }
+    single { SellerState4Presenter(get(), get(), get()) }
 
     // Trade Buyer
     single { BuyerState1aPresenter(get(), get()) }
@@ -162,20 +168,26 @@ val presentationModule = module {
     factory { BuyerState3aPresenter(get(), get()) }
     factory { BuyerStateMainChain3bPresenter(get(), get(), get()) }
     factory { BuyerStateLightning3bPresenter(get(), get()) }
-    single { BuyerState4Presenter(get(), get()) }
+    single { BuyerState4Presenter(get(), get(), get()) }
 
     // Trade General process
     factory { TradeStatesProvider(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     factory { OpenTradeListPresenter(get(), get(), get(), get()) }
     single { TradeDetailsHeaderPresenter(get(), get(), get(), get()) }
-    factory { InterruptedTradePresenter(get(), get(), get()) }
+    factory { InterruptedTradePresenter(get(), get(), get(), get()) }
     factory { TradeFlowPresenter(get(), get(), get()) }
     factory { OpenTradePresenter(get(), get(), get(), get()) }
 
     factory { TradeChatPresenter(get(), get(), get(), get(), get(), get()) }
 
-    single { TradeGuidePresenter(get(), get()) } bind TradeGuidePresenter::class
-    single { WalletGuidePresenter(get()) } bind WalletGuidePresenter::class
+    single { TradeGuideOverviewPresenter(get()) } bind TradeGuideOverviewPresenter::class
+    single { TradeGuideSecurityPresenter(get()) } bind TradeGuideSecurityPresenter::class
+    single { TradeGuideProcessPresenter(get()) } bind TradeGuideProcessPresenter::class
+    single { TradeGuideTradeRulesPresenter(get(), get()) } bind TradeGuideTradeRulesPresenter::class
+    single { WalletGuideIntroPresenter(get()) } bind WalletGuideIntroPresenter::class
+    single { WalletGuideDownloadPresenter(get()) } bind WalletGuideDownloadPresenter::class
+    single { WalletGuideNewPresenter(get()) } bind WalletGuideNewPresenter::class
+    single { WalletGuideReceivingPresenter(get()) } bind WalletGuideReceivingPresenter::class
 
     factory<TimeProvider> { getPlatformCurrentTimeProvider() }
 
