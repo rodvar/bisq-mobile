@@ -62,7 +62,7 @@ fun TradeDetailsHeader() {
             animationSpec = tween(300)
         )
     }
-    var showDetails by remember { mutableStateOf(false) }
+    val showDetails by presenter.isShowDetails.collectAsState()
 
     val transitionState = remember {
         MutableTransitionState(showDetails).apply {
@@ -77,6 +77,7 @@ fun TradeDetailsHeader() {
     }
 
     val isSell = presenter.directionEnum.isSell
+    val isInteractive = presenter.isInteractive.collectAsState().value
 
     Row(modifier = Modifier.clip(shape = RoundedCornerShape(12.dp))) {
         Column(
@@ -234,7 +235,10 @@ fun TradeDetailsHeader() {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { showDetails = !showDetails }) {
+                IconButton(
+                    onClick = { presenter.onToggleHeader() },
+                    enabled = isInteractive,
+                ) {
                     UpIcon(
                         modifier = Modifier
                             .size(32.dp)
