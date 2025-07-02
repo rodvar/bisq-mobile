@@ -152,6 +152,8 @@ android {
             isDebuggable = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // Reduce GC logging noise in debug builds
+            buildConfigField("String", "GC_LOG_LEVEL", "\"WARN\"")
         }
     }
     applicationVariants.all {
