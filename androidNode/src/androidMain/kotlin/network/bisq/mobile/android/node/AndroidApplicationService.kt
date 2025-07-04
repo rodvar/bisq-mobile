@@ -31,7 +31,6 @@ import bisq.common.util.ExceptionUtil
 import bisq.contract.ContractService
 import bisq.identity.IdentityService
 import bisq.network.NetworkService
-import bisq.network.NetworkServiceConfig
 import bisq.network.p2p.ServiceNode
 import bisq.offer.OfferService
 import bisq.presentation.notifications.SystemNotificationService
@@ -223,7 +222,8 @@ class AndroidApplicationService(
 
 
         tradeService = TradeService(
-            TradeService.Config.from(getConfig("trade")),
+//            TODO: this is part of Bisq 2.1.8
+//            TradeService.Config.from(getConfig("trade")),
             networkService,
             identityService,
             persistenceService,
