@@ -116,6 +116,12 @@ android {
         versionName = project.version.toString()
         buildConfigField("String", "APP_VERSION", "\"${version}\"")
         buildConfigField("String", "SHARED_VERSION", "\"${sharedVersion}\"")
+
+        // for apk release build after tor inclusion
+        ndk {
+            //noinspection ChromeOsAbiSupport
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
     }
 
     packaging {
@@ -130,9 +136,25 @@ android {
             excludes.add("META-INF/INDEX.LIST")
             excludes.add("META-INF/NOTICE.markdown")
             pickFirsts.add("**/protobuf/**/*.class")
+            pickFirsts += listOf(
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "META-INF/*.version"
+            )
         }
-        // Required for kmp-tor exec resources
-        jniLibs.useLegacyPackaging = true
+        jniLibs {
+            // for apk release builds after tor inclusion
+            // If multiple .so files exist across dependencies, pick the first and avoid conflicts
+            pickFirsts += listOf(
+                "lib/**/libtor.so",
+                "lib/**/libcrypto.so",
+                "lib/**/libevent*.so",
+                "lib/**/libssl.so",
+                "lib/**/libsqlite*.so"
+            )
+            // Required for kmp-tor exec resources
+            useLegacyPackaging = true
+        }
     }
     buildTypes {
         getByName("release") {
