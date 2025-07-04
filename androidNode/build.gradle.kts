@@ -116,6 +116,10 @@ android {
         versionName = project.version.toString()
         buildConfigField("String", "APP_VERSION", "\"${version}\"")
         buildConfigField("String", "SHARED_VERSION", "\"${sharedVersion}\"")
+
+        // Memory optimization configurations
+        buildConfigField("int", "HEAP_SIZE_MB", "512")
+        buildConfigField("boolean", "ENABLE_MEMORY_MONITORING", "true")
     }
 
     packaging {
@@ -154,6 +158,9 @@ android {
             versionNameSuffix = "-debug"
             // Reduce GC logging noise in debug builds
             buildConfigField("String", "GC_LOG_LEVEL", "\"WARN\"")
+            // Memory optimization for debug builds
+            buildConfigField("boolean", "ENABLE_MEMORY_PROFILING", "true")
+            buildConfigField("int", "MEMORY_REPORT_INTERVAL_SEC", "60")
         }
     }
     applicationVariants.all {

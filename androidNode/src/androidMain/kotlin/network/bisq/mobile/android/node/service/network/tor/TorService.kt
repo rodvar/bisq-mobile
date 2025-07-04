@@ -209,10 +209,12 @@ class TorService(
                 log.e { "❌ Failed to stop Tor daemon: $error" }
                 // Still mark as stopped since we tried
                 _torState.value = TorState.STOPPED
+                performMemoryCleanup()
             },
             OnSuccess {
                 log.i { "✅ Tor daemon stop command executed successfully" }
                 _torState.value = TorState.STOPPED
+                performMemoryCleanup()
             }
         )
     }
@@ -661,5 +663,25 @@ class TorService(
         _torState.value = TorState.STOPPED
         _socksPort.value = null
         _controlPort.value = null
+        performMemoryCleanup()
+    }
+
+    /**
+     * Perform memory cleanup after Tor operations
+     */
+    private fun performMemoryCleanup() {
+        log.d { "🗑️ KMP Performing Tor memory cleanup" }
+
+        // Force garbage collection to free up Tor-related memory
+        System.gc()
+
+        // Give GC time to work
+        try {
+            Thread.sleep(100)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+
+        log.d { "✅ KMP Tor memory cleanup completed" }
     }
 }

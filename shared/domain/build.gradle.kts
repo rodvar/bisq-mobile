@@ -24,6 +24,7 @@ val bisqApiVersion: String by extra {
 // TODO potentially to be refactored into a shared/common module
 buildConfig {
     useKotlinOutput { internalVisibility = false }
+    val isDebug = project.gradle.startParameter.taskNames.any { it.contains("debug", ignoreCase = true) }
     forClass("network.bisq.mobile.client.shared", className = "BuildConfig") {
         buildConfigField("APP_NAME", project.findProperty("client.name").toString())
         buildConfigField(
@@ -48,7 +49,8 @@ buildConfig {
         buildConfigField("SHARED_LIBS_VERSION", project.version.toString())
         buildConfigField("BUILD_TS", System.currentTimeMillis())
         buildConfigField("BISQ_CORE_VERSION", bisqCoreVersion)
-        buildConfigField("IS_DEBUG", project.gradle.startParameter.taskNames.any { it.contains("debug", ignoreCase = true) })
+        buildConfigField("IS_DEBUG", isDebug)
+        buildConfigField("ENABLE_MEMORY_PROFILING", isDebug)
 
     }
 //    buildConfigField("APP_SECRET", "Z3JhZGxlLWphdmEtYnVpbGRjb25maWctcGx1Z2lu")

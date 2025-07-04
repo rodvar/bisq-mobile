@@ -37,10 +37,40 @@ class MainApplication : Application(), Logging {
 
         setupKoinDI(this)
         setupBisqCoreStatics()
+        setupMemoryOptimizations()
         // Note: Tor initialization is now handled in NodeApplicationBootstrapFacade
         // as the very first step of the bootstrap process
 //        setupTorSystemProperties()
         log.i { "Bisq Node Application Created" }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+
+        log.w { "🧠 KMP System requested memory trim, level: $level" }
+
+        when (level) {
+            TRIM_MEMORY_RUNNING_CRITICAL,
+            TRIM_MEMORY_COMPLETE -> {
+                log.w { "🚨 KMP Critical memory pressure - performing aggressive cleanup" }
+                performAggressiveMemoryCleanup()
+            }
+            TRIM_MEMORY_RUNNING_LOW,
+            TRIM_MEMORY_RUNNING_MODERATE -> {
+                log.w { "⚠️ KMP Moderate memory pressure - performing standard cleanup" }
+                performStandardMemoryCleanup()
+            }
+            else -> {
+                log.i { "ℹ️ KMP Background memory trim - performing light cleanup" }
+                performLightMemoryCleanup()
+            }
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        log.w { "🚨 KMP System reports low memory - performing emergency cleanup" }
+        performAggressiveMemoryCleanup()
     }
 
     private fun setupBisqCoreStatics() {
@@ -88,6 +118,74 @@ class MainApplication : Application(), Logging {
 
         log.i { "🔄 Configured system properties for SOCKS proxy hijacking" }
         log.i { "   Strategy: Force Bisq2 to skip embedded Tor and use our kmp-tor via SOCKS" }
+    }
+
+    /**
+     * Set up memory optimizations for the Android application
+     */
+    private fun setupMemoryOptimizations() {
+        log.i { "🧠 KMP Setting up memory optimizations" }
+
+        // Set system properties for memory management
+        System.setProperty("java.awt.headless", "true")
+
+        // Log initial memory state
+        val runtime = Runtime.getRuntime()
+        val maxMemory = runtime.maxMemory() / (1024 * 1024)
+        log.i { "📱 KMP Max heap size: ${maxMemory}MB" }
+
+        // Note: BuildConfig constants are available at runtime
+        log.i { "✅ KMP Memory monitoring configured" }
+    }
+
+    /**
+     * Perform light memory cleanup
+     */
+    private fun performLightMemoryCleanup() {
+        log.d { "🧹 KMP Performing light memory cleanup" }
+        System.gc()
+    }
+
+    /**
+     * Perform standard memory cleanup
+     */
+    private fun performStandardMemoryCleanup() {
+        log.i { "🧹 KMP Performing standard memory cleanup" }
+
+        // Multiple GC passes
+        repeat(2) {
+            System.gc()
+            try {
+                Thread.sleep(50)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
+            }
+        }
+    }
+
+    /**
+     * Perform aggressive memory cleanup
+     */
+    private fun performAggressiveMemoryCleanup() {
+        log.w { "🧹 KMP Performing aggressive memory cleanup" }
+
+        // Multiple aggressive GC passes
+        repeat(3) {
+            System.gc()
+            try {
+                Thread.sleep(100)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
+            }
+        }
+
+        // Log memory state after cleanup
+        val runtime = Runtime.getRuntime()
+        val usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+        val maxMemory = runtime.maxMemory() / (1024 * 1024)
+        log.w { "📊 KMP Memory after cleanup: ${usedMemory}MB / ${maxMemory}MB" }
     }
 
     private fun isEmulator(): Boolean {

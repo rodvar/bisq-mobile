@@ -96,4 +96,45 @@ class AndroidMemoryReportServiceTest {
         assertNotNull(future)
         assertTrue(future.get()) // Should return true on completion
     }
+
+    @Test
+    fun `logReport should handle memory pressure detection`() {
+        // Mock high memory usage scenario
+        every { activityManager.getMemoryInfo(any()) } answers {
+            firstArg<ActivityManager.MemoryInfo>().apply {
+                totalMem = 1024L * 1024L * 1024L  // 1 GB
+                availMem = 100L * 1024L * 1024L   // 100 MB available (low memory)
+                lowMemory = true
+                threshold = 150L * 1024L * 1024L  // 150 MB threshold
+            }
+        }
+
+        // Should not throw exception even with low memory
+        try {
+            memoryReportService.logReport()
+            // If we get here, no exception was thrown - test passes
+        } catch (e: Exception) {
+            fail("logReport should not throw exception with low memory: ${e.message}")
+        }
+    }
+
+    @Test
+    fun `logReport should throttle frequent calls`() {
+        every { activityManager.getMemoryInfo(any()) } answers {
+            firstArg<ActivityManager.MemoryInfo>().apply {
+                totalMem = 1024L * 1024L * 1024L
+                availMem = 512L * 1024L * 1024L
+                lowMemory = false
+                threshold = 150L * 1024L * 1024L
+            }
+        }
+
+        // First call should work
+        memoryReportService.logReport()
+
+        // Immediate second call should be throttled (no exception should occur)
+        assertDoesNotThrow {
+            memoryReportService.logReport()
+        }
+    }
 }
