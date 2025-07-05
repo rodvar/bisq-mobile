@@ -81,7 +81,8 @@ jobs:
         env:
           CI: true
         run: |
-          ./gradlew clean packageDebug -x androidNode:packageDebug androidNode:bundleDebug --info
+#          refresh dependencies is important here because of the jars deps
+          ./gradlew clean packageDebug -x androidNode:packageDebug androidNode:bundleDebug --refresh-dependencies --info
           ./gradlew test
 #          TODO failing after tor incorporation
 #          ./gradlew androidNode:testDebugUnitTest androidNode:connectedDebugAndroidTest
