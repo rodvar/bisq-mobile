@@ -80,6 +80,7 @@ For the `androidNode` module to build, you need the Bisq2 dependencies. There ar
 
 1. Download [Bisq2](https://github.com/bisq-network/bisq2) if you don't have it already
 2. Bisq Android Node uses Bisq2 core code by design, this dependency will always be against a stable release. Check the current codebase bisq-core dependency version in the [toml file](https://github.com/bisq-network/bisq-mobile/blob/main/gradle/libs.versions.toml), at the top of the file `bisq-core` property will have the version (e.g. "2.1.7"). Now go ahead and checkout release tag associated with that version (E.g. if the bisq-core-version="2.1.7" then checkout tag v2.1.7 - `git checkout v2.1.7`). You can double check if you are in the right commit comparing with the tomml `bisq-core-commit` value :)
+**IMPORTANT**: Temporarily for CLEARNET to work locally please download [this bisq2 fork branch](https://github.com/rodvar/bisq2/tree/feature/mobile_2.1.7) and build and publish from there
 3. Follow Bisq2 root `README.md` steps to build the project.
 5. Run `./gradlew publishAll` // this will install all the jars you need in your local m2 repo
 
