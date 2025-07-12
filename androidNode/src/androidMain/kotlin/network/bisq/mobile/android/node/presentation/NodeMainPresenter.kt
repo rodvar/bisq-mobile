@@ -5,7 +5,6 @@ import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.BuildNodeConfig
 import network.bisq.mobile.android.node.MainActivity
 import network.bisq.mobile.android.node.service.AndroidMemoryReportService
-import network.bisq.mobile.android.node.service.network.KmpTorService
 import network.bisq.mobile.domain.UrlLauncher
 import network.bisq.mobile.domain.data.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.service.accounts.AccountsServiceFacade
@@ -55,7 +54,6 @@ class NodeMainPresenter(
     urlLauncher
 ) {
 
-    private var kmpTorService: KmpTorService? = null
     private var applicationServiceCreated = false
 
     init {
@@ -72,6 +70,7 @@ class NodeMainPresenter(
     }
 
     private fun initNodeServices() {
+        val nodePresenter = this
         launchIO {
             runCatching {
                 if (applicationServiceCreated) {
@@ -89,17 +88,14 @@ class NodeMainPresenter(
                         )
                     provider.applicationService = applicationService
 
+                    // Bootstrap facade now handles Tor initialization when needed
                     applicationBootstrapFacade.activate()
-
-                    // todo apply kmp tor startup state to applicationBootstrapFacade
-                    //  or better apply new Bisq 2 bootstrap info...
-                    val baseDir = applicationService.config.baseDir!!
-                    kmpTorService = KmpTorService(baseDir)
-                    kmpTorService!!.startTor().await()
-
-                    // todo handle kmpTorService.startupFailure
+                    // Wait for Tor to be ready before proceeding (no-op for CLEARNET)
+                    applicationBootstrapFacade.waitForTor()
 
                     settingsServiceFacade.activate()
+
+                    // TODO might need to apply the delegation to the bootstrap facade
                     log.i { "Start initializing applicationService" }
                     applicationService.initialize()
                         .whenComplete { _: Boolean?, throwable: Throwable? ->
@@ -137,7 +133,6 @@ class NodeMainPresenter(
             try {
                 log.i { "Stopping application service, ensuring persistent services stop" }
                 provider.applicationService.shutdown().join()
-                kmpTorService?.stopTor()
                 stopPersistentServices()
                 applicationServiceCreated = false
                 log.i { "Application service stopped successfully" }
