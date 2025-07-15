@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import android.app.ActivityOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,12 +23,14 @@ import network.bisq.mobile.domain.utils.Logging
  */
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class NotificationServiceController (private val appForegroundController: AppForegroundController): ServiceController, Logging {
+    companion object {
+        const val SERVICE_NAME = "Bisq Service"
+        const val DISMISS_NOTIFICATION_ACTION = "DISMISS_NOTIFICATION"
+        const val DISMISS_PENDING_INTENT_FLAGS = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    }
 
     private val context = appForegroundController.context
 
-    companion object {
-        const val SERVICE_NAME = "Bisq Service"
-    }
 
     private val serviceScope = CoroutineScope(SupervisorJob())
     private val observerJobs = mutableMapOf<StateFlow<*>, Job>()
@@ -96,30 +99,56 @@ actual class NotificationServiceController (private val appForegroundController:
         // Create an intent that brings the user back to the app
         val intent = Intent(context, activityClassForIntents).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-//            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("destination", defaultDestination) // Add extras to navigate to a specific screen
         }
 
         // Create a PendingIntent to handle the notification click
-        val pendingIntent = PendingIntent.getActivity(
+        val pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        
+        val pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // Android 14+ requires explicit opt-in for background activity launches
+            val activityOptions = ActivityOptions.makeBasic().apply {
+                setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+            }
+            PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                pendingIntentFlags,
+                activityOptions.toBundle()
+            )
+        } else {
+            PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                pendingIntentFlags
+            )
+        }
+
+        // Add dismiss action for better UX and notification management (API35+ target)
+        val dismissIntent = Intent(context, BisqForegroundService::class.java).apply {
+            action = DISMISS_NOTIFICATION_ACTION
+        }
+        val dismissPendingIntent = PendingIntent.getService(
             context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE // FLAG_IMMUTABLE is required on Android 12+
+            1,
+            dismissIntent,
+            DISMISS_PENDING_INTENT_FLAGS
         )
+
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notification = NotificationCompat.Builder(context, BisqForegroundService.CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_notification_overlay)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT) // For android previous to O
-//            .setOngoing(true)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", dismissPendingIntent)
             .build()
         notificationManager.notify(BisqForegroundService.PUSH_NOTIFICATION_ID, notification)
         log.d {"Pushed notification: $title: $message" }
-//        }
     }
 
     actual override fun isServiceRunning() = isRunning
