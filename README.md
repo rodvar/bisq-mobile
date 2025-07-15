@@ -79,10 +79,12 @@ For the `androidNode` module to build, you need the Bisq2 dependencies. There ar
 #### Option 1: For developers (using local Maven repository)
 
 1. Download [Bisq2](https://github.com/bisq-network/bisq2) if you don't have it already
-2. Bisq Android Node uses Bisq2 core code by design, this dependency will always be against a stable release. Check the current codebase bisq-core dependency version in the [toml file](https://github.com/bisq-network/bisq-mobile/blob/main/gradle/libs.versions.toml), at the top of the file `bisq-core` property will have the version (e.g. "2.1.7"). Now go ahead and checkout release tag associated with that version (E.g. if the bisq-core-version="2.1.7" then checkout tag v2.1.7 - `git checkout v2.1.7`). You can double check if you are in the right commit comparing with the tomml `bisq-core-commit` value :)
-**IMPORTANT**: Temporarily for CLEARNET to work locally please download [this bisq2 fork branch](https://github.com/rodvar/bisq2/tree/feature/mobile_2.1.7) and build and publish from there
-3. Follow Bisq2 root `README.md` steps to build the project.
+2. Bisq Android Node uses Bisq2 core code by design, this dependency will always be against a bisq2 branch OFF A STABLE RELEASE + commits of current bisq-mobile development.
+Check the current codebase bisq-core dependency version in the [toml file](https://github.com/bisq-network/bisq-mobile/blob/main/gradle/libs.versions.toml), at the top of the file `bisq-core` property will have the version (e.g. "2.1.7"). Now go ahead and checkout the bisq2 dev branch for bisq-mobile which follows the pattern `for-mobile-based-on-[VERSION]`(E.g. if the bisq-core-version="2.1.7" then checkout [for-mobile-based-on-2.1.7](https://github.com/bisq-network/bisq2/tree/for-mobile-based-on-2.1.7) - `git checkout for-mobile-based-on-2.1.7`). You can double check if that branch is from the right release line comparing the initial commit of the branch with the tomml `bisq-core-commit` value :)
+4. Follow Bisq2 root `README.md` steps to build the project.
 5. Run `./gradlew publishAll` // this will install all the jars you need in your local m2 repo
+
+**NOTE** For bisq-mobile release the `bisq-core-commit` should point to the exact commit the apps were design to work with
 
 #### Option 2: For CI (using remote Maven repository)
 
