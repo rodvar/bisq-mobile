@@ -108,6 +108,33 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
         _selectedUserProfile.value = getSelectedUserProfile()
     }
 
+    override suspend fun updateAndPublishUserProfile(
+        statement: String?,
+        terms: String?
+    ): Result<UserProfileVO> {
+        try {
+            val selectedUserIdentity = userService.userIdentityService.selectedUserIdentity
+            userService.userIdentityService.editUserProfile(
+                selectedUserIdentity, terms ?: "", statement ?: ""
+            ).join()
+
+            pubKeyHash = null
+            keyPair = null
+            proofOfWork = null
+
+            val updatedProfile = getSelectedUserProfile()
+            _selectedUserProfile.value = updatedProfile
+            return if (updatedProfile == null) {
+                Result.failure(IllegalStateException("Selected user profile is null after update"))
+            } else {
+                Result.success(updatedProfile)
+            }
+        } catch (e: Exception) {
+            log.e(e) { "Failed to republish user profile: ${e.message}" }
+            return Result.failure(e)
+        }
+    }
+
     override suspend fun getUserIdentityIds(): List<String> {
         return userService.userIdentityService.userIdentities.map { userIdentity -> userIdentity.id }
     }
