@@ -86,7 +86,8 @@ jobs:
           CI: true
         run: |
           # refresh dependencies is important here because of the jars deps
-          ./gradlew androidNode:clean androidNode:assembleDebug --refresh-dependencies --info
+          # no-daemon to avoid reusing previous configs
+          ./gradlew androidNode:clean androidNode:assembleDebug --refresh-dependencies --no-daemon --info
           ./gradlew test
 #          TODO failing after tor incorporation (hangs at 98%)
 #          ./gradlew androidNode:testDebugUnitTest androidNode:connectedDebugAndroidTest
