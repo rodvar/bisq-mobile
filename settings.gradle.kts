@@ -20,11 +20,6 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
-        mavenCentral()
-        // always, for faster builds
-        mavenLocal()
-        
         // Check if we're running in CI environment
         val isCi = System.getenv("CI") == "true"
         if (isCi) {
@@ -38,7 +33,10 @@ dependencyResolutionManagement {
                 }
             }
         }
-
+        // always, for faster builds
+        mavenLocal()
+        google()
+        mavenCentral()
         maven {
             url = uri("https://jitpack.io")
         }
