@@ -76,7 +76,11 @@ jobs:
           echo "KEY_PASSWORD=yourKeyPassword" >> local.properties
           echo "CLI_KEY_PASSWORD=yourCliKeyPassword" >> local.properties
 
-#      CI:true is costly so we sum all tasks in one instruction
+#      Make sure not to use wrong jars for node
+      - name: Clean Gradle caches
+        run: rm -rf ~/.gradle/caches ~/.gradle/wrapper ~/.m2/repository/*
+
+      #      CI:true is costly so we sum all tasks in one instruction
       - name: Build project and do node specific tasks
         env:
           CI: true
