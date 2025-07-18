@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.composeModels.PagerViewItem
@@ -23,9 +24,10 @@ open class OnBoardingPresenter(
 ) : BasePresenter(mainPresenter), IOnboardingPresenter {
 
     companion object {
-        // TODO i18n
-        const val CREATE_PROFILE_TEXT = "Create Profile"
-        const val SETUP_CONNECTION_TEXT = "Setup Connection"
+        val CREATE_PROFILE_TEXT: String
+            get() = "mobile.onboarding.createProfile".i18n()
+        val SETUP_CONNECTION_TEXT: String
+            get() = "mobile.onboarding.setupConnection".i18n()
     }
 
     override val indexesToShow = listOf(0)
@@ -33,24 +35,21 @@ open class OnBoardingPresenter(
     private val _buttonText = MutableStateFlow(CREATE_PROFILE_TEXT)
     override val buttonText: StateFlow<String> = _buttonText
 
-    // TODO: Ideally slide content for xClients should only be here.
-    // Android node content (along with resources), should be moved to `androidNode`
-    // Then remove `indexesToShow`
     override val onBoardingData = listOf(
         PagerViewItem(
-            title = "Introducing Bisq Easy",
+            title = "onboarding.bisq2.teaserHeadline1".i18n(),
             image = Res.drawable.img_bisq_Easy,
-            desc = "Getting your first Bitcoin privately has never been easier"
+            desc = "mobile.onboarding.bisq2.line1".i18n()
         ),
         PagerViewItem(
-            title = "Bisp p2p in mobile",
+            title = "mobile.onboarding.bisq2.bisqP2PInMobile".i18n(),
             image = Res.drawable.img_learn_and_discover,
-            desc = "All the awesomeness of Bisq desktop now in your mobile. Android only. (TODO: Show apt image)"
+            desc = "mobile.onboarding.line2".i18n()
         ),
         PagerViewItem(
-            title = "Coming soon",
+            title = "onboarding.bisq2.teaserHeadline3".i18n(),
             image = Res.drawable.img_fiat_btc,
-            desc = "Choose how to trade: Bisq MuSig, Lightning, Submarine Swaps,..."
+            desc = "onboarding.bisq2.line3".i18n()
         )
     )
 

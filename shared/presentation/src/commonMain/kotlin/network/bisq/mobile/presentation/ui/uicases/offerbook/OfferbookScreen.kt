@@ -106,7 +106,6 @@ fun OfferbookScreen() {
 
 }
 
-
 @Composable
 fun NoOffersSection(presenter: OfferbookPresenter) {
     Column(
@@ -115,7 +114,7 @@ fun NoOffersSection(presenter: OfferbookPresenter) {
         verticalArrangement = Arrangement.Center
     ) {
         BisqText.h4LightGrey(
-            text = "mobile.offerBookScreen.noOffersSection.thereAreNoOffers".i18n(),
+            text = "mobile.offerBookScreen.noOffersSection.thereAreNoOffers".i18n(), // There are no offers
             textAlign = TextAlign.Center
         )
         BisqGap.V4()

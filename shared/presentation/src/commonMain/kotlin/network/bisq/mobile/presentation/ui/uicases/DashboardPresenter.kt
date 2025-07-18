@@ -19,12 +19,12 @@ open class DashboardPresenter(
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
     private val offersServiceFacade: OffersServiceFacade
 ) : BasePresenter(mainPresenter), IGettingStarted {
-    override val title: String = "Bisq Easy Client"
+    override val titleKey: String = "mobile.dashboard.title"
 
-    override val bulletPoints: List<String> = listOf(
-        "Experience Bisq with the guidance of a trusted friend or connect remotely to your own full node.",
-        "Connect to Trusted Nodes: Start trading with confidence by connecting to a trusted Bisq node hosted by someone you trust.",
-        "Remote Management for Experts: Manage your trades on the go by connecting securely to your own desktop-based Bisq node, no matter where you are."
+    override val bulletPointsKey: List<String> = listOf(
+        "mobile.dashboard.bulletPoint1",
+        "mobile.dashboard.bulletPoint2",
+        "mobile.dashboard.bulletPoint3",
     )
 
     private val _offersOnline = MutableStateFlow(0)

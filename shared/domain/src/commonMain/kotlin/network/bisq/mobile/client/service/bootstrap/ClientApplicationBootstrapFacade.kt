@@ -20,8 +20,7 @@ class ClientApplicationBootstrapFacade(
         if (isActive) {
             return
         }
-        // TODO all texts here should use the translation module
-        setState("Bootstrapping..")
+        setState("mobile.clientApplicationBootstrap.bootstrapping".i18n())
         setProgress(0f)
 
         bootstrapJob = serviceScope.launch {
@@ -33,7 +32,7 @@ class ClientApplicationBootstrapFacade(
                 isDemo = true
             }
             setProgress(0.5f)
-            setState("Connecting to Trusted Node..")
+            setState("mobile.clientApplicationBootstrap.connectingToTrustedNode".i18n())
             if (trustedNodeService.isConnected) {
                 setState("bootstrap.connectedToTrustedNode".i18n())
                 setProgress(1.0f)
