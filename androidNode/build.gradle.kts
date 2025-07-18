@@ -101,7 +101,7 @@ android {
                 srcDir("${layout.buildDirectory}/generated/source/proto/debug/java")
                 srcDir("${layout.buildDirectory}/generated/source/proto/release/java")
                 proto {
-                    srcDir("${layout.buildDirectory}/extracted-include-protos/debug")
+                    srcDir("${layout.buildDirectory}/extracted-include-protos/release")
                 }
             }
         }

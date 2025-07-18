@@ -311,3 +311,16 @@
     @org.koin.core.annotation.* <fields>;
     @org.koin.core.annotation.* <methods>;
 }
+
+# Keep Logback and SLF4J classes (MISSING - this is the issue!)
+-keep class ch.qos.logback.** { *; }
+-keep class org.slf4j.** { *; }
+-dontwarn ch.qos.logback.**
+-dontwarn org.slf4j.**
+
+# Keep Bisq logging classes specifically
+-keep class bisq.common.logging.** { *; }
+
+# Keep logback configuration classes that use reflection
+-keep class ch.qos.logback.core.rolling.** { *; }
+-keep class ch.qos.logback.classic.** { *; }
