@@ -134,18 +134,19 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            // the following exclude are needed to avoid protobuf hanging build when merging release resources for java
+            // the following exclude are needeD to avoid protobuf hanging build when merging release resources for java
             // Exclude the conflicting META-INF files
             excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
             excludes.add("META-INF/DEPENDENCIES")
-            excludes.add("META-INF/LICENSE.md")
-            excludes.add("META-INF/NOTICE.md")
+            excludes.add("META-INF/LICENSE*.md")
+            excludes.add("META-INF/NOTICE*.md")
             excludes.add("META-INF/INDEX.LIST")
             excludes.add("META-INF/NOTICE.markdown")
             pickFirsts.add("**/protobuf/**/*.class")
             pickFirsts += listOf(
                 "META-INF/LICENSE*",
                 "META-INF/NOTICE*",
+                "META-INF/services/**",
                 "META-INF/*.version"
             )
         }
@@ -166,16 +167,19 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("release")
+            // General full shrinking brings issues with protobuf in jars
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
             dependenciesInfo {
                 includeInApk = false
                 includeInBundle = false
             }
             isDebuggable = false
+            isCrunchPngs = true
         }
         getByName("debug") {
             isDebuggable = true
