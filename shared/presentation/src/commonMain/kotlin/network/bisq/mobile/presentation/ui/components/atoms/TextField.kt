@@ -117,14 +117,14 @@ fun BisqTextField(
     }
 
     val whiteColor = BisqTheme.colors.white
-    val finalLabelColor by remember(disabled) {
-        mutableStateOf(
-            if (disabled) {
-                BisqTheme.colors.mid_grey20
-            } else {
-                whiteColor
+    val finalLabelColor by remember(disabled, validationError, hasInteracted) {
+        derivedStateOf {
+            when {
+                disabled -> BisqTheme.colors.dark_grey50
+                validationError?.isNotEmpty() == true && hasInteracted -> BisqTheme.colors.danger
+                else -> whiteColor
             }
-        )
+        }
     }
 
     val finalTextStyle by remember(disabled) {
@@ -171,11 +171,21 @@ fun BisqTextField(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BisqText.baseLight(
-                    text = label,
-                    color = finalLabelColor,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
-                )
+                val isError = validationError?.isNotEmpty() == true && hasInteracted
+                if (isError) {
+                    BisqText.baseRegular(
+                        text = label,
+                        color = finalLabelColor,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+                    )
+                } else {
+                    BisqText.baseLight(
+                        text = label,
+                        color = finalLabelColor,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+                    )
+                }
+
                 if (labelRightSuffix != null) {
                     labelRightSuffix()
                 }
@@ -215,31 +225,31 @@ fun BisqTextField(
                     if (numberWithTwoDecimals) {
                         val separator = getDecimalSeparator().toString()
                         val escapedSeparator = Regex.escape(separator)
-                        val loosePattern = Regex("^\\d*${escapedSeparator}?\\d*$")
+
+                        // Allow partial and complete decimal input
+                        val loosePattern = Regex("^[-]?\\d*(${escapedSeparator}\\d{0,})?\$")
 
                         if (loosePattern.matches(cleanValue)) {
-                            val trimmedValue = if (cleanValue.contains(separator)) {
-                                val parts = cleanValue.split(separator)
-                                if (parts.size == 2) {
-                                    val integer = parts[0]
-                                    val decimals = parts[1].take(2) // Trim to 2 decimal digits
-                                    "$integer$separator$decimals"
-                                } else {
-                                    cleanValue // malformed (multiple separators), leave as-is
+                            val parts = cleanValue.split(separator)
+                            val integerPart = parts[0]
+                            val decimalPart = if (parts.size == 2) parts[1] else ""
+
+                            val trimmedValue = when {
+                                parts.size == 2 && decimalPart.length > 2 -> {
+                                    "$integerPart$separator${decimalPart.take(2)}"
                                 }
-                            } else {
-                                cleanValue
+                                else -> cleanValue // let the user keep typing normally
                             }
 
                             validationError = validation?.invoke(trimmedValue)
-                            onValueChange?.invoke(
-                                trimmedValue,
-                                validationError == null || validationError?.isEmpty() == true
-                            )
+                            onValueChange?.invoke(trimmedValue, validationError == null || validationError?.isEmpty() == true)
                         }
                     } else {
                         validationError = validation?.invoke(cleanValue)
-                        onValueChange?.invoke(cleanValue, validationError == null || validationError?.isEmpty() == true)
+                        onValueChange?.invoke(
+                            cleanValue,
+                            validationError == null || validationError?.isEmpty() == true
+                        )
                     }
                 },
                 modifier = Modifier
