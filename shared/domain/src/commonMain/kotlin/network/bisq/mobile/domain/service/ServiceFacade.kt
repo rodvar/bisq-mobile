@@ -28,6 +28,7 @@ import org.koin.core.component.inject
  * TODO refactor to have a BaseService that both ServiceFacade and other services can leverage
  */
 abstract class ServiceFacade : LifeCycleAware, KoinComponent, Logging {
+
     private var isActivated = atomic(false)
     
     // we use KoinCompoent inject to avoid having to pass the manager as parameter on every single service
