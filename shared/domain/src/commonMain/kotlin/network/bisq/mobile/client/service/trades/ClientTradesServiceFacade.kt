@@ -14,6 +14,7 @@ import network.bisq.mobile.domain.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.domain.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationDto
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.trades.TakeOfferStatus
 import network.bisq.mobile.domain.service.trades.TradeSynchronizationHelper
@@ -39,6 +40,7 @@ import network.bisq.mobile.domain.service.trades.TradesServiceFacade
  * 4. Monitors TRADE_PROPERTIES subscription for automatic state updates
  */
 class ClientTradesServiceFacade(
+    private val userRepository: UserRepository,
     private val apiGateway: TradesApiGateway,
     webSocketClientProvider: WebSocketClientProvider,
     json: Json
@@ -102,6 +104,7 @@ class ClientTradesServiceFacade(
         )
         if (apiResult.isSuccess) {
             takeOfferStatus.value = TakeOfferStatus.SUCCESS
+            userRepository.updateLastActivity()
             return Result.success(apiResult.getOrThrow().tradeId)
         } else {
             return Result.failure(apiResult.exceptionOrNull()!!)
@@ -113,43 +116,76 @@ class ClientTradesServiceFacade(
     }
 
     override suspend fun rejectTrade(): Result<Unit> {
-        return apiGateway.rejectTrade(requireNotNull(tradeId))
+        val result = apiGateway.rejectTrade(requireNotNull(tradeId))
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun cancelTrade(): Result<Unit> {
-        return apiGateway.cancelTrade(requireNotNull(tradeId))
+        val result = apiGateway.cancelTrade(requireNotNull(tradeId))
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun closeTrade(): Result<Unit> {
         val result = apiGateway.closeTrade(requireNotNull(tradeId))
         if (result.isSuccess) {
+            userRepository.updateLastActivity()
             _selectedTrade.value = null
         }
         return result
     }
 
     override suspend fun sellerSendsPaymentAccount(paymentAccountData: String): Result<Unit> {
-        return apiGateway.sellerSendsPaymentAccount(requireNotNull(tradeId), paymentAccountData)
+        val result = apiGateway.sellerSendsPaymentAccount(requireNotNull(tradeId), paymentAccountData)
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun buyerSendBitcoinPaymentData(bitcoinPaymentData: String): Result<Unit> {
-        return apiGateway.buyerSendBitcoinPaymentData(requireNotNull(tradeId), bitcoinPaymentData)
+        val result = apiGateway.buyerSendBitcoinPaymentData(requireNotNull(tradeId), bitcoinPaymentData)
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun sellerConfirmFiatReceipt(): Result<Unit> {
-        return apiGateway.sellerConfirmFiatReceipt(requireNotNull(tradeId))
+        val result = apiGateway.sellerConfirmFiatReceipt(requireNotNull(tradeId))
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun buyerConfirmFiatSent(): Result<Unit> {
-        return apiGateway.buyerConfirmFiatSent(requireNotNull(tradeId))
+        val result = apiGateway.buyerConfirmFiatSent(requireNotNull(tradeId))
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun sellerConfirmBtcSent(paymentProof: String?): Result<Unit> {
-        return apiGateway.sellerConfirmBtcSent(requireNotNull(tradeId), paymentProof)
+        val result = apiGateway.sellerConfirmBtcSent(requireNotNull(tradeId), paymentProof)
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun btcConfirmed(): Result<Unit> {
-        return apiGateway.btcConfirmed(requireNotNull(tradeId))
+        val result = apiGateway.btcConfirmed(requireNotNull(tradeId))
+        if (result.isSuccess) {
+            userRepository.updateLastActivity()
+        }
+        return result
     }
 
     override suspend fun exportTradeDate(): Result<Unit> {
