@@ -189,3 +189,5 @@ Then you can inject it in the `@Composable` function using `koinInject()`.
 - Kotlin Compose UI allows us to share UI code easily across the 3 apps.
 
 If you are interested in seeing the POCs related to the R&D before this project kicked-off please refer to [this branch](https://github.com/bisq-network/bisq-mobile/tree/pocs)
+
+This project is tested with BrowserStack.
