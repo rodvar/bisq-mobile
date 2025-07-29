@@ -190,4 +190,4 @@ Then you can inject it in the `@Composable` function using `koinInject()`.
 
 If you are interested in seeing the POCs related to the R&D before this project kicked-off please refer to [this branch](https://github.com/bisq-network/bisq-mobile/tree/pocs)
 
-This project is tested with BrowserStack.
+This project is tested with BrowserStack
