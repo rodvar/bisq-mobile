@@ -50,6 +50,15 @@ class ClientReputationServiceFacade(
         }
     }
 
+    override suspend fun getProfileAge(userProfileId: String): Result<Long?> {
+        return try {
+            apiGateway.getProfileAge(userProfileId)
+        } catch (e: Exception) {
+            log.e(e) { "Failed to get profile age for userId=$userProfileId" }
+            Result.failure(e)
+        }
+    }
+
     private fun reputationDevStub(userProfileId: String): Result<ReputationScoreVO> {
         val reputation = reputationByUserProfileId.value[userProfileId]
         // Hardcoded rep for dev/testing
