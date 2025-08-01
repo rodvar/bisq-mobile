@@ -100,6 +100,7 @@ class ClientOffersServiceFacade(
             if (result.isFailure) {
                 result.exceptionOrNull()
                     ?.let { log.e { "GetMarkets request failed with exception $it" } }
+                log.w { "GetMarkets failed, market list will remain empty" }
                 return@launchIO
             }
 
@@ -130,16 +131,25 @@ class ClientOffersServiceFacade(
                 return@collect
             }
 
-            val webSocketEventPayload: WebSocketEventPayload<Map<String, Int>> =
-                WebSocketEventPayload.from(json, webSocketEvent)
-            val numOffersByMarketCode = webSocketEventPayload.payload
-            _offerbookMarketItems.update {
-                it.map { marketListItem ->
-                    val newNumOffers = numOffersByMarketCode.getOrElse(
-                        marketListItem.market.quoteCurrencyCode
-                    ) { 0 }
-                    marketListItem.copy(numOffers = newNumOffers)
+            try {
+                val webSocketEventPayload: WebSocketEventPayload<Map<String, Int>> =
+                    WebSocketEventPayload.from(json, webSocketEvent)
+                val numOffersByMarketCode = webSocketEventPayload.payload
+                
+                if (numOffersByMarketCode != null) {
+                    _offerbookMarketItems.update {
+                        it.map { marketListItem ->
+                            val newNumOffers = numOffersByMarketCode.getOrElse(
+                                marketListItem.market.quoteCurrencyCode
+                            ) { 0 }
+                            marketListItem.copy(numOffers = newNumOffers)
+                        }
+                    }
+                } else {
+                    log.w { "Received null numOffersByMarketCode payload, skipping update" }
                 }
+            } catch (e: Exception) {
+                log.e(e) { "Error processing numOffers WebSocket event" }
             }
         }
     }
