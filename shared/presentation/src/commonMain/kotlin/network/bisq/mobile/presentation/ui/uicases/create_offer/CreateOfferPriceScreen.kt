@@ -41,7 +41,8 @@ fun CreateOfferTradePriceSelectorScreen() {
     val min = -10f
     val max = 50f
 
-    val sliderPosition = ((formattedPercentagePrice.toFloat() - min) / (max - min)).coerceIn(0f, 1f)
+    val percentagePrice = formattedPercentagePrice.toDoubleOrNullLocaleAware()?.toFloat() ?: 0f
+    val sliderPosition = ((percentagePrice - min) / (max - min)).coerceIn(0f, 1f)
 
     fun onSliderValueChange(newValue: Float) {
         val price = min + newValue * (max - min)
@@ -51,7 +52,7 @@ fun CreateOfferTradePriceSelectorScreen() {
     MultiScreenWizardScaffold(
         "bisqEasy.takeOffer.review.price.price".i18n(),
         stepIndex = 4,
-        stepsLength = 6,
+        stepsLength = 7,
         prevOnClick = { presenter.onBack() },
         nextButtonText = "action.next".i18n(),
         nextOnClick = { presenter.onNext() },
@@ -70,7 +71,6 @@ fun CreateOfferTradePriceSelectorScreen() {
             text = "mobile.bisqEasy.tradeWizard.price.title".i18n(), modifier = Modifier.align(Alignment.Start)
         )
         BisqGap.V1()
-        BisqText.largeLightGrey("mobile.bisqEasy.tradeWizard.price.title".i18n())
         Column(
             modifier = Modifier.padding(vertical = BisqUIConstants.ScreenPadding2X),
             verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding)
