@@ -24,10 +24,15 @@ import bisq.user.identity.UserIdentityService
 import bisq.user.profile.UserProfileService
 import bisq.user.reputation.ReputationService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.mapping.Mappings
@@ -42,16 +47,22 @@ import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferIt
 import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferItemPresentationModel
 import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
+import network.bisq.mobile.domain.service.offers.MediatorNotAvailableException
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import java.util.Date
 import java.util.Optional
 
 
 class NodeOffersServiceFacade(
-    applicationService: AndroidApplicationService.Provider,
+    private val applicationService: AndroidApplicationService.Provider,
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
     private val userRepository: UserRepository
 ) : OffersServiceFacade() {
+
+    companion object {
+        private val MEDIATOR_WAIT_TIMEOUT = 1.minutes
+        private val MEDIATOR_POLL_INTERVAL = 2.seconds
+    }
 
     // Dependencies
     private val userIdentityService: UserIdentityService by lazy { applicationService.userService.get().userIdentityService }
@@ -78,7 +89,7 @@ class NodeOffersServiceFacade(
     // Life cycle
     override fun activate() {
         log.d { "Activating NodeOffersServiceFacade" }
-        super<OffersServiceFacade>.activate()
+        super.activate()
 
         observeSelectedChannel()
         observeMarketPrice()
@@ -101,7 +112,7 @@ class NodeOffersServiceFacade(
         numOffersObservers.forEach { it.dispose() }
         log.d { "NodeOffersServiceFacade deactivated" }
 
-        super<OffersServiceFacade>.deactivate()
+        super.deactivate()
     }
 
     // API
@@ -154,17 +165,49 @@ class NodeOffersServiceFacade(
         priceSpec: PriceSpecVO,
         supportedLanguageCodes: Set<String>
     ): Result<String> {
-        val offerId = createOffer(
-            Mappings.DirectionMapping.toBisq2Model(direction),
-            Mappings.MarketMapping.toBisq2Model(market),
-            bitcoinPaymentMethods.map { BitcoinPaymentMethodUtil.getPaymentMethod(it) },
-            fiatPaymentMethods.map { FiatPaymentMethodUtil.getPaymentMethod(it) },
-            Mappings.AmountSpecMapping.toBisq2Model(amountSpec),
-            Mappings.PriceSpecMapping.toBisq2Model(priceSpec),
-            ArrayList<String>(supportedLanguageCodes)
-        )
-        userRepository.updateLastActivity()
-        return Result.success(offerId)
+        return try {
+            val offerId = createOffer(
+                Mappings.DirectionMapping.toBisq2Model(direction),
+                Mappings.MarketMapping.toBisq2Model(market),
+                bitcoinPaymentMethods.map { BitcoinPaymentMethodUtil.getPaymentMethod(it) },
+                fiatPaymentMethods.map { FiatPaymentMethodUtil.getPaymentMethod(it) },
+                Mappings.AmountSpecMapping.toBisq2Model(amountSpec),
+                Mappings.PriceSpecMapping.toBisq2Model(priceSpec),
+                ArrayList<String>(supportedLanguageCodes)
+            )
+            userRepository.updateLastActivity()
+            Result.success(offerId)
+        } catch (e: Exception) {
+            log.e(e) { "Failed to create offer: ${e.message}" }
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun createOfferWithMediatorWait(
+        direction: DirectionEnum,
+        market: MarketVO,
+        bitcoinPaymentMethods: Set<String>,
+        fiatPaymentMethods: Set<String>,
+        amountSpec: AmountSpecVO,
+        priceSpec: PriceSpecVO,
+        supportedLanguageCodes: Set<String>
+    ): Result<String> {
+        return try {
+            val offerId = createOfferWithMediatorWait(
+                Mappings.DirectionMapping.toBisq2Model(direction),
+                Mappings.MarketMapping.toBisq2Model(market),
+                bitcoinPaymentMethods.map { BitcoinPaymentMethodUtil.getPaymentMethod(it) },
+                fiatPaymentMethods.map { FiatPaymentMethodUtil.getPaymentMethod(it) },
+                Mappings.AmountSpecMapping.toBisq2Model(amountSpec),
+                Mappings.PriceSpecMapping.toBisq2Model(priceSpec),
+                ArrayList<String>(supportedLanguageCodes)
+            )
+            userRepository.updateLastActivity()
+            Result.success(offerId)
+        } catch (e: Exception) {
+            log.e(e) { "Failed to create offer with mediator wait: ${e.message}" }
+            Result.failure(e)
+        }
     }
 
     // Private
@@ -203,6 +246,8 @@ class NodeOffersServiceFacade(
 //            BuildNodeConfig.TRADE_PROTOCOL_VERSION,
         )
 
+
+
         val channel: BisqEasyOfferbookChannel = bisqEasyOfferbookChannelService.findChannel(market).get()
 
         val myOfferMessage = BisqEasyOfferbookMessage(
@@ -220,6 +265,53 @@ class NodeOffersServiceFacade(
         return bisqEasyOffer.id
     }
 
+    private suspend fun createOfferWithMediatorWait(
+        direction: Direction,
+        market: Market,
+        bitcoinPaymentMethods: List<BitcoinPaymentMethod>,
+        fiatPaymentMethods: List<FiatPaymentMethod>,
+        amountSpec: AmountSpec,
+        priceSpec: PriceSpec,
+        supportedLanguageCodes: List<String>
+    ): String {
+        val mediationRequestService = applicationService.supportService.get().mediationRequestService
+        val userIdentity: UserIdentity = userIdentityService.selectedUserIdentity
+
+        log.d { "Checking mediator availability..." }
+
+        try {
+            return withTimeout(MEDIATOR_WAIT_TIMEOUT) {
+                // Check immediately, then poll with delay
+                var firstCheck = true
+                while (true) {
+                    if (!firstCheck) {
+                        delay(MEDIATOR_POLL_INTERVAL)
+                    }
+
+                    val currentMediator = mediationRequestService.selectMediator(
+                        userIdentity.userProfile.id,
+                        userIdentity.userProfile.id,
+                        "temp-offer-id"
+                    )
+
+                    if (currentMediator.isPresent) {
+                        log.d { "Mediator available, creating offer" }
+                        return@withTimeout createOffer(direction, market, bitcoinPaymentMethods, fiatPaymentMethods, amountSpec, priceSpec, supportedLanguageCodes)
+                    }
+
+                    if (firstCheck) {
+                        log.d { "No mediator available, waiting up to ${MEDIATOR_WAIT_TIMEOUT.inWholeSeconds} seconds..." }
+                    }
+
+                    firstCheck = false
+                }
+                @Suppress("UNREACHABLE_CODE")
+                error("Unreachable")
+            }
+        } catch (e: TimeoutCancellationException) {
+            throw MediatorNotAvailableException("Timeout waiting for mediator after ${MEDIATOR_WAIT_TIMEOUT.inWholeSeconds} seconds")
+        }
+    }
 
     private fun observeSelectedChannel() {
         log.d { "Setting up selected channel observer" }

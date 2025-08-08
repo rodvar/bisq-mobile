@@ -16,9 +16,11 @@ import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOEx
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.offer.amount.spec.QuoteSideFixedAmountSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.amount.spec.QuoteSideRangeAmountSpecVO
+import network.bisq.mobile.domain.data.replicated.offer.amount.spec.AmountSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.FixPriceSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.FloatPriceSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.MarketPriceSpecVO
+import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVOExtensions.getPriceQuoteVO
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
@@ -169,10 +171,20 @@ class CreateOfferPresenter(
         createOfferModel.selectedBaseSidePaymentMethods = selectedBaseSidePaymentMethods
     }
 
-    suspend fun createOffer() {
+    private data class OfferParameters(
+        val direction: DirectionEnum,
+        val market: MarketVO,
+        val bitcoinPaymentMethods: Set<String>,
+        val fiatPaymentMethods: Set<String>,
+        val amountSpec: AmountSpecVO,
+        val priceSpec: PriceSpecVO,
+        val supportedLanguageCodes: Set<String>
+    )
+
+    private suspend fun prepareOfferParameters(): OfferParameters {
         if (isDemo()) {
             showSnackbar("mobile.bisqEasy.offerbook.createOfferDisabledInDemonstrationMode".i18n())
-            return
+            throw IllegalStateException("Demo mode")
         }
 
         val direction: DirectionEnum = createOfferModel.direction
@@ -201,16 +213,39 @@ class CreateOfferPresenter(
             setOf("en")
         }
 
-        withContext(IODispatcher) {
-            offersServiceFacade.createOffer(
-                direction,
-                market,
-                bitcoinPaymentMethods,
-                fiatPaymentMethods,
-                amountSpec,
-                priceSpec,
-                supportedLanguageCodes
-            )
+        return OfferParameters(
+            direction, market, bitcoinPaymentMethods, fiatPaymentMethods,
+            amountSpec, priceSpec, supportedLanguageCodes
+        )
+    }
+
+    suspend fun createOffer(): Result<String> {
+        return try {
+            val params = prepareOfferParameters()
+            withContext(IODispatcher) {
+                offersServiceFacade.createOffer(
+                    params.direction, params.market, params.bitcoinPaymentMethods,
+                    params.fiatPaymentMethods, params.amountSpec, params.priceSpec,
+                    params.supportedLanguageCodes
+                )
+            }
+        } catch (e: IllegalStateException) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createOfferWithMediatorWait(): Result<String> {
+        return try {
+            val params = prepareOfferParameters()
+            withContext(IODispatcher) {
+                offersServiceFacade.createOfferWithMediatorWait(
+                    params.direction, params.market, params.bitcoinPaymentMethods,
+                    params.fiatPaymentMethods, params.amountSpec, params.priceSpec,
+                    params.supportedLanguageCodes
+                )
+            }
+        } catch (e: IllegalStateException) {
+            Result.failure(e)
         }
     }
 
