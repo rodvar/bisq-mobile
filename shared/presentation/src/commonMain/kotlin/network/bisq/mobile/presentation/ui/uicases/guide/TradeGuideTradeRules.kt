@@ -1,8 +1,11 @@
 package network.bisq.mobile.presentation.ui.uicases.guide
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.BisqLinks
@@ -17,10 +20,10 @@ import org.koin.compose.koinInject
 @Composable
 fun TradeGuideTradeRules() {
     val presenter: TradeGuideTradeRulesPresenter = koinInject()
-    val userAgreed by presenter.tradeRulesConfirmed.collectAsState()
-    var _userAgreed by remember { mutableStateOf(userAgreed) }
-
     RememberPresenterLifecycle(presenter)
+    val userAgreed by presenter.tradeRulesConfirmed.collectAsState()
+    var localUserAgreed by remember(userAgreed) { mutableStateOf(userAgreed) }
+    val isInteractive by presenter.isInteractive.collectAsState()
 
     val title = "bisqEasy.tradeGuide.rules".i18n() + " - " + "bisqEasy.tradeGuide.tabs.headline".i18n()
 
@@ -31,9 +34,9 @@ fun TradeGuideTradeRules() {
         prevOnClick = presenter::prevClick,
         nextOnClick = presenter::tradeRulesNextClick,
         nextButtonText = "action.finish".i18n(),
-        nextDisabled = !_userAgreed,
+        nextDisabled = !localUserAgreed,
         horizontalAlignment = Alignment.Start,
-        isInteractive = presenter.isInteractive.collectAsState().value,
+        isInteractive = isInteractive,
         showJumpToBottom = true
     ) {
         BisqText.h3Regular("bisqEasy.tradeGuide.rules.headline".i18n())
@@ -55,9 +58,9 @@ fun TradeGuideTradeRules() {
         if (!userAgreed)
             BisqCheckbox(
                 "tac.confirm".i18n(),
-                checked = _userAgreed,
+                checked = localUserAgreed,
                 onCheckedChange = {
-                    _userAgreed = it
+                    localUserAgreed = it
                 }
             )
 

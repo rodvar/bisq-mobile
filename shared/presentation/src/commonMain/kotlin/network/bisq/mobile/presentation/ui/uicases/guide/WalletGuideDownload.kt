@@ -3,6 +3,7 @@ package network.bisq.mobile.presentation.ui.uicases.guide
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -18,9 +19,9 @@ import org.koin.compose.koinInject
 @Composable
 fun WalletGuideDownload() {
     val presenter: WalletGuideDownloadPresenter = koinInject()
-
     RememberPresenterLifecycle(presenter)
 
+    val isInteractive by presenter.isInteractive.collectAsState()
     val title = "bisqEasy.walletGuide.download".i18n() + " - " + "bisqEasy.walletGuide.tabs.headline".i18n()
 
     MultiScreenWizardScaffold(
@@ -30,7 +31,7 @@ fun WalletGuideDownload() {
         prevOnClick = presenter::prevClick,
         nextOnClick = presenter::downloadNextClick,
         horizontalAlignment = Alignment.Start,
-        isInteractive = presenter.isInteractive.collectAsState().value,
+        isInteractive = isInteractive,
     ) {
         BisqText.h3Regular("bisqEasy.walletGuide.download.headline".i18n())
 

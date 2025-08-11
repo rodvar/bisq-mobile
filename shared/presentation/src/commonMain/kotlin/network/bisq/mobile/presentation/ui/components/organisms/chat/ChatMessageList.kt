@@ -3,9 +3,7 @@ package network.bisq.mobile.presentation.ui.components.organisms.chat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -46,12 +44,13 @@ fun ChatMessageList(
     onReportUser: (BisqEasyOpenTradeMessageModel) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    val showChatRulesWarnBox by presenter.showChatRulesWarnBox.collectAsState()
 
     Box(modifier = modifier) {
         Column(
             verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding2X)
         ) {
-            if (presenter.showChatRulesWarnBox.collectAsState().value) {
+            if (showChatRulesWarnBox) {
                 ChatRulesWarningMessageBox(presenter)
             }
 
@@ -61,7 +60,7 @@ fun ChatMessageList(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding2X)
             ) {
-                items(messages) { message ->
+                items(messages, key = { it.id }) { message ->
                     if (message.chatMessageType == ChatMessageTypeEnum.PROTOCOL_LOG_MESSAGE) {
                         ProtocolLogMessageBox(message)
                     } else if (message.chatMessageType == ChatMessageTypeEnum.LEAVE) {

@@ -19,6 +19,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,19 +76,24 @@ fun TopBar(
     extraActions: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val presenter: ITopBarPresenter = koinInject()
+    RememberPresenterLifecycle(presenter)
+
     val navController: NavHostController = presenter.getRootNavController()
     val tabNavController: NavHostController = presenter.getRootTabNavController()
 
-    val showAnimation = presenter.showAnimation.collectAsState().value
+    val showAnimation by presenter.showAnimation.collectAsState()
     var showBackConfirmationDialog by remember { mutableStateOf(false) }
 
-    val currentTab = tabNavController.currentBackStackEntryAsState().value?.destination?.route
+    val currentBackStackEntry by tabNavController.currentBackStackEntryAsState()
+    val currentTab by remember(currentBackStackEntry) {
+        derivedStateOf { currentBackStackEntry?.destination?.route }
+    }
 
     val showBackButton = (customBackButton == null &&
             navController.previousBackStackEntry != null &&
             !presenter.isAtHome())
 
-    val connectivityStatus = presenter.connectivityStatus.collectAsState().value
+    val connectivityStatus by presenter.connectivityStatus.collectAsState()
 
     val defaultBackButton: @Composable () -> Unit = {
         IconButton(onClick = {
@@ -108,8 +114,6 @@ fun TopBar(
             )
         }
     }
-
-    RememberPresenterLifecycle(presenter)
 
     TopAppBar(
         navigationIcon = {
@@ -171,7 +175,6 @@ fun TopBar(
 //                BellIcon()
 
                 if (showUserAvatar) {
-
                     val userIconModifier = Modifier
                         .size(BisqUIConstants.topBarAvatarSize)
                         .alpha(if (presenter.avatarEnabled(currentTab)) 1.0f else 0.5f)

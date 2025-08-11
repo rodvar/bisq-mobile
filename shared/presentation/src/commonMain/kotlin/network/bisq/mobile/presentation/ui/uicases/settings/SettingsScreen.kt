@@ -1,11 +1,16 @@
 package network.bisq.mobile.presentation.ui.uicases.settings
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import network.bisq.mobile.presentation.ViewPresenter
-import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticLayout
 import network.bisq.mobile.presentation.ui.components.molecules.settings.BreadcrumbNavigation
 import network.bisq.mobile.presentation.ui.components.molecules.settings.MenuItem
@@ -24,14 +29,15 @@ interface ISettingsPresenter : ViewPresenter {
 
 @Composable
 fun SettingsScreen(isTabSelected: Boolean) {
-
     val presenter: ISettingsPresenter = koinInject()
+    RememberPresenterLifecycle(presenter)
+
+    val isInteractive by presenter.isInteractive.collectAsState()
     val menuTree: MenuItem = presenter.menuTree()
     val currentMenu = remember { mutableStateOf(menuTree) }
     val menuPath = remember { mutableStateListOf(menuTree) }
     val selectedLeaf = remember { mutableStateOf<MenuItem.Leaf?>(null) }
 
-    RememberPresenterLifecycle(presenter)
     // Reset to root menu when the tab is selected
     LaunchedEffect(isTabSelected) {
         if (isTabSelected) {
@@ -43,7 +49,7 @@ fun SettingsScreen(isTabSelected: Boolean) {
     BisqStaticLayout(
         padding = PaddingValues(all = BisqUIConstants.Zero),
         verticalArrangement = Arrangement.SpaceBetween,
-        isInteractive = presenter.isInteractive.collectAsState().value,
+        isInteractive = isInteractive,
     ) {
         Column{
             BreadcrumbNavigation(path = menuPath) { index ->

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,17 +36,17 @@ interface IAboutPresenter : ViewPresenter {
 @Composable
 fun AboutScreen() {
     val presenter: IAboutPresenter = koinInject()
-    val versioning = remember { presenter.versioning() }
-
-
     RememberPresenterLifecycle(presenter)
+
+    val versioning = remember { presenter.versioning() }
+    val isInteractive by presenter.isInteractive.collectAsState()
 
     BisqScrollScaffold(
         topBar = { TopBar("mobile.settings.about".i18n(), showUserAvatar = false) },
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
         snackbarHostState = presenter.getSnackState(),
-        isInteractive = presenter.isInteractive.collectAsState().value,
+        isInteractive = isInteractive,
     ) {
 
         BisqGap.V3()

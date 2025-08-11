@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
@@ -31,6 +32,9 @@ fun CreateOfferReviewOfferScreen() {
     val presenter: CreateOfferReviewPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
 
+    val isInteractive by presenter.isInteractive.collectAsState()
+    val showMediatorWaitingDialog by presenter.showMediatorWaitingDialog.collectAsState()
+
     MultiScreenWizardScaffold(
         "bisqEasy.tradeWizard.review.headline.maker".i18n(),
         stepIndex = 7,
@@ -38,7 +42,7 @@ fun CreateOfferReviewOfferScreen() {
         prevOnClick = { presenter.onBack() },
         nextButtonText = "bisqEasy.tradeWizard.review.nextButton.createOffer".i18n(),
         nextOnClick = { presenter.onCreateOffer() },
-        isInteractive = presenter.isInteractive.collectAsState().value,
+        isInteractive = isInteractive,
         showUserAvatar = false,
         extraActions = {
             BisqIconButton(onClick = {
@@ -155,7 +159,7 @@ fun CreateOfferReviewOfferScreen() {
     }
 
     // Mediator waiting dialog
-    if (presenter.showMediatorWaitingDialog.collectAsState().value) {
+    if (showMediatorWaitingDialog) {
         InformationConfirmationDialog(
 //            message = "mobile.bisqEasy.createOffer.mediatorWaiting.title".i18n(),
             message = "mobile.bisqEasy.createOffer.mediatorWaiting.message".i18n(),

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.i18n.i18n
@@ -19,13 +20,18 @@ fun TakeOfferTradeAmountScreen() {
     val presenter: TakeOfferAmountPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
 
+    val formattedQuoteAmount by presenter.formattedQuoteAmount.collectAsState()
+    val formattedBaseAmount by presenter.formattedBaseAmount.collectAsState()
+    val sliderPosition by presenter.sliderPosition.collectAsState()
+    val amountValid by presenter.amountValid.collectAsState()
+
     MultiScreenWizardScaffold(
         "bisqEasy.takeOffer.progress.amount".i18n(),
         stepIndex = 1,
         stepsLength = 4,
         prevOnClick = { presenter.onBack() },
         nextOnClick = { presenter.onNext() },
-        nextDisabled = !presenter.amountValid.collectAsState().value,
+        nextDisabled = !amountValid,
     ) {
         BisqText.h3Regular("bisqEasy.takeOffer.amount.headline.buyer".i18n())
         BisqGap.V1()
@@ -43,12 +49,12 @@ fun TakeOfferTradeAmountScreen() {
             quoteCurrencyCode = presenter.quoteCurrencyCode,
             formattedMinAmount = presenter.formattedMinAmountWithCode,
             formattedMaxAmount = presenter.formattedMaxAmountWithCode,
-            formattedFiatAmount = presenter.formattedQuoteAmount.collectAsState().value,
-            formattedBtcAmount = presenter.formattedBaseAmount.collectAsState().value,
-            onSliderValueChange = { sliderValue -> presenter.onSliderValueChanged(sliderValue) },
-            onTextValueChange = { textInput -> presenter.onTextValueChanged(textInput) },
-            validateTextField = { presenter.validateTextField(it) },
-            sliderPosition = presenter.sliderPosition.collectAsState().value,
+            formattedFiatAmount = formattedQuoteAmount,
+            formattedBtcAmount = formattedBaseAmount,
+            onSliderValueChange = presenter::onSliderValueChanged,
+            onTextValueChange = presenter::onTextValueChanged,
+            validateTextField = presenter::validateTextField,
+            sliderPosition = sliderPosition,
         )
     }
 }

@@ -1,15 +1,15 @@
 package network.bisq.mobile.presentation.ui.uicases.settings
 
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
-import network.bisq.mobile.domain.toDoubleOrNullLocaleAware
 import network.bisq.mobile.domain.data.replicated.settings.SettingsVO
 import network.bisq.mobile.domain.formatters.NumberFormatter
 import network.bisq.mobile.domain.service.common.LanguageServiceFacade
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.setDefaultLocale
+import network.bisq.mobile.domain.toDoubleOrNullLocaleAware
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
@@ -205,9 +205,7 @@ open class GeneralSettingsPresenter(
         _supportedLanguageCodes.value = if (settings.supportedLanguageCodes.isNotEmpty())
             settings.supportedLanguageCodes
         else
-            setOf("en") // setOf(i18nPairs.collectAsState().value.first().first)
-
-        // _chatNotification.value =
+            setOf("en")
         _closeOfferWhenTradeTaken.value = settings.closeMyOfferWhenTaken
         _tradePriceTolerance.value = NumberFormatter.format(settings.maxTradePriceDeviation * 100)
         _useAnimations.value = settings.useAnimations
