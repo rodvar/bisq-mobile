@@ -148,18 +148,13 @@ class ClientOffersServiceFacade(
                 val webSocketEventPayload: WebSocketEventPayload<Map<String, Int>> =
                     WebSocketEventPayload.from(json, webSocketEvent)
                 val numOffersByMarketCode = webSocketEventPayload.payload
-                
-                if (numOffersByMarketCode != null) {
-                    _offerbookMarketItems.update {
-                        it.map { marketListItem ->
-                            val newNumOffers = numOffersByMarketCode.getOrElse(
-                                marketListItem.market.quoteCurrencyCode
-                            ) { 0 }
-                            marketListItem.copy(numOffers = newNumOffers)
-                        }
+
+                _offerbookMarketItems.update { list ->
+                    list.map { marketListItem ->
+                        numOffersByMarketCode[marketListItem.market.quoteCurrencyCode]
+                            ?.let { marketListItem.copy(numOffers = it) }
+                                ?: marketListItem
                     }
-                } else {
-                    log.w { "Received null numOffersByMarketCode payload, skipping update" }
                 }
             } catch (e: Exception) {
                 log.e(e) { "Error processing numOffers WebSocket event" }
