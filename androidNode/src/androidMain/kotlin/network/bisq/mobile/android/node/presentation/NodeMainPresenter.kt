@@ -115,6 +115,7 @@ class NodeMainPresenter(
                 }
             }.onFailure { e ->
                 log.e("Error at onViewAttached", e)
+                applicationBootstrapFacade.deactivate()
                 handleInitializationError(e, "Node initialization")
             }
         }

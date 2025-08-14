@@ -69,6 +69,7 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
     }
 
     override fun deactivate() {
+        avatarMap.clear()
         super<ServiceFacade>.deactivate()
     }
 
