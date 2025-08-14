@@ -56,13 +56,7 @@ kotlin {
                 implementation(libs.androidx.test)
                 implementation(libs.androidx.test.junit)
             }
-            kotlin.srcDirs(
-                "src/androidMain/kotlin",
-                // KMP androidMain needs both proto sources since it's shared between debug/release
-                // The Android-specific source sets below handle variant-specific separation
-                "${layout.buildDirectory}/generated/source/proto/debug/java",
-                "${layout.buildDirectory}/generated/source/proto/release/java"
-            )
+            kotlin.srcDirs("src/androidMain/kotlin")
         }
     }
 }

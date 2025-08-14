@@ -123,9 +123,7 @@ open class ClientMainPresenter(
             profileStatsServiceFacade.activate()
         }.onFailure { e ->
             // Roll back any partially activated services
-            runCatching { deactivateServices() }.onFailure { deactEx ->
-                log.w { "Failed to rollback services after activation error: ${deactEx.message}" }
-            }
+            deactivateServicesBestEffort()
             log.w { "Error activating services: ${e.message}" }
             handleInitializationError(e, "Service activation")
         }
@@ -147,6 +145,28 @@ open class ClientMainPresenter(
         reputationServiceFacade.deactivate()
 
         profileStatsServiceFacade.deactivate()
+    }
+
+    private fun deactivateServicesBestEffort() {
+        val steps: List<Pair<String, () -> Unit>> = listOf(
+            "profileStatsService" to { profileStatsServiceFacade.deactivate() },
+            "reputationService" to { reputationServiceFacade.deactivate() },
+            "mediationService" to { mediationServiceFacade.deactivate() },
+            "explorerService" to { explorerServiceFacade.deactivate() },
+            "accountsService" to { accountsServiceFacade.deactivate() },
+            "languageService" to { languageServiceFacade.deactivate() },
+            "settingsService" to { settingsServiceFacade.deactivate() },
+            "tradeChatMessagesService" to { tradeChatMessagesServiceFacade.deactivate() },
+            "tradesService" to { tradesServiceFacade.deactivate() },
+            "marketPriceService" to { marketPriceServiceFacade.deactivate() },
+            "offersService" to { offersServiceFacade.deactivate() },
+            "userProfileService" to { userProfileServiceFacade.deactivate() },
+            "applicationBootstrap" to { applicationBootstrapFacade.deactivate() },
+        )
+        steps.forEach { (name, action) ->
+            runCatching { action() }
+                .onFailure { ex -> log.w { "Best-effort rollback: deactivation of $name failed: ${ex.message}" } }
+        }
     }
 
     override fun isDemo(): Boolean = ApplicationBootstrapFacade.isDemo

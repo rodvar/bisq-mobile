@@ -1,6 +1,8 @@
 package network.bisq.mobile.android.node.service.user_profile
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
@@ -246,7 +248,7 @@ class NodeUserProfileServiceFacadePerformanceTest {
     }
 
     @Test
-    fun `performance test - concurrent avatar loading is thread-safe`() = kotlinx.coroutines.runBlocking {
+    fun `performance test - concurrent avatar loading is thread-safe`() = runBlocking (Dispatchers.Default) {
         val user = createTestUserProfile(42)
         val concurrentJobs = 200
         val time = measureTimeMillis {
