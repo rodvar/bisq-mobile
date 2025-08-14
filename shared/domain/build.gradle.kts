@@ -38,19 +38,27 @@ buildConfig {
         buildConfigField("WS_PORT", project.findProperty("client.x.trustednode.port").toString())
         buildConfigField("WS_ANDROID_HOST", project.findProperty("client.android.trustednode.ip").toString())
         buildConfigField("WS_IOS_HOST", project.findProperty("client.ios.trustednode.ip").toString())
-        buildConfigField("IS_DEBUG", project.gradle.startParameter.taskNames.any { it.contains("debug", ignoreCase = true) })
+        buildConfigField(
+            "IS_DEBUG",
+            (project.findProperty("bisq.isDebug")?.toString()?.toBoolean()
+                ?: project.gradle.startParameter.taskNames.any { it.contains("debug", ignoreCase = true) })
+        )
     }
     forClass("network.bisq.mobile.android.node", className = "BuildNodeConfig") {
         buildConfigField("APP_NAME", project.findProperty("node.name").toString())
         buildConfigField("APP_VERSION", project.findProperty("node.android.version").toString())
-        buildConfigField("TRADE_PROTOCOL_VERSION", "1.0") // TODO review values
-        buildConfigField("TRADE_OFFER_VERSION", 1) // TODO review values
+        buildConfigField("TRADE_PROTOCOL_VERSION", "1.0") // TODO review values when migrating to bisq2 core v2.1.8
+        buildConfigField("TRADE_OFFER_VERSION", 1) // TODO review values when migrating to bisq2 core v2.1.8
         buildConfigField("SHARED_LIBS_VERSION", project.version.toString())
         buildConfigField("BUILD_TS", System.currentTimeMillis())
         buildConfigField("BISQ_CORE_VERSION", bisqCoreVersion)
         // Note: Update when updating kmp-tor lib
         buildConfigField("TOR_VERSION", "13.5.2")
-        buildConfigField("IS_DEBUG", project.gradle.startParameter.taskNames.any { it.contains("debug", ignoreCase = true) })
+        buildConfigField(
+            "IS_DEBUG",
+            (project.findProperty("bisq.isDebug")?.toString()?.toBoolean()
+                ?: project.gradle.startParameter.taskNames.any { it.contains("debug", ignoreCase = true) })
+        )
 
     }
 //    buildConfigField("APP_SECRET", "Z3JhZGxlLWphdmEtYnVpbGRjb25maWctcGx1Z2lu")

@@ -26,6 +26,7 @@ import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.setDefaultLocale
 import network.bisq.mobile.presentation.ui.AppPresenter
+import network.bisq.mobile.presentation.ui.error.GenericErrorHandler
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
 /**
@@ -186,6 +187,22 @@ open class MainPresenter(
 
             }
 
+        }
+    }
+
+    /**
+     * Common error handling method for initialization and service activation errors.
+     * Provides user-friendly error messages with contextual guidance.
+     *
+     * @param exception The exception that occurred
+     * @param context Additional context about where the error occurred (e.g., "Node initialization", "Service activation")
+     */
+    protected fun handleInitializationError(exception: Throwable, context: String = "Initialization") {
+        // Use the existing error handling infrastructure
+        launchUI {
+            GenericErrorHandler.handleGenericError(
+                "Initialization process failed during: $context",
+                exception)
         }
     }
 
