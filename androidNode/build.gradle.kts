@@ -409,6 +409,7 @@ tasks.register("saveOutputMetadata") {
 
 // Hook the tasks to run after successful release builds
 afterEvaluate {
+    // TODO generalise to use also for android connect app
     tasks.findByName("bundleRelease")?.let { task ->
         task.finalizedBy("saveMappingFiles")
     }
