@@ -3,7 +3,9 @@ package network.bisq.mobile.presentation.ui.uicases.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.flow.StateFlow
@@ -74,8 +76,13 @@ fun GeneralSettingsScreen() {
     val ignorePow by presenter.ignorePow.collectAsState()
     val shouldShowPoWAdjustmentFactor by presenter.shouldShowPoWAdjustmentFactor.collectAsState()
 
+    // Make the title reactive to language changes
+    val title by remember(selectedLanguage) {
+        derivedStateOf { "mobile.settings.title".i18n() }
+    }
+
     BisqScrollScaffold(
-        topBar = { TopBar("mobile.settings.title".i18n()) },
+        topBar = { TopBar(title) },
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
         isInteractive = isInteractive,
