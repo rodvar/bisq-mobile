@@ -13,7 +13,7 @@ import network.bisq.mobile.domain.data.persistance.KeyValueStorage
 // this way of defining supports both platforms
 // add your repositories here and then in your DI module call this classes for instanciation
 open class SettingsRepository(keyValueStorage: KeyValueStorage<Settings>) : SingleObjectRepository<Settings>(keyValueStorage, Settings())
-open class TradeReadStateRepository(keyValueStorage: KeyValueStorage<TradeReadState>) : SingleObjectRepository<TradeReadState>(keyValueStorage, TradeReadState()) {
+open class TradeReadStateRepository(keyValueStorage: KeyValueStorage<TradeReadState>) : MultiObjectRepository<TradeReadState>(keyValueStorage, TradeReadState("prototype", 0)) {
 
     private val updateMutex = Mutex()
 
@@ -23,10 +23,7 @@ open class TradeReadStateRepository(keyValueStorage: KeyValueStorage<TradeReadSt
      * @return The current read count for the trade, or 0 if not found
      */
     suspend fun getReadCount(tradeId: String): Int {
-        return updateMutex.withLock {
-            val current = fetch() ?: TradeReadState()
-            current.map[tradeId] ?: 0
-        }
+        return fetchById(tradeId)?.readCount ?: 0
     }
 
     /**
@@ -35,13 +32,17 @@ open class TradeReadStateRepository(keyValueStorage: KeyValueStorage<TradeReadSt
      * @param count The new read count
      */
     suspend fun setReadCount(tradeId: String, count: Int) {
+        if (count < 0) return
+
         updateMutex.withLock {
-            if (count < 0) return@withLock
-            val current = fetch() ?: TradeReadState()
-            val updatedMap = current.map.toMutableMap()
-            updatedMap[tradeId] = count
-            val updated = current.also { it.map = updatedMap }
-            update(updated)
+            val tradeReadState = TradeReadState(tradeId, count)
+            val existing = fetchById(tradeId)
+
+            if (existing != null) {
+                update(tradeReadState)
+            } else {
+                create(tradeReadState)
+            }
         }
     }
 
@@ -52,13 +53,16 @@ open class TradeReadStateRepository(keyValueStorage: KeyValueStorage<TradeReadSt
      */
     suspend fun incrementReadCount(tradeId: String): Int {
         return updateMutex.withLock {
-            val current = fetch() ?: TradeReadState()
-            val currentCount = current.map[tradeId] ?: 0
+            val currentCount = fetchById(tradeId)?.readCount ?: 0
             val newCount = currentCount + 1
-            val updatedMap = current.map.toMutableMap()
-            updatedMap[tradeId] = newCount
-            val updated = TradeReadState().apply { map = updatedMap }
-            update(updated)
+            val tradeReadState = TradeReadState(tradeId, newCount)
+            val existing = fetchById(tradeId)
+
+            if (existing != null) {
+                update(tradeReadState)
+            } else {
+                create(tradeReadState)
+            }
             newCount
         }
     }
@@ -71,15 +75,19 @@ open class TradeReadStateRepository(keyValueStorage: KeyValueStorage<TradeReadSt
      * @return True if the update was applied, false if the current count was already >= newCount
      */
     suspend fun updateReadCountIfGreater(tradeId: String, newCount: Int): Boolean {
+        if (newCount < 0) return false
+
         return updateMutex.withLock {
-            if (newCount < 0) return@withLock false
-            val current = fetch() ?: TradeReadState()
-            val currentCount = current.map[tradeId] ?: 0
+            val currentCount = fetchById(tradeId)?.readCount ?: 0
             if (newCount > currentCount) {
-                val updatedMap = current.map.toMutableMap()
-                updatedMap[tradeId] = newCount
-                val updated = current.copy(map = updatedMap)
-                update(updated)
+                val tradeReadState = TradeReadState(tradeId, newCount)
+                val existing = fetchById(tradeId)
+
+                if (existing != null) {
+                    update(tradeReadState)
+                } else {
+                    create(tradeReadState)
+                }
                 true
             } else {
                 false
@@ -93,11 +101,10 @@ open class TradeReadStateRepository(keyValueStorage: KeyValueStorage<TradeReadSt
      */
     suspend fun clearReadState(tradeId: String) {
         updateMutex.withLock {
-            val current = fetch() ?: TradeReadState()
-            val updatedMap = current.map.toMutableMap()
-            updatedMap.remove(tradeId)
-            val updated = TradeReadState().apply { map = updatedMap }
-            update(updated)
+            val existing = fetchById(tradeId)
+            if (existing != null) {
+                delete(existing)
+            }
         }
     }
 }
