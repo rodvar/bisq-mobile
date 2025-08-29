@@ -141,6 +141,10 @@ fun getArtifactName(defaultConfig: com.android.build.gradle.internal.dsl.Default
     return "BisqConnect-${defaultConfig.versionName}_${defaultConfig.versionCode}"
 }
 
+// Configure ProGuard mapping file management using shared script
+extra["moduleName"] = "androidClient"
+apply(from = "$rootDir/gradle/mapping-tasks.gradle.kts")
+
 // Ensure generateResourceBundles runs before Android build tasks
 afterEvaluate {
     val generateResourceBundlesTask = project(":shared:domain").tasks.findByName("generateResourceBundles")
