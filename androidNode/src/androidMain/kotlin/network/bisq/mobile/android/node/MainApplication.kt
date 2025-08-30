@@ -10,6 +10,9 @@ import bisq.common.facades.android.AndroidGuavaFacade
 import bisq.common.facades.android.AndroidJdkFacade
 import bisq.common.network.clear_net_address_types.AndroidEmulatorAddressTypeFacade
 import bisq.common.network.clear_net_address_types.LANAddressTypeFacade
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.android.node.di.androidNodeModule
 import network.bisq.mobile.android.node.service.offers.NodeOffersServiceFacade
 import network.bisq.mobile.domain.di.domainModule
@@ -52,7 +55,15 @@ class MainApplication : BisqMainApplication(), ComponentCallbacks2 {
     }
 
     override fun onCreated() {
-        setupBisqCoreStatics()
+        // Use runBlocking for essential system initialization that must complete before app continues
+        // This is acceptable here because:
+        // 1. It's Application.onCreate() - the right place for critical setup
+        // 2. setupBisqCoreStatics() configures essential system components (BouncyCastle, Facades)
+        // 3. The app cannot function without these being initialized
+        // 4. It's a one-time operation during app startup
+        runBlocking(Dispatchers.IO) {
+            setupBisqCoreStatics()
+        }
         // Note: MainApplication already implements ComponentCallbacks2, so onTrimMemory is automatically called
         // No need to registerComponentCallbacks(this) - that would cause infinite recursion
         // Note: Tor initialization is now handled in NodeApplicationBootstrapFacade
@@ -93,22 +104,24 @@ class MainApplication : BisqMainApplication(), ComponentCallbacks2 {
         return BuildNodeConfig.IS_DEBUG
     }
 
-    private fun setupBisqCoreStatics() {
-        val isEmulator = isEmulator()
-        val clearNetFacade = if (isEmulator) {
-            AndroidEmulatorAddressTypeFacade()
-        } else {
-            LANAddressTypeFacade()
-        }
-        FacadeProvider.setClearNetAddressTypeFacade(clearNetFacade)
-        FacadeProvider.setJdkFacade(AndroidJdkFacade(Process.myPid()))
-        FacadeProvider.setGuavaFacade(AndroidGuavaFacade())
+    private suspend fun setupBisqCoreStatics() {
+        withContext(Dispatchers.IO) {
+            val isEmulator = isEmulator()
+            val clearNetFacade = if (isEmulator) {
+                AndroidEmulatorAddressTypeFacade()
+            } else {
+                LANAddressTypeFacade()
+            }
+            FacadeProvider.setClearNetAddressTypeFacade(clearNetFacade)
+            FacadeProvider.setJdkFacade(AndroidJdkFacade(Process.myPid()))
+            FacadeProvider.setGuavaFacade(AndroidGuavaFacade())
 
-        // Androids default BC version does not support all algorithms we need, thus we remove
-        // it and add our BC provider
-        Security.removeProvider("BC")
-        Security.addProvider(BouncyCastleProvider())
-        log.d { "Configured bisq2 for Android${if (isEmulator) " emulator" else ""}" }
+            // Androids default BC version does not support all algorithms we need, thus we remove
+            // it and add our BC provider
+            Security.removeProvider("BC")
+            Security.addProvider(BouncyCastleProvider())
+            log.d { "Configured bisq2 for Android${if (isEmulator) " emulator" else ""}" }
+        }
     }
 
     private fun isEmulator(): Boolean {
