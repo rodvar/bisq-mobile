@@ -192,6 +192,10 @@ android {
 
             // Keep standard heap in debug for leak detection
             manifestPlaceholders["largeHeap"] = "false"
+
+            // Disable minification in debug to avoid lock verification issues
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
     applicationVariants.all {
