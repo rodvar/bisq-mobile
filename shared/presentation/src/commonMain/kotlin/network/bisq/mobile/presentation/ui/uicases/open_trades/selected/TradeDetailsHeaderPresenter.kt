@@ -13,6 +13,7 @@ import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.domain.service.mediation.MediationServiceFacade
+import network.bisq.mobile.domain.service.offers.MediatorNotAvailableException
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.i18n.i18n
@@ -26,6 +27,18 @@ class TradeDetailsHeaderPresenter(
     var mediationServiceFacade: MediationServiceFacade,
     val userProfileServiceFacade: UserProfileServiceFacade,
 ) : BasePresenter(mainPresenter) {
+
+    companion object {
+
+        /**
+         * Determines if a throwable should be treated as a "no mediator available" error.
+         * This centralizes the logic for identifying mediator-related errors.
+         */
+        fun isMediatorError(throwable: Throwable): Boolean {
+            return throwable is MediatorNotAvailableException ||
+                    throwable.message?.contains("no mediator", ignoreCase = true) == true
+        }
+    }
 
     enum class TradeCloseType {
         REJECT,
@@ -67,6 +80,9 @@ class TradeDetailsHeaderPresenter(
 
     private val _isInMediation: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isInMediation: StateFlow<Boolean> get() = this._isInMediation.asStateFlow()
+
+    private val _mediationError = MutableStateFlow("")
+    val mediationError: StateFlow<String> get() = _mediationError.asStateFlow()
 
     private val _peerAvatar: MutableStateFlow<PlatformImage?> = MutableStateFlow(null)
     val peerAvatar: StateFlow<PlatformImage?> get() = _peerAvatar.asStateFlow()
@@ -300,15 +316,29 @@ class TradeDetailsHeaderPresenter(
         _showMediationConfirmationDialog.value = false
         launchIO {
             try {
-                mediationServiceFacade.reportToMediator(selectedTrade.value!!)
+                val result = mediationServiceFacade.reportToMediator(selectedTrade.value!!)
+                if (result.isFailure) {
+                    val err = result.exceptionOrNull()
+                    if (err != null && isMediatorError(err)) {
+                        // With support chats in mobile:
+                        // bisqEasy.takeOffer.noMediatorAvailable.warning // =There is no mediator available. You have to use the support chat instead.
+                        _mediationError.value = "mobile.takeOffer.noMediatorAvailable.warning".i18n()
+                    } else {
+                        _mediationError.value = "mobile.bisqEasy.tradeState.mediationFailed".i18n()
+                    }
+                    log.e(err) { "Failed to proceed to report to mediation - ${err?.message}" }
+                }
             } catch (e: Exception) {
-                // TODO we probably want a UI for this
-                showSnackbar("mobile.bisqEasy.tradeState.mediationFailed".i18n())
+                _mediationError.value = "mobile.bisqEasy.tradeState.mediationFailed".i18n()
                 log.e(e) { "Failed to proceed to report to mediation - ${e.message}" }
             } finally {
                 enableInteractive()
             }
         }
+    }
+
+    fun onCloseMediationErrorDialog() {
+        _mediationError.value = ""
     }
 
     fun onToggleHeader() {
