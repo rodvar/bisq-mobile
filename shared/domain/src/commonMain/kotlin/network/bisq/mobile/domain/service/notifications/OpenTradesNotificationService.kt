@@ -1,6 +1,7 @@
 package network.bisq.mobile.domain.service.notifications
 
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.domain.data.replicated.trade.TradeRoleEnum
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.domain.service.notifications.controller.NotificationServiceController
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
@@ -20,6 +21,10 @@ class OpenTradesNotificationService(
     private val observedTradeIds = mutableSetOf<String>()
     private val notifiedPaymentInfo = mutableSetOf<String>()
     private val notifiedBitcoinInfo = mutableSetOf<String>()
+    private val perTradeFlows = mutableMapOf<String, Triple<
+        kotlinx.coroutines.flow.StateFlow<*>,
+        kotlinx.coroutines.flow.StateFlow<*>,
+        kotlinx.coroutines.flow.StateFlow<*>>>()
 
     fun launchNotificationService() {
         notificationServiceController.startService()
@@ -39,6 +44,15 @@ class OpenTradesNotificationService(
 
     fun stopNotificationService() {
         notificationServiceController.unregisterObserver(tradesServiceFacade.openTradeItems)
+
+        // Unregister per-trade observers to prevent leaks
+        perTradeFlows.forEach { (_, triple) ->
+            notificationServiceController.unregisterObserver(triple.first)
+            notificationServiceController.unregisterObserver(triple.second)
+            notificationServiceController.unregisterObserver(triple.third)
+        }
+        perTradeFlows.clear()
+
         notificationServiceController.stopService()
 
         // Clear all tracking sets to prevent memory leaks
@@ -64,6 +78,15 @@ class OpenTradesNotificationService(
             notifiedPaymentInfo.removeAll(orphanedPayment)
             notifiedBitcoinInfo.removeAll(orphanedBitcoin)
 
+            // Clean up orphaned per-trade flows
+            orphanedObserved.forEach { tradeId ->
+                perTradeFlows.remove(tradeId)?.let { (a, b, c) ->
+                    notificationServiceController.unregisterObserver(a)
+                    notificationServiceController.unregisterObserver(b)
+                    notificationServiceController.unregisterObserver(c)
+                }
+            }
+
             log.d { "Cleaned up orphaned trades - observed: $orphanedObserved, payment: $orphanedPayment, bitcoin: $orphanedBitcoin" }
         }
     }
@@ -85,6 +108,13 @@ class OpenTradesNotificationService(
             observeFutureStateChanges(trade)
             observePaymentAccountData(trade)
             observeBitcoinPaymentData(trade)
+
+            // Register the StateFlows for cleanup on service stop
+            perTradeFlows[trade.shortTradeId] = Triple(
+                trade.bisqEasyTradeModel.tradeState,
+                trade.bisqEasyTradeModel.paymentAccountData,
+                trade.bisqEasyTradeModel.bitcoinPaymentData
+            )
         } else {
             log.d { "Observers already registered for trade ${trade.shortTradeId}" }
         }
@@ -145,6 +175,7 @@ class OpenTradesNotificationService(
                 observedTradeIds.remove(trade.shortTradeId)
                 notifiedPaymentInfo.remove(trade.shortTradeId)
                 notifiedBitcoinInfo.remove(trade.shortTradeId)
+                perTradeFlows.remove(trade.shortTradeId)
                 log.d { "Trade ${trade.shortTradeId} completed and unregistered for notification updates" }
             }
         }
@@ -160,33 +191,73 @@ class OpenTradesNotificationService(
         when (state) {
             // Payment related states
             BisqEasyTradeStateEnum.BUYER_SENT_FIAT_SENT_CONFIRMATION -> {
+                val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isBuyer) {
+                    // User is buyer -> they confirmed sending payment
+                    "mobile.openTradeNotifications.youSentFiat.title" to "mobile.openTradeNotifications.youSentFiat.message"
+                } else {
+                    // User is seller -> peer (buyer) confirmed sending payment
+                    "mobile.openTradeNotifications.peerSentFiat.title" to "mobile.openTradeNotifications.peerSentFiat.message"
+                }
+
                 notificationServiceController.pushNotification(
-                    "mobile.openTradeNotifications.fiatSent.title".i18n(trade.shortTradeId),
-                    "mobile.openTradeNotifications.fiatSent.message".i18n(trade.peersUserName)
+                    titleKey.i18n(trade.shortTradeId),
+                    messageKey.i18n(trade.peersUserName)
                 )
             }
             BisqEasyTradeStateEnum.SELLER_RECEIVED_FIAT_SENT_CONFIRMATION -> {
+                val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isSeller) {
+                    // User is seller -> they received confirmation that buyer sent payment
+                    "mobile.openTradeNotifications.youReceivedFiatConfirmation.title" to "mobile.openTradeNotifications.youReceivedFiatConfirmation.message"
+                } else {
+                    // User is buyer -> seller received their payment confirmation (from buyer's perspective, they sent it)
+                    "mobile.openTradeNotifications.youSentFiat.title" to "mobile.openTradeNotifications.youSentFiat.message"
+                }
+
                 notificationServiceController.pushNotification(
-                    "mobile.openTradeNotifications.fiatSentReceived.title".i18n(trade.shortTradeId),
-                    "mobile.openTradeNotifications.fiatSentReceived.message".i18n(trade.peersUserName)
+                    titleKey.i18n(trade.shortTradeId),
+                    messageKey.i18n(trade.peersUserName)
                 )
             }
             BisqEasyTradeStateEnum.SELLER_CONFIRMED_FIAT_RECEIPT -> {
+                val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isBuyer) {
+                    // User is buyer -> peer (seller) confirmed receiving the payment
+                    "mobile.openTradeNotifications.peerReceivedFiat.title" to "mobile.openTradeNotifications.peerReceivedFiat.message"
+                } else {
+                    // User is seller -> they confirmed receiving payment
+                    "mobile.openTradeNotifications.youReceivedFiat.title" to "mobile.openTradeNotifications.youReceivedFiat.message"
+                }
+
                 notificationServiceController.pushNotification(
-                    "mobile.openTradeNotifications.fiatReceived.title".i18n(trade.shortTradeId),
-                    "mobile.openTradeNotifications.fiatReceived.message".i18n(trade.peersUserName)
+                    titleKey.i18n(trade.shortTradeId),
+                    messageKey.i18n(trade.peersUserName)
                 )
             }
             BisqEasyTradeStateEnum.SELLER_SENT_BTC_SENT_CONFIRMATION -> {
+                val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isSeller) {
+                    // User is seller -> they confirmed sending Bitcoin
+                    "mobile.openTradeNotifications.youSentBtc.title" to "mobile.openTradeNotifications.youSentBtc.message"
+                } else {
+                    // User is buyer -> peer (seller) confirmed sending Bitcoin
+                    "mobile.openTradeNotifications.peerSentBtc.title" to "mobile.openTradeNotifications.peerSentBtc.message"
+                }
+
                 notificationServiceController.pushNotification(
-                    "mobile.openTradeNotifications.btcSent.title".i18n(trade.shortTradeId),
-                    "mobile.openTradeNotifications.btcSent.message".i18n(trade.peersUserName)
+                    titleKey.i18n(trade.shortTradeId),
+                    messageKey.i18n(trade.peersUserName)
                 )
             }
             BisqEasyTradeStateEnum.BUYER_RECEIVED_BTC_SENT_CONFIRMATION -> {
+                val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isBuyer) {
+                    // User is buyer -> they received confirmation that seller sent Bitcoin
+                    "mobile.openTradeNotifications.youReceivedBtc.title" to "mobile.openTradeNotifications.youReceivedBtc.message"
+                } else {
+                    // User is seller -> buyer received their Bitcoin confirmation (from seller's perspective, they sent it)
+                    "mobile.openTradeNotifications.youSentBtc.title" to "mobile.openTradeNotifications.youSentBtc.message"
+                }
+
                 notificationServiceController.pushNotification(
-                    "mobile.openTradeNotifications.btcSentReceived.title".i18n(trade.shortTradeId),
-                    "mobile.openTradeNotifications.btcSentReceived.message".i18n(trade.peersUserName)
+                    titleKey.i18n(trade.shortTradeId),
+                    messageKey.i18n(trade.peersUserName)
                 )
             }
 
@@ -255,4 +326,6 @@ class OpenTradesNotificationService(
             else -> state.toString() // Fallback to raw state if no translation available
         }.replaceFirstChar { it.titlecase() }
     }
+
+
 }
