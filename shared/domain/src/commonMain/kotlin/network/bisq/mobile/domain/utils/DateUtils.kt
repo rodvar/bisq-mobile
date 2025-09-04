@@ -8,10 +8,14 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.until
 import network.bisq.mobile.domain.formatDateTime
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.i18n.i18nPlural
 
 object DateUtils {
 
-    fun now() = Clock.System.now().toEpochMilliseconds()
+    // Allow clock injection for testing
+    internal var clock: Clock = Clock.System
+
+    fun now() = clock.now().toEpochMilliseconds()
 
     /**
      * @return years, months, days past since timestamp
@@ -19,7 +23,7 @@ object DateUtils {
     fun periodFrom(timetamp: Long): Triple<Int, Int, Int> {
         val creationInstant = Instant.fromEpochMilliseconds(timetamp)
         val creationDate = creationInstant.toLocalDateTime(TimeZone.currentSystemDefault()).date
-        val currentDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val currentDate = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
 
         // Calculate the difference
         val period = creationDate.until(currentDate, DateTimeUnit.DAY)
@@ -33,23 +37,28 @@ object DateUtils {
     }
 
     /**
-     * Calculate and format the time elapsed since the given timestamp
+     * Calculate and format the time elapsed since the given timestamp with proper i18n
      * @param epochMillis The timestamp in milliseconds since epoch
      * @return Formatted string like "3 min ago", "2 hours ago", etc.
      */
     fun lastSeen(epochMillis: Long): String {
         val lastActivityInstant = Instant.fromEpochMilliseconds(epochMillis)
-        val currentInstant = Clock.System.now()
-        
-        val durationInSeconds = lastActivityInstant.until(currentInstant, DateTimeUnit.SECOND)
-        
+        val currentInstant = clock.now()
+
+        val durationInSeconds = lastActivityInstant
+            .until(currentInstant, DateTimeUnit.SECOND)
+            .coerceAtLeast(0)
+
+        // Treat "now" as online instead of "0 sec ago"
+        if (durationInSeconds == 0L) return "temporal.online".i18n()
+
         return when {
-            durationInSeconds < 60 -> "$durationInSeconds sec ago"
-            durationInSeconds < 3600 -> "${durationInSeconds / 60} min ago"
-            durationInSeconds < 86400 -> "${durationInSeconds / 3600} hours ago"
-            durationInSeconds < 2592000 -> "${durationInSeconds / 86400} days ago" // ~30 days
-            durationInSeconds < 31536000 -> "${durationInSeconds / 2592000} months ago" // ~365 days
-            else -> "${durationInSeconds / 31536000} years ago"
+            durationInSeconds < 60L -> "temporal.second".i18nPlural(durationInSeconds.toInt())
+            durationInSeconds < 3_600L -> "temporal.minute".i18nPlural((durationInSeconds / 60).toInt())
+            durationInSeconds < 86_400L -> "temporal.hour".i18nPlural((durationInSeconds / 3_600).toInt())
+            durationInSeconds < 2_592_000L -> "temporal.dayAgo".i18nPlural((durationInSeconds / 86_400).toInt()) // ~30 days
+            durationInSeconds < 31_536_000L -> "temporal.monthAgo".i18nPlural((durationInSeconds / 2_592_000).toInt()) // ~365 days
+            else -> "temporal.yearAgo".i18nPlural((durationInSeconds / 31_536_000).toInt())
         }
     }
 
@@ -57,5 +66,26 @@ object DateUtils {
         val instant = Instant.fromEpochMilliseconds(epochMillis)
         val localDateTime = instant.toLocalDateTime(timeZone)
         return formatDateTime(localDateTime)
+    }
+
+    /**
+     * Format profile age with proper i18n and pluralization
+     * @param profileAgeTimestamp The timestamp in milliseconds since epoch
+     * @return Formatted string like "2 years, 3 months, 5 days" or "less than a day"
+     */
+    fun formatProfileAge(profileAgeTimestamp: Long): String {
+        val (years, months, days) = periodFrom(profileAgeTimestamp)
+
+        val parts = listOfNotNull(
+            if (years > 0) "temporal.year".i18nPlural(years) else null,
+            if (months > 0) "temporal.month".i18nPlural(months) else null,
+            if (days > 0) "temporal.day".i18nPlural(days) else null
+        )
+
+        return if (parts.isEmpty()) {
+            "temporal.lessThanADay".i18n()
+        } else {
+            parts.joinToString(", ")
+        }
     }
 }

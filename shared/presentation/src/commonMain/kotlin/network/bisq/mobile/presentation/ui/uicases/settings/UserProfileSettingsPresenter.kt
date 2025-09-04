@@ -28,23 +28,29 @@ class UserProfileSettingsPresenter(
 ) : BasePresenter(mainPresenter), IUserProfileSettingsPresenter {
 
     companion object {
+        @Deprecated("Use getLocalizedNA() for localized fallback")
         const val DEFAULT_UNKNOWN_VALUE = "N/A"
+
+        /**
+         * Get localized "N/A" value
+         */
+        fun getLocalizedNA(): String = "data.na".i18n()
     }
 
     private val _uniqueAvatar = MutableStateFlow(userRepository.data.value?.uniqueAvatar)
     override val uniqueAvatar: StateFlow<PlatformImage?> get() = _uniqueAvatar.asStateFlow()
 
-    private val _reputation = MutableStateFlow(DEFAULT_UNKNOWN_VALUE)
+    private val _reputation = MutableStateFlow(getLocalizedNA())
     override val reputation: StateFlow<String> get() = _reputation.asStateFlow()
-    private val _lastUserActivity = MutableStateFlow(DEFAULT_UNKNOWN_VALUE)
+    private val _lastUserActivity = MutableStateFlow(getLocalizedNA())
     override val lastUserActivity: StateFlow<String> get() = _lastUserActivity.asStateFlow()
-    private val _profileAge = MutableStateFlow(DEFAULT_UNKNOWN_VALUE)
+    private val _profileAge = MutableStateFlow(getLocalizedNA())
     override val profileAge: StateFlow<String> get() = _profileAge.asStateFlow()
-    private val _profileId = MutableStateFlow(DEFAULT_UNKNOWN_VALUE)
+    private val _profileId = MutableStateFlow(getLocalizedNA())
     override val profileId: StateFlow<String> get() = _profileId.asStateFlow()
-    private val _nickname = MutableStateFlow(DEFAULT_UNKNOWN_VALUE)
+    private val _nickname = MutableStateFlow(getLocalizedNA())
     override val nickname: StateFlow<String> get() = _nickname.asStateFlow()
-    private val _botId = MutableStateFlow(DEFAULT_UNKNOWN_VALUE)
+    private val _botId = MutableStateFlow(getLocalizedNA())
     override val botId: StateFlow<String> get() = _botId.asStateFlow()
     private val _tradeTerms = MutableStateFlow("")
     override val tradeTerms: StateFlow<String> get() = _tradeTerms.asStateFlow()
@@ -78,13 +84,14 @@ class UserProfileSettingsPresenter(
                 val profileAge = withContext(IODispatcher) { reputationServiceFacade.getProfileAge(it.id) }
                 setProfileAge(profileAge.getOrNull())
             }
-            val reputationProfileId = userProfile?.id ?: DEFAULT_UNKNOWN_VALUE
-            val reputation = withContext(IODispatcher) { reputationServiceFacade.getReputation(reputationProfileId) }
+            val reputation = if (userProfile != null) {
+                withContext(IODispatcher) { reputationServiceFacade.getReputation(userProfile.id) }
+            } else null
                 user?.let {
                 setAvatar(it)
                 setLastActivity(it)
             }
-            reputation.getOrNull()?.let {
+            reputation?.getOrNull()?.let {
                 setReputation(it)
             }
         }
@@ -108,7 +115,7 @@ class UserProfileSettingsPresenter(
     }
 
     private fun setLastActivity(user: User) {
-        _lastUserActivity.value = user.lastActivity?.let { DateUtils.lastSeen(it) } ?: DEFAULT_UNKNOWN_VALUE
+        _lastUserActivity.value = user.lastActivity?.let { DateUtils.lastSeen(it) } ?: getLocalizedNA()
     }
 
     private fun setBotId(userProfile: UserProfileVO) {
@@ -125,15 +132,9 @@ class UserProfileSettingsPresenter(
 
     private fun setProfileAge(profileAgeTimestamp: Long?) {
         if (profileAgeTimestamp != null) {
-            _profileAge.value = DateUtils.periodFrom(profileAgeTimestamp).let {
-                listOfNotNull(
-                    if (it.first > 0) "${it.first} years" else null,
-                    if (it.second > 0) "${it.second} months" else null,
-                    if (it.third > 0) "${it.third} days" else null
-                ).ifEmpty { listOf("less than a day") }.joinToString(", ")
-            }
+            _profileAge.value = DateUtils.formatProfileAge(profileAgeTimestamp)
         } else {
-            _profileAge.value = DEFAULT_UNKNOWN_VALUE
+            _profileAge.value = getLocalizedNA()
         }
     }
 
@@ -151,9 +152,9 @@ class UserProfileSettingsPresenter(
                 }
                 if (result.isSuccess) {
                     userRepository.updateLastActivity()?.let { setLastActivity(it) }
-                    showSnackbar("mobile.settings.userProfile.saveSucess".i18n())
+                    showSnackbar("mobile.settings.userProfile.saveSuccess".i18n(), isError = false)
                 } else {
-                    showSnackbar("mobile.settings.userProfile.saveFailure".i18n())
+                    showSnackbar("mobile.settings.userProfile.saveFailure".i18n(), isError = true)
                 }
             } catch (e: Exception) {
                 log.e(e) { "Failed to save user profile settings" }
