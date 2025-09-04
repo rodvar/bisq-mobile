@@ -1,5 +1,7 @@
 package network.bisq.mobile.presentation.ui.components.atoms.layout
 
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -65,6 +67,11 @@ object BisqGap {
     }
 
     @Composable
+    fun ColumnScope.BisqGapVFill() {
+        Spacer(modifier = Modifier.weight(1f))
+    }
+
+    @Composable
     fun HQuarter() {
         Spacer(modifier = Modifier.width(BisqUIConstants.ScreenPaddingQuarter))
     }
@@ -99,5 +106,9 @@ object BisqGap {
         Spacer(modifier = Modifier.width(BisqUIConstants.ScreenPadding4X))
     }
 
+    @Composable
+    fun RowScope.BisqGapHFill() {
+        Spacer(modifier = Modifier.weight(1f))
+    }
 }
 
