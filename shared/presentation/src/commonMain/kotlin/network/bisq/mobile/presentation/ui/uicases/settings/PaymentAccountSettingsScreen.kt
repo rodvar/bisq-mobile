@@ -46,6 +46,8 @@ interface IPaymentAccountSettingsPresenter : ViewPresenter {
     fun deleteCurrentAccount()
 }
 
+private const val MAX_ACCOUNT_FIELD_LENGTH = 1024
+
 @Composable
 fun PaymentAccountSettingsScreen() {
     val presenter: IPaymentAccountSettingsPresenter = koinInject()
@@ -66,6 +68,8 @@ fun PaymentAccountSettingsScreen() {
     LaunchedEffect(selectedAccount) {
         accountName = selectedAccount?.accountName ?: ""
         accountDescription = selectedAccount?.accountPayload?.accountData ?: ""
+        accountNameValid = true
+        accountDescriptionValid = true
     }
 
     BisqScrollScaffold(
@@ -142,7 +146,7 @@ fun PaymentAccountSettingsScreen() {
                     return@BisqEditableDropDown "mobile.user.paymentAccounts.createAccount.paymentAccount.validations.minLength".i18n()
                 }
 
-                if (it.length > 1024) {
+                if (it.length > MAX_ACCOUNT_FIELD_LENGTH) {
                     return@BisqEditableDropDown "mobile.user.paymentAccounts.createAccount.paymentAccount.validations.maxLength".i18n()
                 }
 
@@ -160,14 +164,14 @@ fun PaymentAccountSettingsScreen() {
             },
             label = "user.paymentAccounts.accountData".i18n(),
             isTextArea = true,
-            minLines = 2,
+            minLines = 4,
             validation = {
 
                 if (it.length < 3) {
                     return@BisqTextField "mobile.user.paymentAccounts.accountData.paymentAccount.validations.minLength".i18n()
                 }
 
-                if (it.length > 1024) {
+                if (it.length > MAX_ACCOUNT_FIELD_LENGTH) {
                     return@BisqTextField "mobile.user.paymentAccounts.accountData.paymentAccount.validations.maxLength".i18n()
                 }
 
@@ -201,8 +205,6 @@ fun PaymentAccountSettingsScreen() {
         ConfirmationDialog(
             onConfirm = {
                 presenter.deleteCurrentAccount()
-                accountName = presenter.selectedAccount.value?.accountName ?: ""
-                accountDescription = presenter.selectedAccount.value?.accountPayload?.accountData ?: ""
                 showConfirmationDialog = false
             },
             onDismiss = {

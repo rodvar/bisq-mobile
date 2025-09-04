@@ -1,6 +1,7 @@
 package network.bisq.mobile.presentation.ui.navigation.graph
 
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.animateSizeAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -47,6 +48,8 @@ import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferPaymentMe
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferReviewTradeScreen
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferSettlementMethodScreen
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferTradeAmountScreen
+
+private const val NAV_ANIM_MS = 300
 
 @Composable
 fun RootNavGraph(rootNavController: NavHostController) {
@@ -152,38 +155,39 @@ fun NavGraphBuilder.addScreen(
 ) {
     composable(
         route = route,
+        // 'enter' animation for the 'destination' screen
         enterTransition = {
             when (navAnimation) {
                 NavAnimation.SLIDE_IN_FROM_RIGHT -> slideIntoContainer(
                     AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(300)
+                    animationSpec = tween(NAV_ANIM_MS)
                 )
                 NavAnimation.SLIDE_IN_FROM_BOTTOM -> slideIntoContainer(
                     AnimatedContentTransitionScope.SlideDirection.Up,
-                    animationSpec = tween(300)
+                    animationSpec = tween(NAV_ANIM_MS)
                 )
-                NavAnimation.FADE_IN -> fadeIn(animationSpec = tween(150))
+                NavAnimation.FADE_IN -> fadeIn(animationSpec = tween(NAV_ANIM_MS))
             }
         },
         exitTransition = {
-            // When a new screen is pushed over current screen, don't do exit animation
+            // When a 'new' screen is pushed over 'current' screen, don't do exit animation for 'current' screen
             null
         },
         popEnterTransition = {
-            // When the new pushed screen is poppped out, don't do pop Enter animation
+            // When the 'newly' pushed screen is popped out, don't do pop enter animation
             null
         },
         popExitTransition = {
             when (navAnimation) {
                 NavAnimation.SLIDE_IN_FROM_RIGHT -> slideOutOfContainer(
                     AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(300)
+                    animationSpec = tween(NAV_ANIM_MS)
                 )
                 NavAnimation.SLIDE_IN_FROM_BOTTOM -> slideOutOfContainer(
                     AnimatedContentTransitionScope.SlideDirection.Down,
-                    animationSpec = tween(300)
+                    animationSpec = tween(NAV_ANIM_MS)
                 )
-                NavAnimation.FADE_IN -> fadeOut(animationSpec = tween(150))
+                NavAnimation.FADE_IN -> fadeOut(animationSpec = tween(NAV_ANIM_MS))
             }
         }
 

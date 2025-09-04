@@ -35,10 +35,13 @@ fun WebLinkConfirmationDialog(
             uriHandler.openUri(link)
             onConfirm.invoke()
         },
-        onDismiss = {
-            clipboardManager.setText(buildAnnotatedString { append(link) })
-            onDismiss.invoke()
+        onDismiss = { toCopy ->
+            if (toCopy) {
+                clipboardManager.setText(buildAnnotatedString { append(link) })
+            }
+            onDismiss()
         },
+        closeButton = true,
         horizontalAlignment = Alignment.Start,
         verticalButtonPlacement = true
     )
