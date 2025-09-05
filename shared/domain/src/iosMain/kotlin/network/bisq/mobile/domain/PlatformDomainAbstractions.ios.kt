@@ -2,31 +2,57 @@
 
 package network.bisq.mobile.domain
 
-import com.russhwolf.settings.ExperimentalSettingsImplementation
-import com.russhwolf.settings.KeychainSettings
-import com.russhwolf.settings.Settings
-import kotlinx.cinterop.*
+import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.MemScope
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.refTo
+import kotlinx.cinterop.staticCFunction
+import kotlinx.cinterop.usePinned
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.serialization.Serializable
-import platform.Foundation.*
+import org.koin.core.scope.Scope
+import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSBundle
+import platform.Foundation.NSCharacterSet
+import platform.Foundation.NSData
+import platform.Foundation.NSDate
+import platform.Foundation.NSDateFormatter
+import platform.Foundation.NSDateFormatterMediumStyle
+import platform.Foundation.NSDateFormatterShortStyle
+import platform.Foundation.NSDictionary
+import platform.Foundation.NSException
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSLocale
+import platform.Foundation.NSLocaleCurrencyCode
+import platform.Foundation.NSNumber
+import platform.Foundation.NSNumberFormatter
+import platform.Foundation.NSNumberFormatterDecimalStyle
+import platform.Foundation.NSSearchPathForDirectoriesInDomains
+import platform.Foundation.NSSetUncaughtExceptionHandler
+import platform.Foundation.NSString
+import platform.Foundation.NSURL
+import platform.Foundation.NSUTF8StringEncoding
+import platform.Foundation.NSUserDomainMask
+import platform.Foundation.URLPathAllowedCharacterSet
+import platform.Foundation.allKeys
+import platform.Foundation.create
+import platform.Foundation.currentLocale
+import platform.Foundation.dataWithContentsOfFile
+import platform.Foundation.languageCode
+import platform.Foundation.localeWithLocaleIdentifier
+import platform.Foundation.stringByAddingPercentEncodingWithAllowedCharacters
 import platform.UIKit.UIApplication
 import platform.UIKit.UIDevice
 import platform.UIKit.UIImage
 import platform.UIKit.UIImagePNGRepresentation
-import platform.posix.memcpy
-import kotlin.collections.set
-
-import platform.Foundation.NSException
-import platform.Foundation.NSSetUncaughtExceptionHandler
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
+import platform.posix.memcpy
 import kotlin.experimental.ExperimentalNativeApi
-import platform.Foundation.NSCharacterSet
-import platform.Foundation.NSString
-import platform.Foundation.create
-import platform.Foundation.stringByAddingPercentEncodingWithAllowedCharacters
 
 actual fun formatDateTime(dateTime: LocalDateTime): String {
     val formatter = NSDateFormatter().apply {
@@ -46,13 +72,6 @@ actual fun encodeURIParam(param: String): String {
     return NSString.create(string = param)
         .stringByAddingPercentEncodingWithAllowedCharacters(NSCharacterSet.URLPathAllowedCharacterSet)
         ?: param
-}
-
-@OptIn(ExperimentalSettingsImplementation::class)
-actual fun getPlatformSettings(): Settings {
-    // TODO we might get away just using normal Settings() KMP agnostic implementation,
-    // leaving this here to be able to choose the specific one for iOS - defaulting to KeyChain
-    return KeychainSettings("Settings")
 }
 
 actual fun getDeviceLanguageCode(): String {
@@ -317,4 +336,20 @@ actual fun String.toDoubleOrNullLocaleAware(): Double? {
 actual fun getLocaleCurrencyName(currencyCode: String): String {
     val rawName = defaultLocale.displayNameForKey(NSLocaleCurrencyCode, currencyCode)
     return rawName ?: currencyCode
+}
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun Scope.getStorageDir(): String {
+    val paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true)
+    val appSupport = (paths.firstOrNull() as? String)
+        ?: throw IllegalStateException("Could not get application support directory")
+    val url = NSURL.fileURLWithPath(appSupport).URLByAppendingPathComponent("Data")
+        ?: throw IllegalStateException("Could not get Data in support directory")
+    memScoped {
+        val success = NSFileManager.defaultManager.createDirectoryAtURL(
+            url, withIntermediateDirectories = true, attributes = null, error = null
+        )
+        if (!success) throw IllegalStateException("Failed to create application support subdirectory")
+    }
+    return url.path ?: appSupport
 }
