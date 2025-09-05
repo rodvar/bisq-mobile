@@ -84,7 +84,7 @@ koin = "4.0.0"
 lombok-lib = { strictly = '1.18.34' }
 typesafe-config-lib = { strictly = '1.4.3' }
 
-multiplatform-settings = "1.2.0"
+
 
 # kmp-tor for embedded Tor support
 kmp-tor = "2.4.0"
@@ -213,15 +213,9 @@ koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
 
-
-# mp-settings
-multiplatform-settings = { module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "multiplatform-settings" }
-multiplatform-settings-test = { module = "com.russhwolf:multiplatform-settings-test", version.ref = "multiplatform-settings" }
-
 # kmp-tor
 kmp-tor-runtime = { module = "io.matthewnelson.kmp-tor:runtime", version.ref = "kmp-tor" }
 kmp-tor-resource-exec = { module = "io.matthewnelson.kmp-tor:resource-exec-tor-gpl", version.ref = "kmp-tor-resource" }
-
 
 
 [bundles]
