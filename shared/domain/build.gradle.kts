@@ -151,13 +151,6 @@ kotlin {
             implementation(libs.androidx.test)
             implementation(libs.androidx.test.espresso)
             implementation(libs.androidx.test.junit)
-
-//            implementation("com.russhwolf:multiplatform-settings-datastore:1.2.0")
-//
-//            implementation("androidx.test:core:1.5.0")
-//            implementation("androidx.test.ext:junit:1.1.5")
-//            implementation("androidx.test.espresso:espresso-core:3.5.1")
-//            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
         }
 
         iosMain.dependencies {
