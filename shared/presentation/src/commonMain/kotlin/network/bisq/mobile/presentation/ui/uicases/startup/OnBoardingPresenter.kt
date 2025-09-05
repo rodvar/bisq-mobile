@@ -58,8 +58,7 @@ abstract class OnBoardingPresenter(
         }
 
         launchIO {
-            settingsRepository.fetch()
-            val deviceSettings: Settings? = settingsRepository.data.value
+            val deviceSettings = settingsRepository.fetch()
             _buttonText.value = evaluateButtonText(deviceSettings)
         }
     }
@@ -67,16 +66,15 @@ abstract class OnBoardingPresenter(
     override fun onNextButtonClick(coroutineScope: CoroutineScope, pagerState: PagerState) {
         launchIO {
             if (pagerState.currentPage == filteredPages.lastIndex) {
-                settingsRepository.fetch()
-                val deviceSettings: Settings? = settingsRepository.data.value
+                val deviceSettings = settingsRepository.fetch()
 
-                val updatedSettings = deviceSettings?.copy(firstLaunch = false)
-                    ?: Settings().apply { firstLaunch = false }
-                settingsRepository.update(updatedSettings)
+                settingsRepository.setFirstLaunch(false)
 
-                val remoteBisqUrl = deviceSettings?.bisqApiUrl ?: ""
+                val remoteBisqUrl = deviceSettings.bisqApiUrl
                 val hasProfile: Boolean = userProfileService.hasUserProfile()
-                doCustomNavigationLogic(remoteBisqUrl.isNotEmpty(), hasProfile)
+                launchUI {
+                    doCustomNavigationLogic(remoteBisqUrl.isNotEmpty(), hasProfile)
+                }
             } else {
                 // Let the UI handle the animation in the composable
                 // This is safe because we're using the coroutineScope passed from the composable
