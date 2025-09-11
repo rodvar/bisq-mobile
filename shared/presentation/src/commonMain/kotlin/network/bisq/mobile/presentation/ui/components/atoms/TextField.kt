@@ -3,25 +3,11 @@ package network.bisq.mobile.presentation.ui.components.atoms
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +16,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +29,9 @@ import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.context.LocalAnimationsEnabled
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.ui.theme.BisqUIConstants.Zero
+import network.bisq.mobile.presentation.ui.theme.BisqUIConstants.textFieldBorderRadius
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * TODO:
@@ -87,6 +75,7 @@ fun BisqTextField(
     ),
     textFieldAlignment: Alignment = Alignment.TopStart,
     enableAnimation: Boolean = LocalAnimationsEnabled.current,
+    onFocus: () -> Unit = {},
 ) {
     var hasInteracted by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
@@ -98,18 +87,22 @@ fun BisqTextField(
         label = "BottomBorderAnimation"
     )
 
-    val focusManager = LocalFocusManager.current
-
     val imeAction = when {
         isSearch -> ImeAction.Search
         isTextArea -> ImeAction.Next
         else -> ImeAction.Done
     }
 
-    val finalValue = buildString {
-        valuePrefix?.let { append(it) }
+    val finalTextValue = buildString {
+        valuePrefix?.let {
+            if (!value.startsWith(valuePrefix))
+                append(it)
+        }
         append(value)
-        valueSuffix?.let { append(it) }
+        valueSuffix?.let {
+            if (!value.endsWith(valueSuffix))
+                append(it)
+        }
     }
 
     val dangerColor = BisqTheme.colors.danger
@@ -167,13 +160,7 @@ fun BisqTextField(
     }
 
     val finalBorderRadius by remember(isFocused) {
-        mutableStateOf(
-            if (isFocused) {
-                0.dp
-            } else {
-                6.dp
-            }
-        )
+        derivedStateOf { if (isFocused) Zero else textFieldBorderRadius }
     }
 
     val decimalSeparator = remember { getDecimalSeparator().toString() }
@@ -181,151 +168,162 @@ fun BisqTextField(
         Regex("^[-]?\\d*(${Regex.escape(decimalSeparator)}\\d{0,})?$")
     }
 
-    Column(modifier = modifier) {
-        if (label.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BisqText.baseLight(
-                    text = label,
-                    color = finalLabelColor,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
-                )
+    BasicTextField(
+        value = finalTextValue,
+        onValueChange = { newTextValue ->
+            val processedValue = processText(
+                newTextValue,
+                finalTextValue,
+                valuePrefix,
+                valueSuffix,
+                maxLength,
+                numberWithTwoDecimals,
+                decimalSeparator,
+                decimalLoosePattern
+            )
+            if (processedValue == value) return@BasicTextField
+            validationError = validation?.invoke(processedValue)
+            onValueChange?.invoke(processedValue, validationError.isNullOrEmpty())
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .onFocusChanged { focusState ->
+                isFocused = focusState.isFocused
+                if (focusState.isFocused) {
+                    onFocus()
+                }
+                if (!focusState.isFocused) {
+                    if (value.isNotEmpty()) hasInteracted = true
+                    validationError = validation?.invoke(value)
+                }
+            },
+        enabled = !disabled,
+        textStyle = finalTextStyle,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+        singleLine = !isTextArea,
+        maxLines = maxLines,
+        minLines = minLines,
+        cursorBrush = SolidColor(BisqTheme.colors.primary),
+        decorationBox = { innerTextField ->
+            Column(modifier = Modifier.padding(bottom = 2.dp)) {
+                // Label
+                if (label.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BisqText.baseLight(
+                            text = label,
+                            color = finalLabelColor,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+                        )
+                        labelRightSuffix?.invoke()
+                    }
+                    BisqGap.VQuarter()
+                }
 
-                if (labelRightSuffix != null) {
-                    labelRightSuffix()
+                // The main input area with background and suffixes
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = finalBorderRadius,
+                                topEnd = finalBorderRadius
+                            )
+                        )
+                        .background(finalBackgroundColor)
+                        .drawBehind {
+                            if (!isSearch) {
+                                val strokeWidth = 4.dp.toPx()
+                                val y = size.height
+                                drawLine(
+                                    color = finalIndicatorColor,
+                                    start = Offset(0f, y),
+                                    end = Offset(size.width, y),
+                                    strokeWidth = strokeWidth
+                                )
+                                if (animatedLineProgress > 0f) {
+                                    drawLine(
+                                        color = indicatorColor,
+                                        start = Offset(0f, y),
+                                        end = Offset(size.width * animatedLineProgress, y),
+                                        strokeWidth = strokeWidth
+                                    )
+                                }
+                            }
+                        }
+                        .padding(paddingValues),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    leftSuffix?.invoke()
+                    if (leftSuffix != null) Spacer(Modifier.width(10.dp))
+
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = textFieldAlignment,
+                    ) {
+                        if (value.isEmpty() && valuePrefix.isNullOrEmpty() && valueSuffix.isNullOrEmpty()) {
+                            BisqText.largeLightGrey(placeholder)
+                        }
+                        innerTextField()
+                    }
+
+                    if (showCopy) {
+                        CopyIconButton(value)
+                    }
+                    if (showPaste && !disabled) {
+                        PasteIconButton(onPaste = { pasted ->
+                            val processed = processText(
+                                newValue = pasted,
+                                oldValue = value,
+                                valuePrefix = valuePrefix,
+                                valueSuffix = valueSuffix,
+                                maxLength = maxLength,
+                                numberWithTwoDecimals = numberWithTwoDecimals,
+                                decimalSeparator = decimalSeparator,
+                                decimalLoosePattern = decimalLoosePattern
+                            )
+                            validationError = validation?.invoke(processed)
+                            onValueChange?.invoke(processed, validationError.isNullOrEmpty())
+                            hasInteracted = true
+                        })
+                    }
+                    if (rightSuffix != null) {
+                        Box(
+                            modifier = rightSuffixModifier,
+                            contentAlignment = rightSuffixContentAlignment,
+                        ) {
+                            rightSuffix()
+                        }
+                    }
+                }
+
+                // Error text has priority over help field. But on focus, helper text is shown over error text.
+                val error = validationError
+                if (error != null && error.isNotEmpty() && hasInteracted && !isFocused) {
+                    BisqGap.VQuarter()
+                    BisqText.smallLight(
+                        text = error,
+                        modifier = Modifier.padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
+                        color = BisqTheme.colors.danger
+                    )
+                } else if (helperText.isNotEmpty()) {
+                    BisqGap.VQuarter()
+                    BisqText.smallLightGrey(
+                        text = helperText,
+                        modifier = Modifier.padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
+                    )
                 }
             }
-
-            BisqGap.VQuarter()
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape = RoundedCornerShape(topStart = finalBorderRadius, topEnd = finalBorderRadius))
-                .background(color = finalBackgroundColor)
-                .drawBehind {
-                    if (!isSearch) {
-                        val strokeWidth = 4.dp.toPx()
-                        val y = size.height
-
-                        drawLine(
-                            color = finalIndicatorColor,
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = strokeWidth
-                        )
-
-                        if (animatedLineProgress > 0f) {
-                            drawLine(
-                                color = indicatorColor,
-                                start = Offset(0f, y),
-                                end = Offset(size.width * animatedLineProgress, y),
-                                strokeWidth = strokeWidth
-                            )
-                        }
-                    }
-                }
-        ) {
-            BasicTextField(value = finalValue,
-                onValueChange = {
-                    val processedValue = processText(
-                        it,
-                        valuePrefix,
-                        valueSuffix,
-                        maxLength,
-                        numberWithTwoDecimals,
-                        decimalSeparator,
-                        decimalLoosePattern
-                    )
-                    if (processedValue == value) return@BasicTextField
-                    validationError = validation?.invoke(processedValue)
-                    onValueChange?.invoke(
-                        processedValue, validationError.isNullOrEmpty()
-                    )
-                },
-                modifier = Modifier.padding(paddingValues).fillMaxWidth().onFocusChanged { focusState ->
-                    isFocused = focusState.isFocused
-                    if (!focusState.isFocused) {
-                        if (value.length > 0) hasInteracted = true
-                        validationError = validation?.invoke(value)
-                    }
-                },
-                singleLine = !isTextArea,
-                maxLines = maxLines,
-                minLines = minLines,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = keyboardType, imeAction = imeAction
-                ),
-                cursorBrush = SolidColor(BisqTheme.colors.primary),
-                enabled = !disabled,
-                textStyle = finalTextStyle,
-                decorationBox = { innerTextField ->
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        if (leftSuffix != null) {
-                            leftSuffix()
-                            Spacer(modifier = Modifier.width(10.dp))
-                        }
-
-                        Box(
-                            modifier = Modifier.weight(1f),
-                            contentAlignment = textFieldAlignment,
-                        ) {
-                            if (value.isEmpty()) {
-                                BisqText.largeLightGrey(placeholder)
-                            }
-                            innerTextField()
-                        }
-
-                        if (showCopy) {
-                            CopyIconButton(value)
-                        }
-
-                        if (showPaste) {
-                            PasteIconButton(onPaste = {
-                                validationError = validation?.invoke(it)
-                                onValueChange?.invoke(it, validationError.isNullOrEmpty())
-                                hasInteracted = true
-                            })
-                        }
-
-                        if (rightSuffix != null) {
-                            Box(
-                                modifier = rightSuffixModifier,
-                                contentAlignment = rightSuffixContentAlignment,
-                            ) {
-                                rightSuffix()
-                            }
-                        }
-                    }
-                })
-        }
-        // Error text has priority over help field. But on focus, helper text is shown over error text.
-        if (validationError?.isNotEmpty() == true && hasInteracted && !isFocused) {
-            BisqGap.VQuarter()
-            BisqText.smallLight(
-                text = validationError!!,
-                modifier = Modifier.padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
-                color = BisqTheme.colors.danger
-            )
-        } else if (helperText.isNotEmpty()) {
-            BisqGap.VQuarter()
-            BisqText.smallLightGrey(
-                text = helperText,
-                modifier = Modifier.padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
-            )
-        }
-    }
+    )
 }
 
-
 fun processText(
-    value: String,
+    newValue: String,
+    oldValue: String,
     valuePrefix: String?,
     valueSuffix: String?,
     maxLength: Int,
@@ -333,7 +331,7 @@ fun processText(
     decimalSeparator: String,
     decimalLoosePattern: Regex,
 ): String {
-    var cleanValue = value
+    var cleanValue = newValue
     if (valuePrefix != null && cleanValue.startsWith(valuePrefix)) {
         cleanValue = cleanValue.removePrefix(valuePrefix)
     }
@@ -341,14 +339,14 @@ fun processText(
         cleanValue = cleanValue.removeSuffix(valueSuffix)
     }
     if (maxLength != 0 && cleanValue.length > maxLength) {
-        return cleanValue
+        return oldValue
     }
     if (numberWithTwoDecimals) {
         val separator = decimalSeparator
         val loosePattern = decimalLoosePattern
 
         if (!loosePattern.matches(cleanValue)) {
-            return cleanValue
+            return oldValue
         }
         val parts = cleanValue.split(separator)
         val integerPart = parts[0]
@@ -361,10 +359,160 @@ fun processText(
 
             else -> cleanValue // let the user keep typing normally
         }
-
         return trimmedValue
-
     } else {
         return cleanValue
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_Empty() {
+    var text by remember { mutableStateOf("") }
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Label",
+                value = text,
+                onValueChange = { newText, _ -> text = newText },
+                placeholder = "Placeholder text...",
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_Search() {
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Label",
+                placeholder = "Search text",
+                onValueChange = { _, _ -> },
+                isSearch = true
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_TextArea() {
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Your Notes",
+                value = "This is a multi-line text area.\nIt can contain multiple lines of text, and will grow up to the maxLines limit.",
+                onValueChange = { _, _ -> },
+                isTextArea = true,
+                helperText = "Maximum 4 lines",
+                maxLines = 4
+            )
+        }
+    }
+}
+
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_WithValue() {
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Label",
+                value = "Some value entered by the user",
+                onValueChange = { _, _ -> }
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_WithHelperText() {
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Label",
+                value = "A valid value",
+                onValueChange = { _, _ -> },
+                helperText = "This is some helpful text."
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_WithError() {
+    BisqTheme.Preview {
+        // To preview the error state, we must simulate interaction.
+        // The error text will not show in a static preview unless hasInteracted=true.
+        // This preview provides the validation logic; the red text will appear in an interactive preview.
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Field with Validation",
+                value = "invalid",
+                onValueChange = { _, _ -> },
+                validation = { "This field has an error." }
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_Disabled() {
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Disabled Field",
+                value = "You can't edit this",
+                onValueChange = { _, _ -> },
+                disabled = true
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_WithSuffixes() {
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Amount",
+                value = "1,250.75",
+                onValueChange = { _, _ -> },
+                leftSuffix = {
+                    BisqText.baseRegular(
+                        text = "₿",
+                        color = BisqTheme.colors.light_grey20
+                    )
+                },
+                rightSuffix = {
+                    BisqText.baseRegular(
+                        text = "BTC",
+                        color = BisqTheme.colors.light_grey20
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun BisqTextFieldPreview_LabelWithSuffix() {
+    BisqTheme.Preview {
+        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
+            BisqTextField(
+                label = "Amount",
+                value = "100.00",
+                onValueChange = { _, _ -> },
+                labelRightSuffix = { BisqText.smallLightGrey(text = "Optional") }
+            )
+        }
     }
 }

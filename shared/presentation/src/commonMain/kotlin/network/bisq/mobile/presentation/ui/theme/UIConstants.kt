@@ -22,4 +22,5 @@ object BisqUIConstants {
     val ScrollTopPadding = 24.dp
 
     val topBarAvatarSize = 30.dp
+    val textFieldBorderRadius = 6.dp
 }
