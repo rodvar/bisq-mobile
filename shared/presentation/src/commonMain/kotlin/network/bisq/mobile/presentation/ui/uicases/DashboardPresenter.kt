@@ -17,7 +17,7 @@ open class DashboardPresenter(
     private val userProfileServiceFacade: UserProfileServiceFacade,
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
     private val offersServiceFacade: OffersServiceFacade,
-    private val settingsServiceFacade: SettingsServiceFacade
+    private val settingsServiceFacade: SettingsServiceFacade,
 ) : BasePresenter(mainPresenter) {
     private val _offersOnline = MutableStateFlow(0)
     val offersOnline: StateFlow<Int> get() = _offersOnline.asStateFlow()
