@@ -147,8 +147,11 @@ class CreateOfferPricePresenter(
             val marketPriceQuote = createOfferPresenter.getMostRecentPriceQuote(createOfferModel.market!!)
             priceQuote = PriceUtil.fromMarketPriceMarkup(marketPriceQuote, this.percentagePriceValue)
             _formattedPrice.value = PriceQuoteFormatter.format(priceQuote)
-        } catch (_: Exception) {
-
+        } catch (e: Exception) {
+            log.e(e) { "Failed to process percentage price change: ${e.message}" }
+            _formattedPercentagePriceValid.value = false
+            _formattedPriceValid.value = false
+            return
         }
 
         _formattedPercentagePriceValid.value = isValid
@@ -267,7 +270,7 @@ class CreateOfferPricePresenter(
                 return 0.0
             }
 
-            return percentagePriceValue * 100
+            return percentagePriceValue
         } catch (e: Exception) {
             log.e(e) { "Failed to calculate percentage for fixed value: ${e.message}" }
             return 0.0

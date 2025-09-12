@@ -107,6 +107,7 @@ fun CreateOfferTradePriceSelectorScreen() {
                     BisqTextField(
                         label = presenter.fixPriceDescription,
                         value = formattedPrice,
+                        disabled = true,
                         onValueChange = { it, isValid -> }, // Deactivated
                         indicatorColor = BisqTheme.colors.mid_grey10
                     )
@@ -116,7 +117,7 @@ fun CreateOfferTradePriceSelectorScreen() {
                         keyboardType = KeyboardType.Decimal,
                         onValueChange = { it, isValid -> presenter.onFixPriceChanged(it, isValid) },
                         validation = {
-                            val parsedValue = it.toDoubleOrNullLocaleAware()
+                            it.toDoubleOrNullLocaleAware()
                                 ?: return@BisqTextField "mobile.bisqEasy.tradeWizard.price.tradePrice.type.fixed.validation.cannotBeEmpty".i18n()
                             val parsedPercent = presenter.calculatePercentageForFixedValue(it)
                             if (parsedPercent < -10) {
@@ -130,6 +131,7 @@ fun CreateOfferTradePriceSelectorScreen() {
                         label = "bisqEasy.price.percentage.inputBoxText".i18n(),
                         value = formattedPercentagePrice,
                         onValueChange = { it, isValid -> },// Deactivated
+                        disabled = true,
                         indicatorColor = BisqTheme.colors.mid_grey10,
                         valueSuffix = "%",
                     )

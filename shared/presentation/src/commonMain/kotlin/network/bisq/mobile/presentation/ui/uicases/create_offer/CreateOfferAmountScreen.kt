@@ -138,7 +138,7 @@ fun CreateOfferAmountSelectorScreen() {
             }
             NoteText(
                 notes = hintText,
-                linkText = "bisqEasy.tradeWizard.amount.buyer.limitInfo.more".i18n(),
+                linkText = "bisqEasy.tradeWizard.amount.buyer.limitInfo.learnMore".i18n(),
                 onLinkClick = { presenter.setShowLimitPopup(true) }
             )
         }
@@ -156,6 +156,7 @@ fun CreateOfferAmountSelectorScreen() {
                 onDismiss = { presenter.setShowLimitPopup(false) },
                 reputationScore = reputation.toString(),
                 maxSellAmount = reputationBasedMaxSellAmount,
+                onRepLinkClick =  presenter::navigateToReputation,
                 onBuildRepLinkClick = presenter::navigateToBuildReputation
             )
         }

@@ -80,7 +80,7 @@ fun SafeInsetsContainer(
     Box(
         modifier = Modifier.fillMaxSize()
             .consumeWindowInsets(WindowInsets.systemBars) // Eat insets, so no white stripes
-            .background(Color.Black) // Or your desired background color behind system bars
+            .background(BisqTheme.colors.backgroundColor)
     ) {
         // Inner container adds padding for content
         Box(
@@ -121,8 +121,8 @@ fun App() {
         }
     }
 
-    SafeInsetsContainer {
-        BisqTheme {
+    BisqTheme {
+        SafeInsetsContainer {
             if (isNavControllerSet) {
                 SwipeBackIOSNavigationHandler(rootNavController) {
                     CompositionLocalProvider(LocalAnimationsEnabled provides showAnimation) {
