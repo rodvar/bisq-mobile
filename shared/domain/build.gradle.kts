@@ -196,6 +196,7 @@ abstract class GenerateResourceBundlesTask : DefaultTask() {
             "chat",
             "support",
             "user",
+            "account",
             "network",
             "settings",
             "payment_method",
