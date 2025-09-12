@@ -57,8 +57,8 @@ fun BisqScrollLayout(
                 }
             }
             .fillMaxSize()
-            .background(BisqTheme.colors.backgroundColor)
             .imePadding()
+            .background(BisqTheme.colors.backgroundColor)
 
     ) {
         Column(

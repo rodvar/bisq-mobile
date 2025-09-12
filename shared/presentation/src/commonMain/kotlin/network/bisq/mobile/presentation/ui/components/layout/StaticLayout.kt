@@ -30,8 +30,8 @@ fun BisqStaticLayout(
                     it
                 }
             }
-            .background(BisqTheme.colors.backgroundColor)
             .imePadding()
+            .background(BisqTheme.colors.backgroundColor)
     ) {
         Column(
             horizontalAlignment = horizontalAlignment,
