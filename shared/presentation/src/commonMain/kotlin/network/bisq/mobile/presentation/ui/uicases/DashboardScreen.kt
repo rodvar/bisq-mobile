@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.icon_chat
+import bisqapps.shared.presentation.generated.resources.icon_markets
 import bisqapps.shared.presentation.generated.resources.icon_offers
 import bisqapps.shared.presentation.generated.resources.icon_payment
 import bisqapps.shared.presentation.generated.resources.reputation
@@ -107,7 +108,7 @@ private fun DashboardContent(
             DashBoardCard(
                 title = "mobile.dashboard.startTrading.headline".i18n(),
                 bulletPoints = listOf(
-                    Pair("mobile.dashboard.main.content1".i18n(), Res.drawable.icon_offers),
+                    Pair("mobile.dashboard.main.content1".i18n(), Res.drawable.icon_markets),
                     Pair("mobile.dashboard.main.content2".i18n(), Res.drawable.icon_chat),
                     Pair("mobile.dashboard.main.content3".i18n(), Res.drawable.reputation)
                 ),
