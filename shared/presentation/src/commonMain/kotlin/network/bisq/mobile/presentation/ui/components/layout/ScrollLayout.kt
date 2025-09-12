@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -28,7 +29,8 @@ import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 
 @Composable
 fun BisqScrollLayout(
-    padding: PaddingValues = PaddingValues(all = BisqUIConstants.ScreenPadding),
+    contentPadding: PaddingValues = PaddingValues(all = BisqUIConstants.ScreenPadding),
+    scaffoldPadding: PaddingValues? = null,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     onModifier: ((Modifier) -> Modifier)? = null, // allows to customize modifier settings
@@ -47,8 +49,17 @@ fun BisqScrollLayout(
 
     Box(
         modifier = Modifier
+            .let {
+                if (scaffoldPadding != null) {
+                    it.padding(scaffoldPadding)
+                } else {
+                    it
+                }
+            }
             .fillMaxSize()
             .background(BisqTheme.colors.backgroundColor)
+            .imePadding()
+
     ) {
         Column(
             horizontalAlignment = horizontalAlignment,
@@ -56,7 +67,7 @@ fun BisqScrollLayout(
             modifier = Modifier
                 .fillMaxSize()
                 // .background(color = BisqTheme.colors.backgroundColor)
-                .padding(padding)
+                .padding(contentPadding)
                 .verticalScroll(scrollState)
                 .run { onModifier?.invoke(this) ?: this }
         ) {
@@ -85,7 +96,8 @@ fun BisqScrollLayout(
             JumpToBottomFloatingButton(
                 visible = jumpToBottomVisible,
                 onClicked = { scope.launch { scrollState.animateScrollTo(scrollState.maxValue) } },
-                modifier = Modifier.align(Alignment.BottomEnd).offset(x = -BisqUIConstants.ScreenPadding),
+                modifier = Modifier.align(Alignment.BottomEnd)
+                    .offset(x = -BisqUIConstants.ScreenPadding),
                 jumpOffset = 90,
             )
         }

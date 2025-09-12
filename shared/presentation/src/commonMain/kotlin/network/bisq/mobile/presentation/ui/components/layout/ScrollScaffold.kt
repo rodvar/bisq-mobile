@@ -1,6 +1,5 @@
 package network.bisq.mobile.presentation.ui.components.layout
 
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
@@ -24,7 +23,6 @@ fun BisqScrollScaffold(
     topBar: @Composable (() -> Unit)? = null,
     bottomBar: @Composable (() -> Unit)? = null,
     snackbarHostState: SnackbarHostState? = null,
-    scrollState: ScrollState? = null,
     fab: @Composable (() -> Unit)? = null,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
@@ -33,7 +31,6 @@ fun BisqScrollScaffold(
     shouldBlurBg: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-
     Scaffold(
         modifier = Modifier.blur(if (shouldBlurBg) BisqUIConstants.ScreenPaddingHalf else BisqUIConstants.Zero),
         containerColor = BisqTheme.colors.backgroundColor,
@@ -45,28 +42,17 @@ fun BisqScrollScaffold(
             }
         },
         floatingActionButton = fab ?: {},
-        content = {
+        content = { scaffoldPadding ->
             BisqScrollLayout(
-                padding = if (topBar != null) it else padding,
+                scaffoldPadding = scaffoldPadding,
+                contentPadding = padding,
                 verticalArrangement = verticalArrangement,
                 isInteractive = isInteractive,
                 showJumpToBottom = showJumpToBottom,
+                horizontalAlignment = horizontalAlignment
             ) {
-                // Padding logic:
-                // when topBar is set, Scaffold.content.it provides the padding
-                // to offset topBar height, which is passed to BisqStaticLayout
-                // But then the content()'s get attached to the screen edges.
-                // So in that case, we add another column to provde ScreenPadding on all sides.
-                if (topBar != null)
-                    Column(
-                        modifier = Modifier.padding(all = BisqUIConstants.ScreenPadding),
-                        horizontalAlignment = horizontalAlignment
-                    ) {
-                        content()
-                    }
-                else
-                    content()
+                content()
             }
-        },
+        }
     )
 }

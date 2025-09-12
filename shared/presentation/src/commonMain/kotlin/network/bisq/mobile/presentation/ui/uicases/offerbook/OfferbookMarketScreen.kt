@@ -41,7 +41,7 @@ fun OfferbookMarketScreen() {
     val filter by presenter.filter.collectAsState()
 
     BisqStaticLayout(
-        padding = PaddingValues(all = BisqUIConstants.Zero),
+        contentPadding = PaddingValues(all = BisqUIConstants.Zero),
         verticalArrangement = Arrangement.Top,
         isInteractive = isInteractive,
     ) {

@@ -74,7 +74,7 @@ fun OpenTradeListScreen() {
     }
 
     BisqStaticLayout(
-        padding = PaddingValues(all = BisqUIConstants.Zero),
+        contentPadding = PaddingValues(all = BisqUIConstants.Zero),
         isInteractive = isInteractive,
     ) {
 

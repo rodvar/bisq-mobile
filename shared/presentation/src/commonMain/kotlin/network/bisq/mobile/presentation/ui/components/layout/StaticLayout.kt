@@ -13,7 +13,8 @@ import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 
 @Composable
 fun BisqStaticLayout(
-    padding: PaddingValues = PaddingValues(all = BisqUIConstants.ScreenPadding),
+    contentPadding: PaddingValues = PaddingValues(all = BisqUIConstants.ScreenPadding),
+    scaffoldPadding: PaddingValues? = null,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalArrangement: Arrangement.Vertical = Arrangement.SpaceBetween,
     isInteractive: Boolean = true,
@@ -22,7 +23,15 @@ fun BisqStaticLayout(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .let {
+                if (scaffoldPadding != null) {
+                    it.padding(scaffoldPadding)
+                } else {
+                    it
+                }
+            }
             .background(BisqTheme.colors.backgroundColor)
+            .imePadding()
     ) {
         Column(
             horizontalAlignment = horizontalAlignment,
@@ -30,7 +39,7 @@ fun BisqStaticLayout(
             modifier = Modifier
                 .fillMaxSize()
                 .background(color = BisqTheme.colors.backgroundColor)
-                .padding(padding)
+                .padding(contentPadding)
         ) {
             content()
         }

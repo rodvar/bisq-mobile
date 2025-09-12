@@ -2,9 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />  
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
 
     <application
         android:name=".MainApplication"
@@ -15,12 +15,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.App.Starting">
         <activity
-            android:exported="true"
+            android:name="network.bisq.mobile.client.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:name="network.bisq.mobile.client.MainActivity">
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -29,9 +29,8 @@
         <service
             android:name="network.bisq.mobile.domain.service.BisqForegroundService"
             android:exported="false"
-            android:permission="android.permission.FOREGROUND_SERVICE"
-            android:foregroundServiceType="remoteMessaging">
-        </service>
+            android:foregroundServiceType="remoteMessaging"
+            android:permission="android.permission.FOREGROUND_SERVICE" />
     </application>
 
 </manifest>

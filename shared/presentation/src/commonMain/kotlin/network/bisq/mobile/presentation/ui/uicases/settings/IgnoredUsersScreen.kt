@@ -52,7 +52,6 @@ fun IgnoredUsersScreen() {
 
     BisqScrollScaffold(
         topBar = { TopBar("mobile.settings.ignoredUsers".i18n()) },
-        padding = PaddingValues(all = BisqUIConstants.Zero),
         verticalArrangement = Arrangement.SpaceBetween,
         isInteractive = isInteractive,
     ) {

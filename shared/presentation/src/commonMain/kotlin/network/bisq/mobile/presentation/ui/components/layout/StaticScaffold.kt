@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
@@ -19,7 +20,7 @@ import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 @Composable
 fun BisqStaticScaffold(
     padding: PaddingValues = PaddingValues(
-        top = BisqUIConstants.StaticTopPadding,
+        top = BisqUIConstants.ScreenPadding,
         bottom = BisqUIConstants.ScreenPadding,
         start = BisqUIConstants.ScreenPadding,
         end = BisqUIConstants.ScreenPadding
@@ -34,7 +35,6 @@ fun BisqStaticScaffold(
     shouldBlurBg: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-
     Scaffold(
         modifier = Modifier.blur(if (shouldBlurBg) BisqUIConstants.ScreenPaddingHalf else BisqUIConstants.Zero),
         containerColor = BisqTheme.colors.backgroundColor,
@@ -46,27 +46,15 @@ fun BisqStaticScaffold(
             }
         },
         floatingActionButton = floatingButton ?: {},
-        content = {
+        content = { scaffoldPadding ->
             BisqStaticLayout(
-                padding = if (topBar != null) it else padding,
+                contentPadding = padding,
+                scaffoldPadding = scaffoldPadding,
                 horizontalAlignment = horizontalAlignment,
                 verticalArrangement = verticalArrangement,
                 isInteractive = isInteractive
             ) {
-                // Padding logic:
-                // when topBar is set, Scaffold.content.it provides the padding
-                // to offset topBar height, which is passed to BisqStaticLayout
-                // But then the content()'s get attached to the screen edges.
-                // So in that case, we add another column to provde ScreenPadding on all sides.
-                if (topBar != null)
-                    Column(
-                        modifier = Modifier.padding(all = BisqUIConstants.ScreenPadding),
-                        horizontalAlignment = horizontalAlignment
-                    ) {
-                        content()
-                    }
-                else
-                    content()
+                content()
             }
         }
     )

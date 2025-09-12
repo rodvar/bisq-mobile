@@ -45,8 +45,7 @@ abstract class BisqMainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-
-        intent?.getStringExtra(NotificationServiceController.EXTRA_DESTINATION)?.let { destination ->
+        intent.getStringExtra(NotificationServiceController.EXTRA_DESTINATION)?.let { destination ->
             Routes.fromString(destination)?.let { presenter.navigateToTab(it) }
         }
     }
@@ -61,8 +60,6 @@ abstract class BisqMainActivity : ComponentActivity() {
         GenericErrorHandler.setupCoroutineExceptionHandler(exceptionHandlerSetup)
 
         presenter.attachView(this)
-
-        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val bgColor = Color(BACKGROUND_COLOR_CODE).adjustGamma().toArgb()
         enableEdgeToEdge(

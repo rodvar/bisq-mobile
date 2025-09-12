@@ -30,7 +30,7 @@ fun SettingsScreen(isTabSelected: Boolean) {
     val menuTree by presenter.menuItems.collectAsState()
 
     BisqStaticLayout(
-        padding = PaddingValues(all = BisqUIConstants.Zero),
+        contentPadding = PaddingValues(all = BisqUIConstants.Zero),
         verticalArrangement = Arrangement.Top,
         isInteractive = isInteractive,
     ) {

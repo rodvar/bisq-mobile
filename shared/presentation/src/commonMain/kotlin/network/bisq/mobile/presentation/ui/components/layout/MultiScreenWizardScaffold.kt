@@ -76,7 +76,6 @@ fun MultiScreenWizardScaffold(
         } else null
 
     val scaffold: @Composable (
-        padding: PaddingValues,
         topBar: @Composable (() -> Unit)?,
         bottomBar: @Composable (() -> Unit)?,
         hAlignment: Alignment.Horizontal,
@@ -86,9 +85,8 @@ fun MultiScreenWizardScaffold(
         shouldBlurBg: Boolean,
         content: @Composable ColumnScope.() -> Unit
     ) -> Unit =
-        if (useStaticScaffold) { padding, topBar, bottomBar, hAlignment, verticalArrangement, snackState, _showJumpToBottom, _shouldBlurBg, innerContent ->
+        if (useStaticScaffold) { topBar, bottomBar, hAlignment, verticalArrangement, snackState, _showJumpToBottom, _shouldBlurBg, innerContent ->
             BisqStaticScaffold(
-                padding = padding,
                 topBar = topBar,
                 bottomBar = bottomBar,
                 horizontalAlignment = hAlignment,
@@ -98,9 +96,8 @@ fun MultiScreenWizardScaffold(
                 shouldBlurBg = _shouldBlurBg || confirmClose.visible,
                 content = innerContent
             )
-        } else { padding, topBar, bottomBar, hAlignment, verticalArrangement, snackState, _showJumpToBottom, _shouldBlurBg, innerContent ->
+        } else { topBar, bottomBar, hAlignment, verticalArrangement, snackState, _showJumpToBottom, _shouldBlurBg, innerContent ->
             BisqScrollScaffold(
-                padding = padding,
                 topBar = topBar,
                 bottomBar = bottomBar,
                 horizontalAlignment = hAlignment,
@@ -114,7 +111,6 @@ fun MultiScreenWizardScaffold(
         }
 
     scaffold(
-        PaddingValues(all = 0.dp),
         {
             Column {
                 TopBar(
@@ -126,7 +122,8 @@ fun MultiScreenWizardScaffold(
                 )
                 BisqProgressBar(
                     stepIndex.toFloat() / stepsLength.toFloat(),
-                    modifier = Modifier.fillMaxWidth().padding(top = BisqUIConstants.ScreenPaddingHalf)
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(top = BisqUIConstants.ScreenPaddingHalf)
                 )
             }
         },
@@ -134,7 +131,10 @@ fun MultiScreenWizardScaffold(
             if (showNextPrevButtons) {
                 BottomAppBar(
                     containerColor = BisqTheme.colors.backgroundColor,
-                    contentPadding = PaddingValues(horizontal = BisqUIConstants.ScreenPadding2X, vertical = 0.dp),
+                    contentPadding = PaddingValues(
+                        horizontal = BisqUIConstants.ScreenPadding2X,
+                        vertical = 0.dp
+                    ),
                     windowInsets = WindowInsets(top = 0.dp, bottom = 0.dp)
                 ) {
                     Row(
