@@ -100,7 +100,7 @@ class TakeOfferReviewPresenter(
         }
 
         marketCodes = offerListItem.bisqEasyOffer.market.marketCodes
-        price = MarketPriceFormatter.format(takeOfferModel.priceQuote.value, takeOfferModel.priceQuote.market)
+        price = PriceQuoteFormatter.format(takeOfferModel.priceQuote, true, false)
         applyPriceDetails()
     }
 
@@ -162,8 +162,8 @@ class TakeOfferReviewPresenter(
             priceDetails = "bisqEasy.tradeWizard.review.priceDetails".i18n()
         } else {
             val priceWithCode = PriceQuoteFormatter.format(takeOfferModel.originalPriceQuote, true, true)
-            val percentagePrice = PercentageFormatter.format(percent, true)
-            val aboveOrBelow: String = if (percent > 0) "above" else "below" //todo
+            val percentagePrice = PercentageFormatter.format(kotlin.math.abs(percent), true)
+            val aboveOrBelow: String = if (percent > 0) "mobile.general.above".i18n() else "mobile.general.below".i18n()
             priceDetails = if (priceSpec is FloatPriceSpecVO) {
                 "bisqEasy.tradeWizard.review.priceDetails.float".i18n(percentagePrice, aboveOrBelow, priceWithCode)
             } else {
