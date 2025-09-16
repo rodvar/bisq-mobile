@@ -53,30 +53,3 @@ fun TradeGuideOverview() {
         BisqText.baseLight("bisqEasy.tradeGuide.welcome.content".i18n())
     }
 }
-
-@Composable
-private fun TradeGuideOverviewContentPreview(
-    language: String = "en",
-) {
-    BisqTheme.Preview(language = language) {
-        TradeGuideOverviewContent(
-            isInteractive = true,
-            prevClick = {},
-            nextClick = {}
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun TradeGuideOverviewContentPreview_En() {
-    BisqTheme.Preview {
-        PreviewEnvironment {
-            TradeGuideOverviewContentPreview()
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun TradeGuideOverviewContentPreview_Ru() = TradeGuideOverviewContentPreview(language = "ru")
