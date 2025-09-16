@@ -56,17 +56,3 @@ fun ReputationBasedBuyerLimitsPopup(
         GreyCloseButton(onClick = onDismiss)
     }
 }
-
-@Preview
-@Composable
-fun ReputationBasedBuyerLimitsPopupPreview() {
-    BisqTheme.Preview {
-        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
-            ReputationBasedBuyerLimitsPopup(
-                onDismiss = {},
-                onRepLinkClick = {},
-                amountLimitInfoOverlayInfo = MutableStateFlow("bisqEasy.tradeWizard.amount.buyer.limitInfo.overlay.info.firstPart".i18n())
-            )
-        }
-    }
-}

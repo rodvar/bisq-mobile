@@ -67,19 +67,3 @@ fun ReputationBasedSellerLimitsPopup(
         GreyCloseButton(onClick = onDismiss)
     }
 }
-
-@Preview
-@Composable
-fun ReputationBasedSellerLimitsPopupPreview() {
-    BisqTheme.Preview {
-        Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
-            ReputationBasedSellerLimitsPopup(
-                onDismiss = {},
-                onBuildRepLinkClick = {},
-                onRepLinkClick = {},
-                reputationScore = "100",
-                maxSellAmount = "1000"
-            )
-        }
-    }
-}

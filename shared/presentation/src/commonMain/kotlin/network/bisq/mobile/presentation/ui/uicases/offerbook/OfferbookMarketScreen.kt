@@ -71,24 +71,14 @@ fun OfferbookMarketScreen() {
 
         BisqGap.V1()
 
-        // Give the list a new identity when filter/sort changes so scroll resets to top
-        key(filter, sortBy) {
-            val listState = rememberLazyListState()
-            val firstKey = marketItems.firstOrNull()?.market?.marketCodes
-            // Scroll to top after the new sorted/filtered content is applied
-            LaunchedEffect(firstKey) {
-                if (firstKey != null) {
-                    listState.scrollToItem(0)
-                }
-            }
-            LazyColumn(state = listState) {
-                items(marketItems, key = { it.market.marketCodes }) { item ->
-                    CurrencyCard(
-                        item = item,
-                        hasIgnoredUsers = hasIgnoredUsers,
-                        onClick = { onMarketSelect(item) }
-                    )
-                }
+        // Simple, release-compatible list without scroll/identity tricks
+        LazyColumn {
+            items(marketItems, key = { it.market.marketCodes }) { item ->
+                CurrencyCard(
+                    item = item,
+                    hasIgnoredUsers = hasIgnoredUsers,
+                    onClick = { presenter.onSelectMarket(item) }
+                )
             }
         }
 

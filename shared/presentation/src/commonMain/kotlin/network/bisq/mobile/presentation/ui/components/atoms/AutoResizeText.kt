@@ -86,7 +86,6 @@ fun AutoResizeText(
     minimumFontSize: TextUnit = 10.sp,
     modifier: Modifier = Modifier,
 ) {
-    val inPreview = LocalInspectionMode.current
     var readyToDraw by remember(text, textStyle.fontSize, maxLines, overflow) {
         mutableStateOf(false)
     }
@@ -106,7 +105,7 @@ fun AutoResizeText(
     Text(
         text = text,
         modifier = modifier.drawWithContent {
-            if (readyToDraw || inPreview) drawContent()
+            if (readyToDraw) drawContent()
         },
         color = color,
         style = textStyle.copy(fontSize = determinedFontSize),

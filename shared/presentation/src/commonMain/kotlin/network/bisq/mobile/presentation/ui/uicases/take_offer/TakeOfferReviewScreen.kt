@@ -329,39 +329,3 @@ fun TakeOfferReviewContent(
         )
     }
 }
-
-/**
- * Preview environment is now provided by PreviewEnvironment helper.
- * See: network.bisq.mobile.presentation.ui.helpers.PreviewEnvironment
- */
-
-@Preview
-@Composable
-fun TakeOfferReviewPreview() {
-    BisqTheme.Preview {
-        PreviewEnvironment {
-            TakeOfferReviewContent(
-                isInteractive = true,
-                showProgressDialog = false,
-                showSuccessDialog = false,
-                isSmallScreen = false,
-                headLine = "BUY Bitcoin",
-                takersIsBuy = true,
-                amountToPay = "1,000.00 USD",
-                amountToReceive = "0.01000000 BTC",
-                price = "100,000.00",
-                marketCodes = "BTC/USD",
-                priceDetails = "1.0% above market at 99,000.00 USD",
-                quoteSidePaymentMethodDisplayString = "SEPA",
-                baseSidePaymentMethodDisplayString = "On-chain",
-                fee = "Seller pays miner fee",
-                feeDetails = "No trade fees",
-                onBack = {},
-                onTakeOffer = {},
-                onClose = {},
-                onGoToOpenTrades = {},
-                snackbarHostState = SnackbarHostState(),
-            )
-        }
-    }
-}
