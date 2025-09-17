@@ -14,8 +14,8 @@ class CreateOfferPaymentMethodPresenter(
 
     lateinit var quoteSideHeadline: String
     lateinit var baseSideHeadline: String
-    lateinit var availableQuoteSidePaymentMethods: List<String>
-    lateinit var availableBaseSidePaymentMethods: List<String>
+    val availableQuoteSidePaymentMethods: MutableStateFlow<Set<String>> = MutableStateFlow((emptySet()))
+    val availableBaseSidePaymentMethods: MutableStateFlow<Set<String>> = MutableStateFlow((emptySet()))
     val selectedQuoteSidePaymentMethods: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())
     val selectedBaseSidePaymentMethods: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())
 
@@ -34,12 +34,14 @@ class CreateOfferPaymentMethodPresenter(
         baseSideHeadline = if (isBuy) "bisqEasy.takeOffer.paymentMethods.subtitle.bitcoin.buyer".i18n()
         else "bisqEasy.takeOffer.paymentMethods.subtitle.bitcoin.seller".i18n()
 
-        // availableQuoteSidePaymentMethods = createOfferModel.availableQuoteSidePaymentMethods.subList(0, 3)  // for dev testing to avoid scroll
-        availableQuoteSidePaymentMethods = createOfferModel.availableQuoteSidePaymentMethods
-        availableBaseSidePaymentMethods = createOfferModel.availableBaseSidePaymentMethods
+        // availableQuoteSidePaymentMethods.value = createOfferModel.availableQuoteSidePaymentMethods.subList(0, 3).toSet()  // for dev testing to avoid scroll
+        availableQuoteSidePaymentMethods.value = createOfferModel.availableQuoteSidePaymentMethods.toSet()
+        availableBaseSidePaymentMethods.value = createOfferModel.availableBaseSidePaymentMethods.toSet()
 
-        selectedQuoteSidePaymentMethods.value = createOfferModel.selectedQuoteSidePaymentMethods.toMutableSet()
-        selectedBaseSidePaymentMethods.value = createOfferModel.selectedBaseSidePaymentMethods.toMutableSet()
+        selectedQuoteSidePaymentMethods.value = createOfferModel.selectedQuoteSidePaymentMethods.toSet()
+        selectedBaseSidePaymentMethods.value = createOfferModel.selectedBaseSidePaymentMethods.toSet()
+
+        availableQuoteSidePaymentMethods.update { it + selectedQuoteSidePaymentMethods.value }
     }
 
     override fun onViewUnattaching() {
@@ -48,11 +50,11 @@ class CreateOfferPaymentMethodPresenter(
     }
 
     fun getQuoteSidePaymentMethodsImagePaths(): List<String> {
-        return getPaymentMethodsImagePaths(availableQuoteSidePaymentMethods, "fiat")
+        return getPaymentMethodsImagePaths(availableQuoteSidePaymentMethods.value.toList(), "fiat")
     }
 
     fun getBaseSidePaymentMethodsImagePaths(): List<String> {
-        return getPaymentMethodsImagePaths(availableBaseSidePaymentMethods, "bitcoin")
+        return getPaymentMethodsImagePaths(availableBaseSidePaymentMethods.value.toList(), "bitcoin")
     }
 
     fun onToggleQuoteSidePaymentMethod(value: String) {
@@ -72,6 +74,29 @@ class CreateOfferPaymentMethodPresenter(
             selectedBaseSidePaymentMethods.update { it - value }
         } else {
             selectedBaseSidePaymentMethods.update { it + value }
+        }
+    }
+
+    fun addCustomPayment(value: String) {
+        val normalized = value.trim()
+        if (normalized.isEmpty()) return
+        val available = availableQuoteSidePaymentMethods.value
+        val existsIgnoringCase = available.any { it.equals(normalized, ignoreCase = true) }
+
+        if (!existsIgnoringCase && selectedQuoteSidePaymentMethods.value.size >= 4) return
+        if (!existsIgnoringCase) {
+            availableQuoteSidePaymentMethods.update { it + normalized }
+        }
+    }
+
+    fun removeCustomPayment(value: String) {
+        val normalized = value.trim()
+        val target = availableQuoteSidePaymentMethods.value
+            .firstOrNull { it.equals(normalized, ignoreCase = true) }
+            ?: return
+        availableQuoteSidePaymentMethods.update { it - target }
+        if (selectedQuoteSidePaymentMethods.value.contains(target)) {
+            selectedQuoteSidePaymentMethods.update { it - target }
         }
     }
 
@@ -121,12 +146,11 @@ class CreateOfferPaymentMethodPresenter(
         }
     }
 
-
     private fun isQuoteSideValid() = selectedQuoteSidePaymentMethods.value.isNotEmpty()
     private fun isBaseSideValid() = selectedBaseSidePaymentMethods.value.isNotEmpty()
 
     private fun getPaymentMethodsImagePaths(list: List<String>, directory: String) = list.map { paymentMethod ->
-            val fileName = paymentMethod.lowercase().replace("-", "_")
-            "drawable/payment/$directory/$fileName.png"
-        }
+        val fileName = paymentMethod.lowercase().replace("-", "_")
+        "drawable/payment/$directory/$fileName.png"
+    }
 }

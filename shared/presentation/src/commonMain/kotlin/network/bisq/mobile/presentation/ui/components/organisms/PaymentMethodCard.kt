@@ -14,14 +14,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.presentation.ui.helpers.i18NPaymentMethod
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.molecules.PaymentTypeCard
+import network.bisq.mobile.presentation.ui.components.molecules.inputfield.CustomPaymentField
+import network.bisq.mobile.presentation.ui.theme.BisqTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun PaymentMethodCard(
     title: String,
     imagePaths: List<String>,
-    availablePaymentMethods: List<String>,
+    availablePaymentMethods: Set<String>,
     selectedPaymentMethods: MutableStateFlow<Set<String>>,
     onToggle: (String) -> Unit,
+    showCustomPayment: Boolean = false,
+    onAddCustomPayment: ((String) -> Unit)? = null,
+    onRemoveCustomPayment: ((String) -> Unit)? = null,
 ) {
 
     val selected by selectedPaymentMethods.collectAsState()
@@ -33,7 +39,7 @@ fun PaymentMethodCard(
         val isCustom: Boolean
     )
 
-    val entries = availablePaymentMethods
+    val entries = availablePaymentMethods.toList()
         .mapIndexed { idx, key ->
             val (name, missing) = i18NPaymentMethod(key)
             Entry(key, imagePaths.getOrElse(idx) { "" }, name, missing)
@@ -51,16 +57,57 @@ fun PaymentMethodCard(
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+
             entries.forEachIndexed { index, entry ->
                 PaymentTypeCard(
                     image = entry.imagePath,
                     title = entry.displayName,
                     onClick = { onToggle(entry.key) },
+                    onRemove = { onRemoveCustomPayment?.invoke(entry.key) },
                     isSelected = selected.contains(entry.key),
-                    index = index + 1,
                     isCustomPaymentMethod = entry.isCustom
                 )
             }
+
+            if (showCustomPayment) {
+                CustomPaymentField(onAddCustomPayment = onAddCustomPayment)
+            }
+
         }
     }
 }
+
+@Composable
+private fun PaymentMethodCardContent(
+    language: String = "en",
+    imagePaths: List<String>,
+    availablePaymentMethods: Set<String>,
+    selectedPaymentMethods: MutableStateFlow<Set<String>>,
+) {
+    BisqTheme.Preview(language = language) {
+        PaymentMethodCard(
+            "Choose a payment method to transfer USD",
+            imagePaths,
+            availablePaymentMethods,
+            selectedPaymentMethods,
+            onToggle = {},
+            onAddCustomPayment = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PaymentMethodCard_En() = PaymentMethodCardContent(
+    imagePaths = emptyList(),
+    availablePaymentMethods = emptySet(),
+    selectedPaymentMethods =  MutableStateFlow(emptySet())
+)
+@Preview
+@Composable
+private fun PaymentMethodCard_Ru() = PaymentMethodCardContent(
+    language = "ru",
+    imagePaths = emptyList(),
+    availablePaymentMethods = emptySet(),
+    selectedPaymentMethods =  MutableStateFlow(emptySet())
+)

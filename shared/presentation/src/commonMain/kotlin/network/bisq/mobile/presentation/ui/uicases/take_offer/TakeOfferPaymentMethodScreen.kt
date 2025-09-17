@@ -48,7 +48,7 @@ fun TakeOfferPaymentMethodScreen() {
                 else
                     "bisqEasy.takeOffer.paymentMethods.subtitle.fiat.buyer").i18n(presenter.quoteCurrencyCode),
                 imagePaths = presenter.getQuoteSidePaymentMethodsImagePaths(),
-                availablePaymentMethods = presenter.quoteSidePaymentMethods,
+                availablePaymentMethods = presenter.quoteSidePaymentMethods.toMutableSet(),
                 selectedPaymentMethods = quoteSidePaymentMethod,
                 onToggle = { selected -> presenter.onQuoteSidePaymentMethodSelected(selected) },
             )
