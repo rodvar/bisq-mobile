@@ -17,8 +17,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.i18n.i18n
-import network.bisq.mobile.presentation.MainPresenter
-import network.bisq.mobile.presentation.exitApp
+import network.bisq.mobile.presentation.ui.AppPresenter
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
@@ -35,7 +34,7 @@ fun ReportBugPanel(
     isUncaughtException: Boolean,
     onClose: () -> Unit,
 ) {
-    val presenter: MainPresenter = koinInject()
+    val presenter: AppPresenter = koinInject()
     val clipboardManager = LocalClipboardManager.current
     val scrollState = rememberScrollState()
 
@@ -74,17 +73,20 @@ fun ReportBugPanel(
 
         BisqGap.V1()
 
-        Row (
+        Row(
             modifier = Modifier.height(IntrinsicSize.Max),
             horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
         ) {
+            // IOS does not support shutdown
+            val useShutdownButton = isUncaughtException && !presenter.isIOS()
             BisqButton(
-                text = "action.close".i18n(),
+                text = if (useShutdownButton) "action.shutDown".i18n() else "action.close".i18n(),
                 onClick = {
-                    if (isUncaughtException)
-                        exitApp()
-                    else
+                    if (useShutdownButton) {
+                        presenter.onTerminateApp()
+                    } else {
                         onClose.invoke()
+                    }
                 },
                 type = BisqButtonType.Grey,
                 modifier = Modifier.weight(1.0f).fillMaxHeight(),

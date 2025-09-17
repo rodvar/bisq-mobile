@@ -16,6 +16,8 @@ import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
+// TODO We should make it abstract and only use dependency which are covered by both node and client.
+// WebSocketClientProvider should be only used in a ClientSplashPresenter
 open class SplashPresenter(
     mainPresenter: MainPresenter,
     private val applicationBootstrapFacade: ApplicationBootstrapFacade,
@@ -24,28 +26,25 @@ open class SplashPresenter(
     private val settingsRepository: SettingsRepository,
     private val settingsServiceFacade: SettingsServiceFacade,
     private val languageServiceFacade: LanguageServiceFacade,
-    private val webSocketClientProvider: WebSocketClientProvider?,
+    private val webSocketClientProvider: WebSocketClientProvider?
 ) : BasePresenter(mainPresenter) {
 
-    val state: StateFlow<String> get() = applicationBootstrapFacade.state
+    open val state: StateFlow<String> get() = applicationBootstrapFacade.state
     val progress: StateFlow<Float> get() = applicationBootstrapFacade.progress
     val isTimeoutDialogVisible: StateFlow<Boolean> get() = applicationBootstrapFacade.isTimeoutDialogVisible
     val isBootstrapFailed: StateFlow<Boolean> get() = applicationBootstrapFacade.isBootstrapFailed
     val currentBootstrapStage: StateFlow<String> get() = applicationBootstrapFacade.currentBootstrapStage
     val shouldShowProgressToast: StateFlow<Boolean> get() = applicationBootstrapFacade.shouldShowProgressToast
 
-    private var hasNavigatedAway = false
-
     override fun onViewAttached() {
         super.onViewAttached()
-        
+
         collectUI(state) { value ->
             log.d { "Splash State: $value" }
         }
-        
+
         collectUI(progress) { value ->
-            if (value >= 1.0f && !hasNavigatedAway) {
-                hasNavigatedAway = true
+            if (value >= 1.0f) {
                 navigateToNextScreen()
             }
         }
@@ -61,16 +60,11 @@ open class SplashPresenter(
     private fun navigateToNextScreen() {
         log.d { "Navigating to next screen" }
         launchUI {
-            // Check connectivity first
-            if (!hasConnectivity()) {
-                log.d { "No connectivity detected, navigating to trusted node setup" }
-                navigateToTrustedNodeSetup()
+            if (isClientAndHasNoConnectivity()) {
                 return@launchUI
             }
 
-            if (webSocketClientProvider?.get()?.isDemo() == true) {
-                ApplicationBootstrapFacade.isDemo = true
-            }
+            handleDemoModeForClient()
 
             runCatching {
                 val profileSettings: SettingsVO = settingsServiceFacade.getSettings().getOrThrow()
@@ -100,7 +94,7 @@ open class SplashPresenter(
         }
     }
 
-    private fun navigateToTrustedNodeSetup() {
+    protected open fun navigateToTrustedNodeSetup() {
         navigateTo(Routes.TrustedNodeSetup) {
             it.popUpTo(Routes.Splash.name) { inclusive = true }
         }
@@ -124,10 +118,6 @@ open class SplashPresenter(
         }
     }
 
-    open suspend fun hasConnectivity(): Boolean {
-        return webSocketClientProvider?.get()?.isConnected() ?: false
-    }
-
     private fun navigateToAgreement() {
         log.d { "Navigating to agreement" }
         navigateTo(Routes.Agreement) {
@@ -144,25 +134,34 @@ open class SplashPresenter(
         return true
     }
 
-    fun onTimeoutDialogStop() {
-        log.i { "User requested to stop bootstrap from timeout dialog" }
-        launchIO {
-            applicationBootstrapFacade.stopBootstrapForRetry()
+    // Node overrides that with returning false
+    // TODO we should make it abstract and use a ClientSplashPresenter to make the differences more explicit
+    open suspend fun isClientAndHasNoConnectivity(): Boolean {
+        val provider = webSocketClientProvider ?: return false
+        if (!provider.get().isConnected()) {
+            log.d { "No connectivity detected, navigating to trusted node setup" }
+            navigateToTrustedNodeSetup()
+            return true
+        }
+        return false
+    }
+
+    // TODO we should make it abstract and use a ClientSplashPresenter
+    open suspend fun handleDemoModeForClient() {
+        if (webSocketClientProvider?.get()?.isDemo() == true) {
+            ApplicationBootstrapFacade.isDemo = true
         }
     }
 
     fun onTimeoutDialogContinue() {
-        log.i { "User chose to continue waiting - extending timeout" }
         applicationBootstrapFacade.extendTimeout()
     }
 
-    open fun onRestart() {
-        log.i { "User requested app restart from failed state" }
+    fun onRestart() {
         restartApp()
     }
 
-    protected open fun restartApp() {
-        // Default implementation - platform-specific implementations will override
-        log.w { "App restart not implemented for this platform" }
+    fun onTerminateApp() {
+        terminateApp()
     }
 }

@@ -19,7 +19,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.navigation.NavHostController
@@ -27,9 +26,11 @@ import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.domain.setDefaultLocale
 import network.bisq.mobile.i18n.I18nSupport
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ViewPresenter
 import network.bisq.mobile.presentation.ui.components.SwipeBackIOSNavigationHandler
 import network.bisq.mobile.presentation.ui.components.context.LocalAnimationsEnabled
+import network.bisq.mobile.presentation.ui.components.molecules.dialog.WarningConfirmationDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.navigation.graph.RootNavGraph
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
@@ -52,10 +53,18 @@ interface AppPresenter : ViewPresenter {
 
     val showAnimation: StateFlow<Boolean>
 
+    val showAllConnectionsLostDialogue: StateFlow<Boolean>
+
     // Actions
     fun toggleContentVisibility()
 
     fun navigateToTrustedNode()
+
+    fun onCloseConnectionLostDialogue()
+
+    fun onRestartApp()
+
+    fun onTerminateApp()
 }
 
 @Composable
@@ -113,10 +122,12 @@ fun App() {
 
     val languageCode by presenter.languageCode.collectAsState()
     val showAnimation by presenter.showAnimation.collectAsState()
+    val showAllConnectionsLostDialogue by presenter.showAllConnectionsLostDialogue.collectAsState()
 
     LaunchedEffect(languageCode) {
         if (languageCode.isNotBlank()) {
-            I18nSupport.initialize(languageCode)
+            // TODO is that needed? We set the language for i18n in the SettingsServiceFacade
+            I18nSupport.setLanguage(languageCode)
             setDefaultLocale(languageCode)
         }
     }
@@ -131,6 +142,16 @@ fun App() {
                 }
             }
             ErrorOverlay()
+
+            if (showAllConnectionsLostDialogue) {
+                WarningConfirmationDialog(
+                    headline = "connectivity.disconnected.title".i18n(),
+                    message = "connectivity.disconnected.message".i18n(),
+                    confirmButtonText = "connectivity.disconnected.restart".i18n(),
+                    onConfirm = { presenter.onRestartApp() },
+                    onDismiss = { presenter.onCloseConnectionLostDialogue() }
+                )
+            }
         }
     }
 }

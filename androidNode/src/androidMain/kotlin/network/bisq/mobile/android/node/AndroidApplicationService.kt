@@ -32,7 +32,6 @@ import bisq.contract.ContractService
 import bisq.identity.IdentityService
 import bisq.network.NetworkService
 import bisq.network.NetworkServiceConfig
-import bisq.network.p2p.ServiceNode
 import bisq.offer.OfferService
 import bisq.presentation.notifications.SystemNotificationService
 import bisq.security.SecurityService
@@ -71,15 +70,6 @@ class AndroidApplicationService(
 
     @Getter
     class Provider {
-        fun findAllServiceNodes(): List<ServiceNode> {
-            val serviceNodes = mutableListOf<ServiceNode>()
-            val networkService = applicationService.networkService
-            networkService.supportedTransportTypes.forEach { transportType ->
-                serviceNodes.add(networkService.findServiceNode(transportType).get())
-            }
-            return serviceNodes.toList()
-        }
-
         @Setter
         lateinit var applicationService: AndroidApplicationService
         var state: Supplier<Observable<State>> =
@@ -128,12 +118,12 @@ class AndroidApplicationService(
     }
 
     companion object {
-        const val STARTUP_TIMEOUT_SEC: Long = 300
+        const val STARTUP_TIMEOUT_SEC: Long = 120
         const val SHUTDOWN_TIMEOUT_SEC: Long = 10
     }
 
-    private val shutDownErrorMessage = Observable<String>()
-    private val startupErrorMessage = Observable<String>()
+    val shutDownErrorMessage = Observable<String>()
+    val startupErrorMessage = Observable<String>()
 
     val androidCatHashService = AndroidNodeCatHashService(context, config.baseDir)
 
@@ -412,5 +402,9 @@ class AndroidApplicationService(
     private fun logError(throwable: Throwable): Boolean {
         log.e("Exception at shutdown", throwable)
         return false
+    }
+
+    override fun checkInstanceLock() {
+        // On mobile we dont need instance check
     }
 }

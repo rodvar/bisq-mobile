@@ -4,9 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import network.bisq.mobile.domain.service.ServiceFacade
-import network.bisq.mobile.i18n.I18nSupport
 
-@Suppress("RedundantOverride")
 abstract class ApplicationBootstrapFacade : ServiceFacade() {
     companion object {
         var isDemo = false
@@ -48,31 +46,12 @@ abstract class ApplicationBootstrapFacade : ServiceFacade() {
         _shouldShowProgressToast.value = show
     }
 
-    protected var isActive = false
-
     override fun activate() {
         super.activate()
     }
 
     override fun deactivate() {
         super.deactivate()
-    }
-
-    /**
-     * Waits for Tor initialization to complete if Tor is required.
-     * For CLEARNET-only configurations, this returns immediately.
-     * For Tor configurations, this suspends until Tor is fully initialized.
-     */
-    abstract suspend fun waitForTor()
-
-    /**
-     * Stop the current bootstrap process and prepare for retry.
-     * This should purposely fail the bootstrap and show the retry button.
-     */
-    open suspend fun stopBootstrapForRetry() {
-        log.i { "Bootstrap: Stopping bootstrap for retry" }
-        setBootstrapFailed(true)
-        setTimeoutDialogVisible(false)
     }
 
     /**
@@ -84,11 +63,8 @@ abstract class ApplicationBootstrapFacade : ServiceFacade() {
         setTimeoutDialogVisible(false)
     }
 
-    protected fun makeSureI18NIsReady(languageCode: String) {
-        runCatching {
-            I18nSupport.initialize(languageCode)
-        }.onFailure { e ->
-            log.w(e) { "Bootstrap: i18n initialization failed; continuing with defaults" }
-        }
+    fun handleBootstrapFailure(e: Throwable) {
+        setBootstrapFailed(true)
+        setShouldShowProgressToast(false)
     }
 }

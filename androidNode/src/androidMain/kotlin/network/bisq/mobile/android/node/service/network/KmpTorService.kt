@@ -2,6 +2,7 @@ package network.bisq.mobile.android.node.service.network
 
 import io.matthewnelson.kmp.tor.resource.exec.tor.ResourceLoaderTorExec
 import io.matthewnelson.kmp.tor.runtime.Action
+import io.matthewnelson.kmp.tor.runtime.Action.Companion.stopDaemonSync
 import io.matthewnelson.kmp.tor.runtime.TorRuntime
 import io.matthewnelson.kmp.tor.runtime.core.OnEvent
 import io.matthewnelson.kmp.tor.runtime.core.TorEvent
@@ -20,6 +21,8 @@ import network.bisq.mobile.domain.service.BaseService
 import network.bisq.mobile.domain.utils.Logging
 import java.io.File
 import java.io.FileOutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.absolutePathString
@@ -40,6 +43,15 @@ import kotlin.io.path.absolutePathString
  *
  */
 class KmpTorService : BaseService(), Logging {
+    enum class State {
+        IDLE,
+        STARTING,
+        STARTED,
+        STOPPING,
+        STOPPED,
+        STARTING_FAILED,
+        STOPPING_FAILED
+    }
 
     private lateinit var baseDir: Path
     private var torRuntime: TorRuntime? = null
@@ -51,12 +63,16 @@ class KmpTorService : BaseService(), Logging {
     private val _startupFailure: MutableStateFlow<KmpTorException?> = MutableStateFlow(null)
     val startupFailure: StateFlow<KmpTorException?> get() = _startupFailure.asStateFlow()
 
+    private val _state: MutableStateFlow<State> = MutableStateFlow(State.IDLE)
+    val state: StateFlow<State> get() = _state.asStateFlow()
+
     fun startTor(baseDir: Path): CompletableDeferred<Boolean> {
         this.baseDir = baseDir
         log.i("Start kmp-tor")
         val torStartupCompleted = CompletableDeferred<Boolean>()
 
         require(torRuntime == null) { "torRuntime is expected to be null at startTor" }
+        _state.value = State.STARTING
         setupTorRuntime()
 
         val configCompleted = configTor()
@@ -72,6 +88,7 @@ class KmpTorService : BaseService(), Logging {
                 // Cancel the running config coroutine
                 configJob?.cancel()
                 configJob = null
+                _state.value = State.STARTING_FAILED
             },
             {
                 log.i("Tor daemon started")
@@ -81,72 +98,32 @@ class KmpTorService : BaseService(), Logging {
                     configCompleted.await()
                     log.i("kmp-tor startup completed")
                     torStartupCompleted.takeIf { !it.isCompleted }?.complete(true)
+                    _state.value = State.STARTED
                 }
             }
         )
         return torStartupCompleted
     }
 
-    /**
-     * Stop the tor runtime.
-     * @param forceStop If true, stop the tor runtime even if it is still starting.
-     * @return A deferred that completes when the tor runtime is stopped.
-     */
-    fun stopTor(forceStop: Boolean = false): CompletableDeferred<Boolean> {
-        val torStopCompleted = CompletableDeferred<Boolean>()
+    fun stopTorSync() {
+        _state.value = State.STOPPING
         if (torRuntime == null) {
-            log.w("Tor runtime is already null, skipping stop")
-            torStopCompleted.complete(true) // Stop was not performed
-            return torStopCompleted
+            log.w("Tor runtime is null at stopTorSync")
+            return
         }
 
-        if (!forceStop && (!torDaemonStarted.isCompleted || !torDaemonStarted.isActive)) {
-            log.i("Tor daemon is still starting, waiting for it to complete before stopping")
-            torStopCompleted.complete(true) // Stop was skipped
-            return torStopCompleted
+        try {
+            torRuntime!!.stopDaemonSync()
+            log.i { "Tor daemon stopped" }
+            _state.value = State.STOPPED
+        } catch (e: Exception) {
+            handleError("Failed to stop Tor daemon: $e")
+            _state.value = State.STOPPING_FAILED
+            throw e
+        } finally {
+            resetAndDispose()
+            torRuntime = null
         }
-
-        torRuntime!!.enqueue(
-            Action.StopDaemon,
-            { error ->
-                resetAndDispose()
-                handleError("Failed to stop Tor daemon: $error")
-                torRuntime = null
-                torStopCompleted.completeExceptionally(
-                    Exception("Failed to stop Tor daemon: $error")
-                )
-            },
-            {
-                log.i { "Tor daemon stopped" }
-                resetAndDispose()
-                torRuntime = null
-                torStopCompleted.complete(true)
-            }
-        )
-        return torStopCompleted
-    }
-
-    fun restartTor() {
-        require(torRuntime != null) { "torRuntime is null. setupTor must be called before stopTor" }
-        resetAndDispose()
-
-        val configCompleted = configTor()
-
-        torRuntime!!.enqueue(
-            Action.RestartDaemon,
-            { error ->
-                resetAndDispose()
-                handleError("Restarting tor daemon failed: $error")
-            },
-            {
-                log.i { "Tor daemon restarted" }
-                torDaemonStarted.takeIf { !it.isCompleted }?.complete(true)
-
-                launchIO {
-                    configCompleted.await()
-                }
-            }
-        )
     }
 
     private fun setupTorRuntime() {
@@ -218,7 +195,9 @@ class KmpTorService : BaseService(), Logging {
                 handleError("Configuring tor failed: $error")
                 configCompleted.takeIf { !it.isCompleted }?.completeExceptionally(error)
             } finally {
-                if (configJob?.isActive != true) configJob = null
+                if (configJob === this@launchIO) {
+                    configJob = null
+                }
             }
         }
         return configCompleted
@@ -270,6 +249,10 @@ class KmpTorService : BaseService(), Logging {
             } catch (e: Exception) {
                 handleError("Observing file ${controlPortFile.absolutePath} failed: ${e.message}")
                 deferred.completeExceptionally(e)
+            } finally {
+                if (controlPortFileObserverJob === this@launchIO) {
+                    controlPortFileObserverJob = null
+                }
             }
         }
         return deferred
@@ -358,8 +341,8 @@ class KmpTorService : BaseService(), Logging {
 
             repeat(3) { attempt ->
                 try {
-                    java.net.Socket().use { socket ->
-                        socket.connect(java.net.InetSocketAddress("127.0.0.1", controlPort), 1000)
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress("127.0.0.1", controlPort), 1000)
                         log.i { "Verified control port $controlPort is accessible" }
                         return
                     }

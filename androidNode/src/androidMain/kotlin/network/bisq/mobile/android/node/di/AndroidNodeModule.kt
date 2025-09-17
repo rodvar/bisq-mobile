@@ -1,6 +1,7 @@
 package network.bisq.mobile.android.node.di
 
 import network.bisq.mobile.android.node.AndroidApplicationService
+import network.bisq.mobile.android.node.NodeApplicationLifecycleService
 import network.bisq.mobile.android.node.presentation.NodeAboutPresenter
 import network.bisq.mobile.android.node.presentation.NodeGeneralSettingsPresenter
 import network.bisq.mobile.android.node.presentation.NodeMainPresenter
@@ -18,6 +19,7 @@ import network.bisq.mobile.android.node.service.market_price.NodeMarketPriceServ
 import network.bisq.mobile.android.node.service.mediation.NodeMediationServiceFacade
 import network.bisq.mobile.android.node.service.network.KmpTorService
 import network.bisq.mobile.android.node.service.network.NodeConnectivityService
+import network.bisq.mobile.android.node.service.network.NodeNetworkServiceFacade
 import network.bisq.mobile.android.node.service.offers.NodeOffersServiceFacade
 import network.bisq.mobile.android.node.service.reputation.NodeReputationServiceFacade
 import network.bisq.mobile.android.node.service.settings.NodeSettingsServiceFacade
@@ -33,6 +35,7 @@ import network.bisq.mobile.domain.service.explorer.ExplorerServiceFacade
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.mediation.MediationServiceFacade
 import network.bisq.mobile.domain.service.network.ConnectivityService
+import network.bisq.mobile.domain.service.network.NetworkServiceFacade
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import network.bisq.mobile.domain.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
@@ -64,9 +67,11 @@ val androidNodeModule = module {
 
     single { AndroidApplicationService.Provider() }
 
+    single { NodeNetworkServiceFacade(get()) } bind NetworkServiceFacade::class
+
     single<KmpTorService> { KmpTorService() }
 
-    single<ApplicationBootstrapFacade> { NodeApplicationBootstrapFacade(get(), get(), get(), get()) }
+    single { NodeApplicationBootstrapFacade(get(), get()) } bind ApplicationBootstrapFacade::class
 
     single<MarketPriceServiceFacade> { NodeMarketPriceServiceFacade(get(), get()) }
 
@@ -94,8 +99,8 @@ val androidNodeModule = module {
 
     single<UrlLauncher> { AndroidUrlLauncher(androidContext()) }
 
-    single<MainPresenter> {
-        NodeMainPresenter(
+    single<NodeApplicationLifecycleService> {
+        NodeApplicationLifecycleService(
             get(),
             get(),
             get(),
@@ -115,10 +120,25 @@ val androidNodeModule = module {
             get(),
             get()
         )
+    }
+
+    single<MainPresenter> {
+        NodeMainPresenter(
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get()
+        )
     } bind AppPresenter::class
 
     single<SplashPresenter> {
         NodeSplashPresenter(
+            get(),
+            get(),
             get(),
             get(),
             get(),

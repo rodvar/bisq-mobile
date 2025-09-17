@@ -30,4 +30,26 @@ object BisqTheme {
         }
     }
 
+    /**
+     * A wrapper for Jetpack Compose `@Preview` annotations that provides the `BisqTheme`
+     * and initializes `I18nSupport` for the preview environment.
+     *
+     * This function is a convenience for ensuring that composable previews are rendered
+     * with the correct application theme and have access to localized strings. It should
+     * only be used for UI previews.
+     *
+     * @param language The code for the language to be used in the preview (e.g., "en", "es").
+     * Defaults to "en".
+     * @param content The composable lambda to be rendered within the theme.
+     */
+    @Composable
+    fun Preview(
+        language: String = "en",
+        content: @Composable () -> Unit
+    ) {
+        I18nSupport.setLanguage(language)
+        BisqTheme {
+            content()
+        }
+    }
 }

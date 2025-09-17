@@ -2,8 +2,8 @@ package network.bisq.mobile.android.node
 
 import android.annotation.SuppressLint
 import android.content.ComponentCallbacks2
-import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Process
 import bisq.common.facades.FacadeProvider
 import bisq.common.facades.android.AndroidGuavaFacade
@@ -12,46 +12,30 @@ import bisq.common.network.clear_net_address_types.AndroidEmulatorAddressTypeFac
 import bisq.common.network.clear_net_address_types.LANAddressTypeFacade
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import network.bisq.mobile.android.node.di.androidNodeModule
 import network.bisq.mobile.android.node.service.offers.NodeOffersServiceFacade
 import network.bisq.mobile.domain.di.domainModule
 import network.bisq.mobile.domain.di.serviceModule
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
-import network.bisq.mobile.presentation.BisqMainApplication
+import network.bisq.mobile.presentation.MainApplication
 import network.bisq.mobile.presentation.di.presentationModule
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.koin.android.ext.koin.androidContext
-import org.koin.core.context.startKoin
-import org.koin.core.context.stopKoin
-import java.security.Security
+import org.koin.android.ext.android.get
 import org.koin.android.ext.android.inject
+import org.koin.core.module.Module
+import java.security.Security
 
 /**
  * Bisq Android Node Application definition
  * TODO consider uplift ComponentCallbacks2 to shared app to use also in connect apps
  */
-class MainApplication : BisqMainApplication(), ComponentCallbacks2 {
+class NodeMainApplication : MainApplication(), ComponentCallbacks2 {
 
     // Lazy inject to avoid circular dependencies during app startup
     private val nodeOffersServiceFacade: OffersServiceFacade? by inject()
 
-    companion object {
-        private val nodeModules = listOf(domainModule, serviceModule, presentationModule, androidNodeModule)
-
-        fun setupKoinDI(appContext: Context) {
-            // very important to avoid issues from the abuse of DI single {} singleton instances
-            stopKoin()
-            startKoin {
-                androidContext(appContext)
-                // order is important, last one is picked for each interface/class key
-                modules(nodeModules)
-            }
-        }
-    }
-    
-    override fun setupKoinDI() {
-        setupKoinDI(this)
+    override fun getKoinModules(): List<Module> {
+        return listOf(domainModule, serviceModule, presentationModule, androidNodeModule)
     }
 
     override fun onCreated() {
@@ -64,7 +48,15 @@ class MainApplication : BisqMainApplication(), ComponentCallbacks2 {
         runBlocking(Dispatchers.IO) {
             setupBisqCoreStatics()
         }
-        // Note: MainApplication already implements ComponentCallbacks2, so onTrimMemory is automatically called
+
+        // We start here the initialisation (non blocking) of the core services and tor.
+        // The lifecycle of those is tied to the lifecycle of the Application/Process not to the lifecycle of the MainActivity.
+        // As Android does not provide any callback when the process gets terminated we cannot gracefully shutdown the services and tor.
+        // Only if the user shutdown or restart we can do that.
+        val nodeApplicationLifecycleService: NodeApplicationLifecycleService = get()
+        nodeApplicationLifecycleService.initialize(filesDir.toPath(), applicationContext)
+
+        // Note: NodeMainApplication already implements ComponentCallbacks2, so onTrimMemory is automatically called
         // No need to registerComponentCallbacks(this) - that would cause infinite recursion
         // Note: Tor initialization is now handled in NodeApplicationBootstrapFacade
         log.i { "Bisq Node Application Created" }
@@ -124,13 +116,13 @@ class MainApplication : BisqMainApplication(), ComponentCallbacks2 {
     }
 
     private fun isEmulator(): Boolean {
-        return android.os.Build.FINGERPRINT.startsWith("generic")
-                || android.os.Build.FINGERPRINT.startsWith("unknown")
-                || android.os.Build.MODEL.contains("google_sdk")
-                || android.os.Build.MODEL.contains("Emulator")
-                || android.os.Build.MODEL.contains("Android SDK built for x86")
-                || android.os.Build.MANUFACTURER.contains("Genymotion")
-                || (android.os.Build.BRAND.startsWith("generic") && android.os.Build.DEVICE.startsWith("generic"))
-                || "google_sdk".equals(android.os.Build.PRODUCT);
+        return Build.FINGERPRINT.startsWith("generic")
+                || Build.FINGERPRINT.startsWith("unknown")
+                || Build.MODEL.contains("google_sdk")
+                || Build.MODEL.contains("Emulator")
+                || Build.MODEL.contains("Android SDK built for x86")
+                || Build.MANUFACTURER.contains("Genymotion")
+                || (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+                || "google_sdk".equals(Build.PRODUCT);
     }
 }
