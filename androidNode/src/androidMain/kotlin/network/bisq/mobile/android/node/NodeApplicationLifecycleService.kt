@@ -2,12 +2,12 @@ package network.bisq.mobile.android.node
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.os.Process
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import bisq.common.network.TransportType
 import bisq.network.NetworkServiceConfig
+import com.jakewharton.processphoenix.ProcessPhoenix
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -67,6 +67,8 @@ class NodeApplicationLifecycleService(
     }
 
     private val alreadyKilled = AtomicBoolean(false)
+    private val isRestarting = AtomicBoolean(false)
+
 
     fun initialize(filesDirsPath: Path, applicationContext: Context) {
         log.i { "Initialize core services and Tor" }
@@ -131,41 +133,27 @@ class NodeApplicationLifecycleService(
         }
     }
 
-
     fun restartApp(activity: Activity) {
+        // One-shot guard to avoid double-triggered restarts
+        if (!isRestarting.compareAndSet(false, true)) {
+            log.w { "restartApp called multiple times; ignoring duplicate" }
+            return
+        }
+
+        // Stop foreground notifications early to avoid flicker during restart
+        runCatching { openTradesNotificationService.stopNotificationService() }
+
+        val appContext = activity.applicationContext
         launchIO {
             try {
-                // Blocking wait until services and tor is shut down
+                // Perform shutdown off the UI thread
                 shutdownServicesAndTor()
             } catch (e: Exception) {
                 log.e("Error at shutdownServicesAndTor", e)
             } finally {
-                try {
-                    val restartIntent = activity.packageManager
-                        .getLaunchIntentForPackage(activity.packageName)
-                        ?.apply {
-                            addFlags(
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                                        Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            )
-                        }
-
-                    if (restartIntent != null) {
-                        withContext(Dispatchers.Main) {
-                            // Start from application context so we don’t depend on dying Activity
-                            activity.applicationContext.startActivity(restartIntent)
-                            activity.finishAffinity()
-                        }
-                    } else {
-                        log.e { "Could not create restart intent" }
-                    }
-                } catch (e: Exception) {
-                    log.e("Error at shutdownServicesAndTor", e)
-                } finally {
-                    // Add a bit of delay to give activity shutdown and start more time.
-                    delay(400)
-                    killProcess()
+                // Trigger rebirth on the main thread
+                withContext(Dispatchers.Main) {
+                    ProcessPhoenix.triggerRebirth(appContext)
                 }
             }
         }

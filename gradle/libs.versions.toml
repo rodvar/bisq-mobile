@@ -58,6 +58,7 @@ navigationCompose = "2.7.0-alpha07"
 okio = "3.9.1"
 protobuf = "0.9.4"
 protob = "4.28.2"
+process-phoenix = "3.0.0"
 
 chimp-jsocks-lib = { strictly = '567e1cd6' }
 failsafe-lib = { strictly = '3.2.4' }
@@ -151,6 +152,7 @@ bouncycastle-pg = { module = 'org.bouncycastle:bcpg-jdk18on', version.ref = 'bou
 navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 protobuf-gradle-plugin = { module = 'com.google.protobuf:protobuf-gradle-plugin', version.ref = 'protobuf' }
 protoc = { module = "com.google.protobuf:protoc", version.ref = "protob" }
+process-phoenix = { module = "com.jakewharton:process-phoenix", version.ref = "process-phoenix" }
 
 bisq-core-common = { module = "bisq:common", version.ref = "bisq-core" }
 bisq-core-security = { module = "bisq:security", version.ref = "bisq-core" }
