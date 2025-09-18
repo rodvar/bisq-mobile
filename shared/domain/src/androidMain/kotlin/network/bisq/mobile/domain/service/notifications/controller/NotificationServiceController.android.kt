@@ -1,13 +1,15 @@
 package network.bisq.mobile.domain.service.notifications.controller
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,34 +17,49 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import network.bisq.mobile.domain.helper.getNotifResId
+import network.bisq.mobile.domain.helper.ResourceUtils
 import network.bisq.mobile.domain.service.AppForegroundController
 import network.bisq.mobile.domain.service.BisqForegroundService
 import network.bisq.mobile.domain.utils.Logging
+import network.bisq.mobile.i18n.i18n
+
 
 /**
  * Controller interacting with the bisq service
  */
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
-actual class NotificationServiceController (private val appForegroundController: AppForegroundController): ServiceController, Logging {
+actual class NotificationServiceController(private val appForegroundController: AppForegroundController, val activityClassForIntents: Class<*>): ServiceController, Logging {
     companion object {
-        const val SERVICE_NAME = "Bisq Service"
         const val DISMISS_NOTIFICATION_ACTION = "DISMISS_NOTIFICATION"
         const val DISMISS_PENDING_INTENT_FLAGS = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         // NOTE: to avoid referencing dep Routes.TabOpenTradeList.name
         const val MY_TRADES_TAB = "tab_my_trades"
         const val EXTRA_DESTINATION = "destination"
+
+        // we use this to avoid linter errors, as it's handled internally by
+        // ContextCompat.checkSelfPermission for different android versions
+        const val POST_NOTIFS_PERM = "android.permission.POST_NOTIFICATIONS"
+
+        const val TRADE_AND_UPDATES_CHANNEL_ID = "BISQ_TRADE_AND_UPDATES_CHANNEL"
     }
 
-    private val context = appForegroundController.context
-
+    private val context get() = appForegroundController.context
 
     private val serviceScope = CoroutineScope(SupervisorJob())
     private val observerJobs = mutableMapOf<StateFlow<*>, Job>()
     private var isRunning = false
     private val defaultDestination = MY_TRADES_TAB
 
-    var activityClassForIntents = context::class.java
+    actual fun doPlatformSpecificSetup() {
+        createNotificationChannels()
+    }
+
+    actual suspend fun hasPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            POST_NOTIFS_PERM
+        ) == PackageManager.PERMISSION_GRANTED
+    }
 
     /**
      * Starts the service in the appropiate mode based on the current device running Android API
@@ -51,8 +68,8 @@ actual class NotificationServiceController (private val appForegroundController:
         if (isRunning) {
             log.w { "Service already running, skipping start call" }
         } else {
-            log.i { "Starting Bisq Service.."}
-            createNotificationChannel()
+            log.i { "Starting Bisq Service.." }
+            createNotificationChannels()
             val intent = Intent(context, BisqForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 log.i { "OS supports foreground service" }
@@ -62,7 +79,7 @@ actual class NotificationServiceController (private val appForegroundController:
                 context.startService(intent)
             }
             isRunning = true
-            log.i { "Started Bisq Service"}
+            log.i { "Started Bisq Service" }
         }
     }
 
@@ -73,7 +90,6 @@ actual class NotificationServiceController (private val appForegroundController:
             log.i { "Stopping BisqForegroundService" }
             val intent = Intent(context, BisqForegroundService::class.java)
             context.stopService(intent)
-            deleteNotificationChannel()
             isRunning = false
             log.i { "BisqForegroundService stopped" }
         } else {
@@ -96,6 +112,7 @@ actual class NotificationServiceController (private val appForegroundController:
         observerJobs.remove(stateFlow)
     }
 
+    @SuppressLint("MissingPermission")
     actual fun pushNotification(title: String, message: String) {
         log.i { "pushNotification called - title: '$title', message: '$message', isAppInForeground: ${isAppInForeground()}" }
 
@@ -104,13 +121,12 @@ actual class NotificationServiceController (private val appForegroundController:
             return
         }
 
-        // Check notification permission for Android 13+ (API 33+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-                log.e { "POST_NOTIFICATIONS permission not granted, cannot send notification" }
-                return
-            }
+        if (
+            ContextCompat.checkSelfPermission(context, POST_NOTIFS_PERM)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            log.e { "POST_NOTIFICATIONS permission not granted, cannot send notification" }
+            return
         }
 
         // Generate unique notification ID to avoid overwriting previous notifications
@@ -145,11 +161,11 @@ actual class NotificationServiceController (private val appForegroundController:
             DISMISS_PENDING_INTENT_FLAGS
         )
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val notification = NotificationCompat.Builder(context, BisqForegroundService.CHANNEL_ID)
+        val notificationManager = NotificationManagerCompat.from(context)
+        val notification = NotificationCompat.Builder(context, TRADE_AND_UPDATES_CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(message)
-            .setSmallIcon(getNotifResId(context))
+            .setSmallIcon(ResourceUtils.getNotifResId(context))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT) // Default priority to avoid OS killing the app
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -188,12 +204,38 @@ actual class NotificationServiceController (private val appForegroundController:
 
     actual override fun isServiceRunning() = isRunning
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val serviceChannel = NotificationChannel(
                 BisqForegroundService.CHANNEL_ID,
-                SERVICE_NAME,
+                "mobile.android.channels.service".i18n(),
                 NotificationManager.IMPORTANCE_DEFAULT // Default importance to avoid OS killing the app
+            ).apply {
+                description = "Bisq trade notifications and updates"
+                enableLights(false)
+                enableVibration(false)
+                setShowBadge(false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    setAllowBubbles(false)
+                }
+                // trick to have a sound but have it silent, as it's required for IMPORTANCE_DEFAULT
+                val soundUri = ResourceUtils.getSoundUri(context, "silent.mp3")
+                if (soundUri != null) {
+                    val audioAttributes =
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    setSound(soundUri, audioAttributes)
+                } else {
+                    log.w { "Unable to retrieve silent.mp3 sound uri for service channel" }
+                }
+            }
+
+            val tradeAndUpdatesChannel = NotificationChannel(
+                TRADE_AND_UPDATES_CHANNEL_ID,
+                "mobile.android.channels.tradeAndUpdates".i18n(),
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Bisq trade notifications and updates"
                 enableLights(false) // Reduce aggressive behavior
@@ -204,20 +246,11 @@ actual class NotificationServiceController (private val appForegroundController:
                     setAllowBubbles(false)
                 }
             }
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
-            log.i { "Created notification channel with IMPORTANCE_HIGH" }
-        }
-    }
 
-    private fun deleteNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try {
-                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.deleteNotificationChannel(BisqForegroundService.CHANNEL_ID)
-            } catch (e: Exception) {
-                log.e(e) { "Failed to delete bisq notification channel" }
-            }
+            val manager = NotificationManagerCompat.from(context)
+            manager.createNotificationChannel(serviceChannel)
+            manager.createNotificationChannel(tradeAndUpdatesChannel)
+            log.i { "Created notification channel with IMPORTANCE_HIGH" }
         }
     }
 
