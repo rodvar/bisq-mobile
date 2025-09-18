@@ -16,10 +16,12 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.button.CloseIconButton
+import network.bisq.mobile.presentation.ui.components.atoms.icons.WarningIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap.BisqGapHFill
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun ConfirmationDialog(
@@ -104,5 +106,53 @@ fun ConfirmationDialog(
                 }
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun ConfirmationDialogPreview_Default() {
+    BisqTheme.Preview {
+        ConfirmationDialog(
+            headline = "Are you absolutely sure?",
+            message = "This action is irreversible and will permanently do the thing you're about to do. Please think twice.",
+            confirmButtonText = "Yes, I'm Sure",
+            dismissButtonText = "Cancel",
+            onConfirm = {},
+            onDismiss = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ConfirmationDialogPreview_Warning() {
+    BisqTheme.Preview {
+        ConfirmationDialog(
+            headline = "error.warning".i18n(),
+            headlineColor = BisqTheme.colors.warning,
+            headlineLeftIcon = { WarningIcon() },
+            message = "mobile.chat.ignoreUserWarn".i18n(),
+            confirmButtonText = "chat.ignoreUser.confirm".i18n(),
+            dismissButtonText = "action.cancel".i18n(),
+            onConfirm = {},
+            onDismiss = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ConfirmationDialogPreview_VerticalButtons() {
+    BisqTheme.Preview {
+        ConfirmationDialog(
+            headline = "Vertical Button Layout",
+            message = "This dialog shows the buttons stacked vertically, which is useful for longer button text or narrower screens.",
+            confirmButtonText = "Confirm This Action",
+            dismissButtonText = "Go Back",
+            verticalButtonPlacement = true, // Key change
+            onConfirm = {},
+            onDismiss = {}
+        )
     }
 }

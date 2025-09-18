@@ -22,7 +22,9 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
 import network.bisq.mobile.presentation.ui.components.atoms.CircularLoadingImage
+import network.bisq.mobile.presentation.ui.components.atoms.icons.WarningIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
+import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.TxConfirmationState.CONFIRMED
@@ -48,6 +50,8 @@ fun SellerStateMainChain3b(
         "bisqEasy.tradeState.info.seller.phase3b.balance.prompt".i18n(txId)  // Waiting for blockchain data...
     val balanceLabel = "bisqEasy.tradeState.info.seller.phase3b.balance".i18n() // Bitcoin payment
     val skip by presenter.skip.collectAsState()
+    val amountNotMatchingDialogText by presenter.amountNotMatchingDialogText.collectAsState()
+
     Column {
         BisqGap.V1()
         Row(
@@ -144,7 +148,20 @@ fun SellerStateMainChain3b(
                         textAlign = TextAlign.Center
                     )
                 },
-                onClick = { presenter.onCompleteTrade() },
+                onClick = { presenter.onCtaClick() },
+            )
+        }
+        amountNotMatchingDialogText?.let { errorDialogText ->
+            ConfirmationDialog(
+                headline = "error.warning".i18n(),
+                headlineColor = BisqTheme.colors.warning,
+                headlineLeftIcon = { WarningIcon() },
+                message = errorDialogText,
+                confirmButtonText = "bisqEasy.tradeState.info.phase3b.button.next.amountNotMatching.resolved".i18n(),
+                dismissButtonText = "action.close".i18n(),
+                verticalButtonPlacement = true,
+                onConfirm = { presenter.onCompleteTrade() },
+                onDismiss = { presenter.onAmountNotMatchingDialogDismiss() }
             )
         }
     }

@@ -3,6 +3,8 @@ package network.bisq.mobile.presentation.ui.helpers
 import okio.ByteString.Companion.encodeUtf8
 import kotlin.math.abs
 
+const val EMPTY_STRING = ""
+
 fun convertToSet(value: String?): Set<String> = value?.let { setOf(it) } ?: emptySet()
 
 fun customPaymentIconIndex(

@@ -21,7 +21,9 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
 import network.bisq.mobile.presentation.ui.components.atoms.CircularLoadingImage
+import network.bisq.mobile.presentation.ui.components.atoms.icons.WarningIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
+import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.inputfield.PaymentProofField
 import network.bisq.mobile.presentation.ui.components.molecules.inputfield.PaymentProofType
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
@@ -48,6 +50,7 @@ fun BuyerStateMainChain3b(
     val blockExplorer by presenter.blockExplorer.collectAsState()
     val txId = tradeItemModel.bisqEasyTradeModel.paymentProof.value ?: "data.na".i18n()
     val skip by presenter.skip.collectAsState()
+    val amountNotMatchingDialogText by presenter.amountNotMatchingDialogText.collectAsState()
 
     val role = if (tradeItemModel.bisqEasyTradeModel.isBuyer) "buyer" else "seller"
     val waitingText =
@@ -166,7 +169,20 @@ fun BuyerStateMainChain3b(
                     )
                 },
                 type = if (skip) BisqButtonType.Grey else BisqButtonType.Default,
-                onClick = { presenter.onCompleteTrade() },
+                onClick = { presenter.onCtaClick() },
+            )
+        }
+        amountNotMatchingDialogText?.let { dialogText ->
+            ConfirmationDialog(
+                headline = "error.warning".i18n(),
+                headlineColor = BisqTheme.colors.warning,
+                headlineLeftIcon = { WarningIcon() },
+                message = dialogText,
+                confirmButtonText = "bisqEasy.tradeState.info.phase3b.button.next.amountNotMatching.resolved".i18n(),
+                dismissButtonText = "action.close".i18n(),
+                verticalButtonPlacement = true,
+                onConfirm = { presenter.onCompleteTrade() },
+                onDismiss = { presenter.onAmountNotMatchingDialogDismiss() }
             )
         }
     }
