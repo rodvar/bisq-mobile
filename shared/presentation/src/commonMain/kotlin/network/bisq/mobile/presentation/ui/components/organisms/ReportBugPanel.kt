@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.AppPresenter
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
@@ -24,6 +26,7 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.icons.ExclamationRedIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.BisqDialog
+import network.bisq.mobile.presentation.ui.helpers.toClipEntry
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 import org.koin.compose.koinInject
@@ -35,7 +38,8 @@ fun ReportBugPanel(
     onClose: () -> Unit,
 ) {
     val presenter: AppPresenter = koinInject()
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
     BisqDialog(
@@ -95,7 +99,9 @@ fun ReportBugPanel(
             BisqButton(
                 text = "support.reports.title".i18n(),
                 onClick = {
-                    clipboardManager.setText(buildAnnotatedString { append(errorMessage) })
+                    scope.launch {
+                        clipboard.setClipEntry(AnnotatedString(errorMessage).toClipEntry())
+                    }
                     presenter.navigateToReportError()
                     if (!isUncaughtException)
                         onClose.invoke()

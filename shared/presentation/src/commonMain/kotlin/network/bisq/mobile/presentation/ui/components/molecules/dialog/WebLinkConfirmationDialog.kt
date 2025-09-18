@@ -1,13 +1,16 @@
 package network.bisq.mobile.presentation.ui.components.molecules.dialog
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.AnnotatedString
+import kotlinx.coroutines.launch
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.icons.InfoGreenIcon
+import network.bisq.mobile.presentation.ui.helpers.toClipEntry
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 
 @Composable
@@ -22,7 +25,8 @@ fun WebLinkConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     ConfirmationDialog(
         headline = headline,
@@ -37,7 +41,9 @@ fun WebLinkConfirmationDialog(
         },
         onDismiss = { toCopy ->
             if (toCopy) {
-                clipboardManager.setText(buildAnnotatedString { append(link) })
+                scope.launch {
+                    clipboard.setClipEntry(AnnotatedString(link).toClipEntry())
+                }
             }
             onDismiss()
         },

@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.text.AnnotatedString
+import kotlinx.coroutines.launch
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.icons.WarningIcon
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
@@ -16,6 +18,7 @@ import network.bisq.mobile.presentation.ui.components.molecules.dialog.Confirmat
 import network.bisq.mobile.presentation.ui.components.organisms.chat.ChatMessageList
 import network.bisq.mobile.presentation.ui.components.organisms.chat.UndoIgnoreDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
+import network.bisq.mobile.presentation.ui.helpers.toClipEntry
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import org.koin.compose.koinInject
 
@@ -37,10 +40,17 @@ fun TradeChatScreen() {
     val showChatRulesWarnBox by presenter.showChatRulesWarnBox.collectAsState()
     val readCount by presenter.readCount.collectAsState()
 
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
 
     BisqStaticScaffold(
-        topBar = { TopBar(title = "mobile.tradeChat.title".i18n(selectedTrade?.shortTradeId ?: ""))},
+        topBar = {
+            TopBar(
+                title = "mobile.tradeChat.title".i18n(
+                    selectedTrade?.shortTradeId ?: ""
+                )
+            )
+        },
         isInteractive = isInteractive,
     ) {
 
@@ -59,7 +69,11 @@ fun TradeChatScreen() {
                 onAddReaction = presenter::onAddReaction,
                 onRemoveReaction = presenter::onRemoveReaction,
                 onReply = presenter::onReply,
-                onCopy = { message -> clipboard.setText(buildAnnotatedString { append(message.textString) }) },
+                onCopy = { message ->
+                    scope.launch {
+                        clipboard.setClipEntry(AnnotatedString(message.textString).toClipEntry())
+                    }
+                },
                 onIgnoreUser = presenter::showIgnoreUserPopup,
                 onUndoIgnoreUser = presenter::showUndoIgnoreUserPopup,
                 onReportUser = presenter::onReportUser,

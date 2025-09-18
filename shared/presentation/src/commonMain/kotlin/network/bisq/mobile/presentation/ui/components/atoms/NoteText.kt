@@ -5,9 +5,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -15,7 +17,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
+import kotlinx.coroutines.launch
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.WebLinkConfirmationDialog
+import network.bisq.mobile.presentation.ui.helpers.toClipEntry
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 
 // Pass either uri or onLinkClick. Not both
@@ -29,7 +33,8 @@ fun NoteText(
     onLinkClick: (() -> Unit)? = null,
 ) {
     val uriHandler = LocalUriHandler.current
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var showConfirmDialog by remember { mutableStateOf(false) }
 
     val annotatedString = buildAnnotatedString {
@@ -123,7 +128,9 @@ fun NoteText(
                 showConfirmDialog = false
             },
             onDismiss = {
-                clipboardManager.setText(buildAnnotatedString { append(uri ?: linkText) })
+                scope.launch {
+                    clipboard.setClipEntry(AnnotatedString(uri ?: linkText).toClipEntry())
+                }
                 showConfirmDialog = false
             }
         )
