@@ -10,14 +10,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.Flow
+
 import network.bisq.mobile.android.node.BuildNodeConfig
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.domain.UrlLauncher
+import network.bisq.mobile.domain.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.domain.data.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.getDeviceLanguageCode
 import network.bisq.mobile.domain.service.notifications.OpenTradesNotificationService
@@ -59,35 +63,35 @@ open class MainPresenter(
     // TODO: refactor when TradeItemPresentationModel is completely immutable
     override val tradesWithUnreadMessages: StateFlow<Map<String, Int>> =
         tradesServiceFacade.openTradeItems
-            .map { openTradeItems ->
-                // For each trade, create a flow for its chatMessages count AND a flow for its trade state
-                val messageFlows = openTradeItems.map { trade ->
-                    trade.bisqEasyOpenTradeChannelModel.chatMessages
-                        .map { messages -> trade.tradeId to messages.size }
+            .flatMapLatest { openTradeItems ->
+                val flowsList: List<Flow<Pair<String, Int>>> = openTradeItems.map { trade ->
+                    combine(
+                        trade.bisqEasyOpenTradeChannelModel.chatMessages,
+                        tradeReadStateRepository.data.map { it.map },
+                        userProfileServiceFacade.ignoredProfileIds,
+                    ) { messages, readStates, ignoredIds ->
+                        // TODO: refactor to filter visible messages based on ignore at trade.bisqEasyOpenTradeChannelModel.chatMessages for consistency
+                        // this is a duplicated logic from OpenTradePresenter msgCount collection
+                        val visibleMessages = messages.filter {
+                            when (it.chatMessageType) {
+                                ChatMessageTypeEnum.TEXT, ChatMessageTypeEnum.TAKE_BISQ_EASY_OFFER -> it.senderUserProfileId !in ignoredIds
+                                else -> true
+                            }
+                        }
+                        val unread =
+                            (visibleMessages.size - readStates.getOrElse(trade.tradeId) { 0 }).coerceAtLeast(
+                                0
+                            )
+                        trade.tradeId to unread
+                    }
                 }
-                val stateFlows = openTradeItems.map { trade ->
-                    trade.bisqEasyTradeModel.tradeState
-                        .map { state -> trade.tradeId to state }
-                }
-                messageFlows to stateFlows
-            }
-            .flatMapLatest { (messageFlows, stateFlows) ->
-                // Combine all chatMessages flows and all tradeState flows into single emissions
-                combine(
-                    combine(messageFlows) { pairs -> pairs.toList() },
-                    combine(stateFlows) { pairs -> pairs.toList() }
-                ) { messagePairs, statePairs ->
-                    messagePairs to statePairs
-                }
-            }
-            .combine(tradeReadStateRepository.data.map { it.map }) { (tradeMessageCounts, tradeStates), tradeReadStates ->
-                val messageMap = tradeMessageCounts.associate { it }
-                val stateMap = tradeStates.associate { it }
-                messageMap.filter { (tradeId, messageCount) ->
-                    val isFinal = stateMap[tradeId]?.isFinalState == true
-                    if (isFinal) return@filter false
-                    val readCount = tradeReadStates.getOrElse(tradeId) { 0 }
-                    readCount < messageCount
+                if (flowsList.isEmpty()) {
+                    flowOf(emptyMap())
+                } else {
+                    combine(flowsList) { pairs: Array<Pair<String, Int>> ->
+                        pairs.filter { it.second > 0 }
+                            .associate { it.first to it.second }
+                    }
                 }
             }
             .stateIn(
