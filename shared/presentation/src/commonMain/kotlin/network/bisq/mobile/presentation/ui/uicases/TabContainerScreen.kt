@@ -8,10 +8,10 @@ import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import bisqapps.shared.presentation.generated.resources.Res
-import bisqapps.shared.presentation.generated.resources.icon_home
-import bisqapps.shared.presentation.generated.resources.icon_offers
-import bisqapps.shared.presentation.generated.resources.icon_settings
-import bisqapps.shared.presentation.generated.resources.icon_trades
+import bisqapps.shared.presentation.generated.resources.nav_home
+import bisqapps.shared.presentation.generated.resources.nav_more
+import bisqapps.shared.presentation.generated.resources.nav_offers
+import bisqapps.shared.presentation.generated.resources.nav_trades
 import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ViewPresenter
@@ -25,12 +25,6 @@ import network.bisq.mobile.presentation.ui.navigation.Routes
 import network.bisq.mobile.presentation.ui.navigation.graph.TabNavGraph
 import org.koin.compose.koinInject
 
-val navigationListItem = listOf(
-    BottomNavigationItem("mobile.bottomNavigation.home", Routes.TabHome.name, Res.drawable.icon_home),
-    BottomNavigationItem("mobile.bottomNavigation.offerbook", Routes.TabOfferbook.name, Res.drawable.icon_offers),
-    BottomNavigationItem("mobile.bottomNavigation.myTrades", Routes.TabOpenTradeList.name, Res.drawable.icon_trades),
-    BottomNavigationItem("mobile.bottomNavigation.settings", Routes.TabSettings.name, Res.drawable.icon_settings),
-)
 
 interface ITabContainerPresenter : ViewPresenter {
     val tradesWithUnreadMessages: StateFlow<Map<String, Int>>
@@ -54,6 +48,13 @@ fun TabContainerScreen() {
     val tradesWithUnreadMessages by presenter.tradesWithUnreadMessages.collectAsState()
     val showAnimation by presenter.showAnimation.collectAsState()
 
+    val navigationItems = listOf(
+        BottomNavigationItem("mobile.bottomNavigation.home".i18n(), Routes.TabHome.name, Res.drawable.nav_home),
+        BottomNavigationItem("mobile.bottomNavigation.offerbook".i18n(), Routes.TabOfferbook.name, Res.drawable.nav_offers),
+        BottomNavigationItem("mobile.bottomNavigation.myTrades".i18n(), Routes.TabOpenTradeList.name, Res.drawable.nav_trades),
+        BottomNavigationItem("mobile.bottomNavigation.miscItems.tab".i18n(), Routes.TabMiscItems.name, Res.drawable.nav_more),
+    )
+
     BisqStaticScaffold(
         topBar = {
             // TODO: Since Topbar should go inside Scaffold
@@ -64,10 +65,10 @@ fun TabContainerScreen() {
             TopBar(
                 isHome = currentRoute == Routes.TabHome.name,
                 title = when (currentRoute) {
-                    Routes.TabHome.name -> navigationListItem[0].title.i18n()
-                    Routes.TabOfferbook.name -> navigationListItem[1].title.i18n()
+                    Routes.TabHome.name -> ""
+                    Routes.TabOfferbook.name -> navigationItems[1].title
                     Routes.TabOpenTradeList.name -> "mobile.bottomNavigation.myOpenTrades".i18n()
-                    Routes.TabSettings.name -> navigationListItem[3].title.i18n()
+                    Routes.TabMiscItems.name -> "mobile.bottomNavigation.miscItems.headline".i18n()
                     else -> "mobile.bottomNavigation.app".i18n()
                 },
                 backBehavior = {
@@ -78,7 +79,7 @@ fun TabContainerScreen() {
         },
         bottomBar = {
             BottomNavigation(
-                items = navigationListItem,
+                items = navigationItems,
                 currentRoute = currentRoute.orEmpty(),
                 unreadTradeCount = tradesWithUnreadMessages.values.sum(),
                 showAnimation = showAnimation,

@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -29,15 +28,15 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 
-class UserProfileSettingsPresenter(
+class UserProfilePresenter(
     private val userProfileServiceFacade: UserProfileServiceFacade,
     private val reputationServiceFacade: ReputationServiceFacade,
     private val userRepository: UserRepository,
     private val connectivityService: ConnectivityService,
     mainPresenter: MainPresenter
-) : BasePresenter(mainPresenter), IUserProfileSettingsPresenter {
+) : BasePresenter(mainPresenter), IUserProfilePresenter {
 
-    companion object {
+    companion object Companion {
         /**
          * Get localized "N/A" value
          */

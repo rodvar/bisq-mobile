@@ -7,7 +7,8 @@ object Graph {
 //todo is title used for anything?
 enum class Routes(val title: String) {
     Splash(title = "splash"),
-    Agreement(title = "agreement"),
+    UserAgreement(title = "user_agreement"),
+    UserAgreementDisplay(title = "user_agreement_display"),
     Onboarding(title = "onboarding"),
     CreateProfile(title = "create_profile"),
     TrustedNodeSetup(title = "trusted_node_setup"),
@@ -39,13 +40,15 @@ enum class Routes(val title: String) {
 
     ChatRules(title = "chat_rules"),
 
-    GeneralSettings(title = "general_settings"),
-    UserProfileSettings(title = "user_profile_settings"),
-    PaymentAccountSettings(title = "payment_account_settings"),
+    Settings(title = "settings"),
+    Support(title = "support"),
+    Reputation(title = "reputation"),
+    UserProfile(title = "user_profile"),
+    PaymentAccounts(title = "payment_accounts"),
     IgnoredUsers(title = "ignored_users_settings"),
-    About(title = "about"),
+    Resources(title = "resources"),
 
-    TabSettings(title = "tab_settings"),
+    TabMiscItems(title = "tab_misc_items"),
 
     TradeGuideOverview(title = "trade_guide_overview"),
     TradeGuideSecurity(title = "trade_guide_security"),

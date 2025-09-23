@@ -1,22 +1,20 @@
 package network.bisq.mobile.android.node.presentation
 
-import network.bisq.mobile.domain.data.repository.SettingsRepository
-import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
-import network.bisq.mobile.i18n.i18n
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import network.bisq.mobile.domain.service.common.LanguageServiceFacade
+import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.presentation.MainPresenter
-import network.bisq.mobile.presentation.ui.components.molecules.settings.MenuItem
-import network.bisq.mobile.presentation.ui.navigation.Routes
-import network.bisq.mobile.presentation.ui.uicases.settings.ISettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.SettingsPresenter
 
 class NodeSettingsPresenter(
-    settingsRepository: SettingsRepository,
-    private val userProfileService: UserProfileServiceFacade,
+    private val settingsServiceFacade: SettingsServiceFacade,
+    private val languageServiceFacade: LanguageServiceFacade,
     mainPresenter: MainPresenter
-) : SettingsPresenter(settingsRepository, userProfileService, mainPresenter), ISettingsPresenter {
+) : SettingsPresenter(settingsServiceFacade, languageServiceFacade, mainPresenter) {
 
-    override fun addCustomSettings(menuItems: MutableList<MenuItem>): List<MenuItem> {
-        menuItems.add(MenuItem.Leaf(label = "mobile.settings.about".i18n(), route = Routes.About))
-        return menuItems.toList()
-    }
+    private val _shouldShowPoWAdjustmentFactor = MutableStateFlow(true)
+    override val shouldShowPoWAdjustmentFactor: StateFlow<Boolean> get() = _shouldShowPoWAdjustmentFactor.asStateFlow()
+
 }

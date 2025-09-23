@@ -1,7 +1,6 @@
 package network.bisq.mobile.presentation.ui.navigation.graph
 
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.animateSizeAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,16 +33,19 @@ import network.bisq.mobile.presentation.ui.uicases.offerbook.OfferbookScreen
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.OpenTradeScreen
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.trade_chat.ChatRulesScreen
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.trade_chat.TradeChatScreen
-import network.bisq.mobile.presentation.ui.uicases.settings.AboutScreen
-import network.bisq.mobile.presentation.ui.uicases.settings.GeneralSettingsScreen
 import network.bisq.mobile.presentation.ui.uicases.settings.IgnoredUsersScreen
-import network.bisq.mobile.presentation.ui.uicases.settings.PaymentAccountSettingsScreen
-import network.bisq.mobile.presentation.ui.uicases.settings.UserProfileSettingsScreen
-import network.bisq.mobile.presentation.ui.uicases.startup.AgreementScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.PaymentAccountsScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.ReputationScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.ResourcesScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.SettingsScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.SupportScreen
+import network.bisq.mobile.presentation.ui.uicases.settings.UserProfileScreen
 import network.bisq.mobile.presentation.ui.uicases.startup.CreateProfileScreen
 import network.bisq.mobile.presentation.ui.uicases.startup.OnBoardingScreen
 import network.bisq.mobile.presentation.ui.uicases.startup.SplashScreen
 import network.bisq.mobile.presentation.ui.uicases.startup.TrustedNodeSetupScreen
+import network.bisq.mobile.presentation.ui.uicases.startup.UserAgreementDisplayScreen
+import network.bisq.mobile.presentation.ui.uicases.startup.UserAgreementScreen
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferPaymentMethodScreen
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferReviewTradeScreen
 import network.bisq.mobile.presentation.ui.uicases.take_offer.TakeOfferSettlementMethodScreen
@@ -65,7 +67,7 @@ fun RootNavGraph(rootNavController: NavHostController) {
         addScreen(Routes.TrustedNodeSettings.name, content = { TrustedNodeSetupScreen(false) })
 
         val startupScreens: List<Pair<Routes, @Composable () -> Unit>> = listOf(
-            Routes.Agreement to { AgreementScreen() },
+            Routes.UserAgreement to { UserAgreementScreen() },
             Routes.Onboarding to { OnBoardingScreen() },
             Routes.CreateProfile to { CreateProfileScreen() },
             Routes.TrustedNodeSetup to { TrustedNodeSetupScreen() },
@@ -80,11 +82,14 @@ fun RootNavGraph(rootNavController: NavHostController) {
             Routes.OpenTrade to { OpenTradeScreen() },
             Routes.TradeChat to { TradeChatScreen() },
             Routes.ChatRules to { ChatRulesScreen() },
-            Routes.GeneralSettings to { GeneralSettingsScreen() },
-            Routes.UserProfileSettings to { UserProfileSettingsScreen() },
-            Routes.PaymentAccountSettings to { PaymentAccountSettingsScreen() },
+            Routes.Settings to { SettingsScreen() },
+            Routes.Support to { SupportScreen() },
+            Routes.Reputation to { ReputationScreen() },
+            Routes.UserProfile to { UserProfileScreen() },
+            Routes.PaymentAccounts to { PaymentAccountsScreen() },
             Routes.IgnoredUsers to { IgnoredUsersScreen() },
-            Routes.About to { AboutScreen() },
+            Routes.Resources to { ResourcesScreen() },
+            Routes.UserAgreementDisplay to { UserAgreementDisplayScreen() },
         )
         otherScreens.forEach{ (route, screen): Pair<Routes, @Composable () -> Unit> ->
             addScreen(

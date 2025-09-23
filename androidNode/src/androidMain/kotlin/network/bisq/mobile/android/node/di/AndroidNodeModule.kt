@@ -2,10 +2,9 @@ package network.bisq.mobile.android.node.di
 
 import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.NodeApplicationLifecycleService
-import network.bisq.mobile.android.node.presentation.NodeAboutPresenter
 import network.bisq.mobile.android.node.presentation.NodeDashboardPresenter
-import network.bisq.mobile.android.node.presentation.NodeGeneralSettingsPresenter
 import network.bisq.mobile.android.node.presentation.NodeMainPresenter
+import network.bisq.mobile.android.node.presentation.NodeMiscItemsPresenter
 import network.bisq.mobile.android.node.presentation.NodeOnBoardingPresenter
 import network.bisq.mobile.android.node.presentation.NodeSettingsPresenter
 import network.bisq.mobile.android.node.presentation.NodeSplashPresenter
@@ -26,6 +25,7 @@ import network.bisq.mobile.android.node.service.reputation.NodeReputationService
 import network.bisq.mobile.android.node.service.settings.NodeSettingsServiceFacade
 import network.bisq.mobile.android.node.service.trades.NodeTradesServiceFacade
 import network.bisq.mobile.android.node.service.user_profile.NodeUserProfileServiceFacade
+import network.bisq.mobile.android.node.utils.NodeVersionProvider
 import network.bisq.mobile.domain.AndroidUrlLauncher
 import network.bisq.mobile.domain.UrlLauncher
 import network.bisq.mobile.domain.service.accounts.AccountsServiceFacade
@@ -42,14 +42,14 @@ import network.bisq.mobile.domain.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.utils.AndroidDeviceInfoProvider
+import network.bisq.mobile.domain.utils.DeviceInfoProvider
+import network.bisq.mobile.domain.utils.VersionProvider
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.AppPresenter
 import network.bisq.mobile.presentation.ui.uicases.DashboardPresenter
-import network.bisq.mobile.presentation.ui.uicases.settings.AboutPresenter
-import network.bisq.mobile.presentation.ui.uicases.settings.GeneralSettingsPresenter
-import network.bisq.mobile.presentation.ui.uicases.settings.IAboutPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.IGeneralSettingsPresenter
-import network.bisq.mobile.presentation.ui.uicases.settings.ISettingsPresenter
+import network.bisq.mobile.presentation.ui.uicases.settings.MiscItemsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.SettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.IOnboardingPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.SplashPresenter
@@ -147,7 +147,6 @@ val androidNodeModule = module {
             get(),
             get(),
             get(),
-            get(),
         )
     }
 
@@ -164,11 +163,13 @@ val androidNodeModule = module {
         )
     }
 
-    single<SettingsPresenter> { NodeSettingsPresenter(get(), get(), get()) } bind ISettingsPresenter::class
+    single<MiscItemsPresenter> { NodeMiscItemsPresenter(get(), get(), get()) }
 
-    single<AboutPresenter> { NodeAboutPresenter(get()) } bind IAboutPresenter::class
+    single<DeviceInfoProvider> { AndroidDeviceInfoProvider(androidContext()) }
 
-    factory<GeneralSettingsPresenter> { NodeGeneralSettingsPresenter(get(), get(), get()) } bind IGeneralSettingsPresenter::class
+    single<VersionProvider> { NodeVersionProvider() }
+
+    factory<SettingsPresenter> { NodeSettingsPresenter(get(), get(), get()) } bind IGeneralSettingsPresenter::class
 
     single<IOnboardingPresenter> { NodeOnBoardingPresenter(get(), get(), get()) } bind IOnboardingPresenter::class
 }
