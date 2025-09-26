@@ -53,14 +53,17 @@ open class MainPresenter(
     override fun setTabGraphReady(ready: Boolean) { _isTabGraphReady.value = ready }
 
     // Observable state
-    private val _isContentVisible = MutableStateFlow(false)
-    override val isContentVisible: StateFlow<Boolean> get() = _isContentVisible.asStateFlow()
+    private val _isMainContentVisible = MutableStateFlow(false)
+    override val isMainContentVisible: StateFlow<Boolean> get() = _isMainContentVisible.asStateFlow()
 
     private val _isSmallScreen = MutableStateFlow(false)
     override val isSmallScreen: StateFlow<Boolean> get() = _isSmallScreen.asStateFlow()
 
     protected val _showAllConnectionsLostDialogue = MutableStateFlow(false)
     override val showAllConnectionsLostDialogue: StateFlow<Boolean> get() = _showAllConnectionsLostDialogue.asStateFlow()
+
+    protected val _showReconnectOverlay = MutableStateFlow(false)
+    override val showReconnectOverlay: StateFlow<Boolean> get() = _showReconnectOverlay.asStateFlow()
 
     final override val languageCode: StateFlow<String> get() = settingsService.languageCode
 
@@ -162,9 +165,8 @@ open class MainPresenter(
         openTradesNotificationService.stopNotificationService()
     }
 
-    // Toggle action
-    override fun toggleContentVisibility() {
-        _isContentVisible.value = !_isContentVisible.value
+    override fun setIsMainContentVisible(value: Boolean) {
+        _isMainContentVisible.value = value
     }
 
     override fun navigateToTrustedNode() {
