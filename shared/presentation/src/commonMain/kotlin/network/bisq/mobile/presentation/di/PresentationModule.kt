@@ -61,6 +61,7 @@ import network.bisq.mobile.presentation.ui.uicases.settings.ResourcesPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.SettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.SupportPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.UserProfilePresenter
+import network.bisq.mobile.presentation.ui.uicases.startup.ClientSplashPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.CreateProfilePresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.IAgreementPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.SplashPresenter
@@ -98,20 +99,18 @@ val presentationModule = module {
 
     single<BannerPresenter> { BannerPresenter(get(), get()) }
 
-    single<TopBarPresenter> { TopBarPresenter(get(), get(), get(), get()) } bind ITopBarPresenter::class
-
     single<SplashPresenter> {
-        SplashPresenter(
+        ClientSplashPresenter(
             get(),
             get(),
             get(),
             get(),
             get(),
             get(),
-            get(),
-            get()
         )
     }
+
+    single<TopBarPresenter> { TopBarPresenter(get(), get(), get(), get()) } bind ITopBarPresenter::class
 
     single<BannerPresenter> { BannerPresenter(get(), get()) }
 
