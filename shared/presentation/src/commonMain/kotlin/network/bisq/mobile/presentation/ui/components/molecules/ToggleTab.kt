@@ -100,10 +100,10 @@ fun <T> ToggleTab(
                     .offset(x = animatedOffset)
                     .width(animatedWidth)
                     .height(maxHeightDp)
-                    .background(BisqTheme.colors.primary, RoundedCornerShape(4.dp))
+                    .background(BisqTheme.colors.primaryDim, RoundedCornerShape(4.dp))
                     .wrapContentSize()
             ) {
-                BisqText.baseLight(
+                BisqText.baseRegular(
                     text = getDisplayString(selectedOption),
                     modifier = Modifier
                         .padding(horizontal = hPadding, vertical = vPadding)
@@ -135,7 +135,7 @@ fun <T> ToggleTab(
                             .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        BisqText.baseLight(
+                        BisqText.baseRegular(
                             text = getDisplayString(option),
                             textAlign = TextAlign.Center,
                             singleLine = singleLine

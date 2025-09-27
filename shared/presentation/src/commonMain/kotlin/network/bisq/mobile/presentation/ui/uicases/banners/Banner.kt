@@ -60,11 +60,20 @@ fun Banner() {
     )
 
     var shouldBeVisible by remember { mutableStateOf(false) }
+
+    // Show/hide immediately (no delay) while fetching
     LaunchedEffect(isMainContentVisible, allDataReceived, numConnections) {
         if (isMainContentVisible && !allDataReceived && numConnections > 0) {
             shouldBeVisible = true
-        } else {
-            delay(4000) // enforce hide delay even if it toggles rapidly
+        } else if (!allDataReceived) {
+            // Only hide immediately when still fetching
+            shouldBeVisible = false
+        }
+    }
+    // Hide with delay once all data has been received
+    LaunchedEffect(allDataReceived, shouldBeVisible) {
+        if (allDataReceived && shouldBeVisible) {
+            delay(4000)
             shouldBeVisible = false
         }
     }
