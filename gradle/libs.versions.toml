@@ -1,73 +1,83 @@
 [versions]
 
+# -------------------- Project Specific --------------------
 bisq-core = "2.1.7"
 bisq-core-commit = "d73864d095f6c1f143c853905d45bb7d297278c1"
-# API version is usually same as bisq-cor but for more control we keep it separated
+# API version is usually same as bisq-core but for more control we keep it separated
 #bisq-api = "2.1.7"
 
-kotlin = "2.0.20"
-kotlinReflect = "2.0.20"
-kotlinTestJunit = "2.0.20"
-kotlinx = "1.9.0" # latest stable
-kotlinxDatetime = "0.4.0" # latest stable
-kotlinxSerialization = "1.7.3"
-serializationPlugin = "2.0.20"
-ksp = "2.0.20-1.0.25"
+# -------------------- Kotlin & JetBrains --------------------
+kotlin = "2.2.10"
+kotlinx-coroutines = "1.10.2"
+kotlinx-datetime = "0.4.0"
+kotlinx-serialization = "1.9.0"
+atomicfu = "0.29.0"
+compose-plugin = "1.8.2"
+ksp = "2.2.10-2.0.2"
 
+# -------------------- Android --------------------
 #noinspection AndroidGradlePluginVersion - we need to stick to it based on https://developer.android.com/build/kotlin-support
-agp = "8.5.0"
+agp = "8.10.1"
 android-ndk = "26.1.10909125"
 android-compileSdk = "35"
 android-targetSdk = "35"
 android-minSdk = "24"
 # TODO analyse lowering back to API 31 when Bisq2 full J17 support is returned and we can get rid of desugaring
 android-node-minSdk = "33"
-
-# AndroidX Core Libraries
-androidx-core = "1.13.1"
-androidx-activityCompose = "1.9.2"
-androidx-lifecycle = "2.8.2"
-# AndroidX Testing Libraries
-androidx-test-compose-ver = "1.6.8"
-androidx-multidex = "2.0.1"
-androidx-test = "1.6.1"
-androidx-test-junit = "1.2.1"
-androidx-test-espresso= "3.6.1"
-androidx-appcompat = "1.7.0"
-androidx-constraintlayout = "2.1.4"
-androidx-core-ktx = "1.13.1"
-androidx-espresso-core = "3.6.1"
-androidx-material = "1.12.0"
-androidx-core-splashscreen = "1.0.1"
-androidx-datastore = "1.1.7"
-
 desugar_jdk_libs = "2.1.5"
-roboelectric = "4.10.3"
-atomicfu = "0.26.1"
-bignum-lib= "0.3.10"
-coilCompose = "3.0.3"
-compose-plugin = "1.7.0"
+android-mlkit-barcode-scanning = "17.3.0"
+
+# -------------------- AndroidX --------------------
+androidx-core = "1.16.0"
+androidx-activity-compose = "1.10.1"
+androidx-lifecycle = "2.9.2"
+androidx-multidex = "2.0.1"
+androidx-core-splashscreen = "1.0.1"
+androidx-navigation-compose = "2.7.0-alpha07"
+androidx-datastore = "1.1.7"
+androidx-camera = "1.5.0"
+
+# -------------------- UI / Compose --------------------
+compose-material-icons = "1.7.3"
+coil-compose = "3.3.0"
+
+# -------------------- Multiplatform Libraries --------------------
+bignum-lib = "0.3.10"
+# kmp-tor for embedded Tor support
+kmp-tor = "2.4.1"
+kmp-tor-resource = "408.17.0"
+kermit = "2.0.8"
+
+# -------------------- Testing --------------------
+androidx-test = "1.7.0"
+androidx-test-junit = "1.3.0"
+androidx-test-compose = "1.9.0"
+androidx-test-espresso = "3.7.0"
+robolectric = "4.10.3"
 junit = "4.13.2"
+mockk = "1.13.12"
 
+# -------------------- Networking --------------------
+ktor = "3.2.3"
+okio = "3.16.0"
 
-ktorClient = "3.0.1"
-mockio = "1.12.0"
-kermit = "2.0.4"
-buildconfig = "5.5.0"
-navigationCompose = "2.7.0-alpha07"
-okio = "3.9.1"
+# -------------------- Dependency Injection --------------------
+koin = "4.1.0"
+
+# -------------------- Build & Utilities --------------------
+buildconfig = "5.5.4"
 protobuf = "0.9.4"
 protob = "4.28.2"
 process-phoenix = "3.0.0"
 
+# -------------------- Bisq Core Transitive Dependencies --------------------
 chimp-jsocks-lib = { strictly = '567e1cd6' }
 failsafe-lib = { strictly = '3.2.4' }
-
 bouncycastle-lib = { strictly = '1.78.1' }
-
 google-guava-lib = { strictly = '33.2.1-jre' }
-
 apache-httpcomponents-httpclient-lib = { strictly = '4.5.14' } # 5.3.1 would be better but has lot of API changes
+lombok-lib = { strictly = '1.18.34' }
+typesafe-config-lib = { strictly = '1.4.3' }
 
 chimp-jtorctl-lib = { strictly = '9b5ba203' }
 apache-commons-lang-lib = { strictly = '3.14.0' }
@@ -82,78 +92,77 @@ i2p-lib = { strictly = '1.8.0' }
 i2p-v2 = { strictly = '2.4.0' }
 jackson-lib = { strictly = '2.17.2' }
 
-koin = "4.0.0"
-lombok-lib = { strictly = '1.18.34' }
-typesafe-config-lib = { strictly = '1.4.3' }
-
-
-
-# kmp-tor for embedded Tor support
-kmp-tor = "2.4.0"
-kmp-tor-resource = "408.16.4"
-
 [libraries]
-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
-coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coilCompose" }
-androidx-datastore-okio = { module = "androidx.datastore:datastore-core-okio", version.ref = "androidx-datastore" }
-desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
-jetbrains-kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinReflect" }
+# -------------------- Kotlin & JetBrains --------------------
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
-kotlin-test-junit-v180 = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlinTestJunit" }
-kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx" }
-kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx" }
-kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
-kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
-ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktorClient" }
-ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktorClient" }
-ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktorClient" }
-ktor-client-json = { module = "io.ktor:ktor-client-json", version.ref = "ktorClient" }
-ktor-client-serialization = { module = "io.ktor:ktor-client-serialization", version.ref = "ktorClient" }
-ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktorClient" }
-ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktorClient" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 
-mock-io = { module = "io.mockk:mockk", version.ref = "mockio" }
-junit = { group = "junit", name = "junit", version.ref = "junit" }
-androidx-multidex = { group = "androidx.multidex", name = "multidex", version.ref = "androidx-multidex" }
-androidx-test-compose = { group = "androidx.compose.ui", name = "ui-test-junit4-android", version.ref = "androidx-test-compose-ver" }
-androidx-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest", version.ref = "androidx-test-compose-ver" }
+# -------------------- Android & AndroidX --------------------
+androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "androidx-core-splashscreen" }
+androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-datastore-okio = { module = "androidx.datastore:datastore-core-okio", version.ref = "androidx-datastore" }
+androidx-multidex = { module = "androidx.multidex:multidex", version.ref = "androidx-multidex" }
+navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "androidx-navigation-compose" }
+desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
+android-mlkit-barcode-scanning = { module = "com.google.mlkit:barcode-scanning", version.ref = "android-mlkit-barcode-scanning" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "androidx-camera" }
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "androidx-camera" }
+androidx-camera-extensions = { module = "androidx.camera:camera-extensions", version.ref = "androidx-camera" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "androidx-camera" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "androidx-camera" }
 
-#kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
-androidx-core = { group = "androidx.core", name = "core", version.ref = "androidx-core" }
-androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "androidx-core-splashscreen" }
-#androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core-ktx" }
-roboelectric = { group = "org.robolectric", name = "robolectric", version.ref = "roboelectric" }
-androidx-test = { group = "androidx.test", name = "core", version.ref = "androidx-test" }
-androidx-test-espresso = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "androidx-test-espresso" }
-androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidx-test-junit" }
-#androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "androidx-espresso-core" }
-#androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidx-appcompat" }
-#androidx-material = { group = "com.google.android.material", name = "material", version.ref = "androidx-material" }
-#androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "androidx-constraintlayout" }
+# -------------------- UI / Compose --------------------
+compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "compose-material-icons" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil-compose" }
 
-androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
-androidx-lifecycle-viewmodel = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel", version.ref = "androidx-lifecycle" }
-androidx-lifecycle-runtime-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+# -------------------- Testing --------------------
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test" }
+androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }
+androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidx-test-espresso" }
+androidx-test-compose-junit4 = { module = "androidx.compose.ui:ui-test-junit4-android", version.ref = "androidx-test-compose" }
+androidx-test-compose-manifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "androidx-test-compose" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+junit = { module = "junit:junit", version.ref = "junit" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+mockk-common = { module = "io.mockk:mockk-common", version.ref = "mockk" }
+mockk-darwin = { module = "io.mockk:mockk-darwin", version.ref = "mockk" }
 
-bignum = { module = 'com.ionspin.kotlin:bignum', version.ref = 'bignum-lib' }
 
-logging-kermit = { group = "co.touchlab", name = "kermit", version.ref = "kermit" }
+# -------------------- Multiplatform Libraries --------------------
+logging-kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+kmp-tor-runtime = { module = "io.matthewnelson.kmp-tor:runtime", version.ref = "kmp-tor" }
+kmp-tor-resource-exec = { module = "io.matthewnelson.kmp-tor:resource-exec-tor-gpl", version.ref = "kmp-tor-resource" }
+bignum = { module = "com.ionspin.kotlin:bignum", version.ref = "bignum-lib" }
 
-lombok = { module = 'org.projectlombok:lombok', version.ref = 'lombok-lib' }
-
+# -------------------- Networking --------------------
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
-jetbrains-serialization-gradle-plugin = { module = "org.jetbrains.kotlin.plugin.serialization:org.jetbrains.kotlin.plugin.serialization.gradle.plugin", version.ref = "serializationPlugin" }
-typesafe-config = { module = 'com.typesafe:config', version.ref = 'typesafe-config-lib' }
 
-bouncycastle = { module = 'org.bouncycastle:bcprov-jdk18on', version.ref = 'bouncycastle-lib' }
-bouncycastle-pg = { module = 'org.bouncycastle:bcpg-jdk18on', version.ref = 'bouncycastle-lib' }
+# -------------------- Dependency Injection --------------------
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
+koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
+koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
 
-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
-protobuf-gradle-plugin = { module = 'com.google.protobuf:protobuf-gradle-plugin', version.ref = 'protobuf' }
+# -------------------- Utilities --------------------
 protoc = { module = "com.google.protobuf:protoc", version.ref = "protob" }
 process-phoenix = { module = "com.jakewharton:process-phoenix", version.ref = "process-phoenix" }
 
+# -------------------- Bisq Core Modules --------------------
 bisq-core-common = { module = "bisq:common", version.ref = "bisq-core" }
 bisq-core-security = { module = "bisq:security", version.ref = "bisq-core" }
 bisq-core-settings = { module = "bisq:settings", version.ref = "bisq-core" }
@@ -176,11 +185,22 @@ bisq-core-i18n = { module = "bisq:i18n", version.ref = "bisq-core" }
 bisq-core-identity = { module = "bisq:identity", version.ref = "bisq-core" }
 bisq-core-bisq-easy = { module = "bisq:bisq-easy", version.ref = "bisq-core" }
 
-# bisq core transitive dependencies
-chimp-jsocks = { module = 'com.github.chimp1984:jsocks', version.ref = 'chimp-jsocks-lib'  }
+# -------------------- Bisq Core Transitive Dependencies --------------------
+chimp-jsocks = { module = 'com.github.chimp1984:jsocks', version.ref = 'chimp-jsocks-lib' }
 failsafe = { module = 'dev.failsafe:failsafe', version.ref = 'failsafe-lib' }
 apache-httpcomponents-httpclient = { module = 'org.apache.httpcomponents:httpclient', version.ref = 'apache-httpcomponents-httpclient-lib' }
 google-guava = { module = 'com.google.guava:guava', version.ref = 'google-guava-lib' }
+lombok = { module = 'org.projectlombok:lombok', version.ref = 'lombok-lib' }
+typesafe-config = { module = 'com.typesafe:config', version.ref = 'typesafe-config-lib' }
+bouncycastle = { module = 'org.bouncycastle:bcprov-jdk18on', version.ref = 'bouncycastle-lib' }
+bouncycastle-pg = { module = 'org.bouncycastle:bcpg-jdk18on', version.ref = 'bouncycastle-lib' }
+
+#kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+#androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core-ktx" }
+#androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "androidx-espresso-core" }
+#androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidx-appcompat" }
+#androidx-material = { group = "com.google.android.material", name = "material", version.ref = "androidx-material" }
+#androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "androidx-constraintlayout" }
 
 #chimp-jtorctl = { module = 'com.github.chimp1984:jtorctl', version.ref = 'chimp-jtorctl-lib' }
 #apache-commons-lang = { module = 'org.apache.commons:commons-lang3', version.ref = 'apache-commons-lang-lib' }
@@ -191,35 +211,24 @@ google-guava = { module = 'com.google.guava:guava', version.ref = 'google-guava-
 #glassfish-jersey-json-jackson = { module = 'org.glassfish.jersey.media:jersey-media-json-jackson', version.ref = 'glassfish-jersey-lib' }
 #glassfish-jersey-inject-hk2 = { module = 'org.glassfish.jersey.inject:jersey-hk2', version.ref = 'glassfish-jersey-lib' }
 #glassfish-jaxb-runtime = { module = 'org.glassfish.jaxb:jaxb-runtime', version.ref = 'glassfish-jaxb-runtime-lib' }
-#
+
 #google-gson = { module = 'com.google.code.gson:gson', version.ref = 'google-gson-lib' }
 
 #grpc-netty-shaded = { module = 'io.grpc:grpc-netty-shaded', version.ref = 'grpc' }
 #grpc-protobuf = { module = 'io.grpc:grpc-protobuf', version.ref = 'grpc' }
 #grpc-services = { module = 'io.grpc:grpc-services', version.ref = 'grpc' }
 #grpc-stub = { module = 'io.grpc:grpc-stub', version.ref = 'grpc' }
-#
-#
+
+
 #i2p-core = { module = 'net.i2p:i2p', version.ref = 'i2p-lib' }
 #i2p-core-v2 = { module = 'net.i2p:i2p', version.ref = 'i2p-v2' }
 #i2p-streaming = { module = 'net.i2p.client:streaming', version.ref = 'i2p-lib' }
 #i2p-streaming-v2 = { module = 'net.i2p.client:streaming', version.ref = 'i2p-v2' }
 #i2p-router = { module = 'net.i2p:router', version.ref = 'i2p-lib' }
-#
+
 #jackson-core = { module = 'com.fasterxml.jackson.core:jackson-core', version.ref = 'jackson-lib' }
 #jackson-annotations = { module = 'com.fasterxml.jackson.core:jackson-annotations', version.ref = 'jackson-lib' }
 #jackson-databind = { module = 'com.fasterxml.jackson.core:jackson-databind', version.ref = 'jackson-lib' }
-
-# koin
-koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
-koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
-koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
-koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
-
-# kmp-tor
-kmp-tor-runtime = { module = "io.matthewnelson.kmp-tor:runtime", version.ref = "kmp-tor" }
-kmp-tor-resource-exec = { module = "io.matthewnelson.kmp-tor:resource-exec-tor-gpl", version.ref = "kmp-tor-resource" }
-
 
 [bundles]
 #glassfish-jersey = ['glassfish-jersey-jdk-http', 'glassfish-jersey-json-jackson', 'glassfish-jersey-inject-hk2', 'glassfish-jaxb-runtime']
@@ -227,14 +236,16 @@ kmp-tor-resource-exec = { module = "io.matthewnelson.kmp-tor:resource-exec-tor-g
 #i2p = ['i2p-core', 'i2p-router', 'i2p-streaming']
 #i2p-v2 = ['i2p-core-v2', 'i2p-streaming-v2']
 #jackson = ['jackson-core', 'jackson-annotations', 'jackson-databind']
+camera = ["androidx-camera-core", "androidx-camera-lifecycle", "androidx-camera-camera2", "androidx-camera-view", "androidx-camera-extensions"]
 
 [plugins]
-kotlinCocoapods = { id = "org.jetbrains.kotlin.native.cocoapods", version.ref = "kotlin" }
-androidApplication = { id = "com.android.application", version.ref = "agp" }
-androidLibrary = { id = "com.android.library", version.ref = "agp" }
-jetbrainsCompose = { id = "org.jetbrains.compose", version.ref = "compose-plugin" }
+kotlin-cocoapods = { id = "org.jetbrains.kotlin.native.cocoapods", version.ref = "kotlin" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+jetbrains-compose = { id = "org.jetbrains.compose", version.ref = "compose-plugin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 buildconfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildconfig" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf" }
-ksp = { id = "com.google.devtools.ksp", version.ref="ksp" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
