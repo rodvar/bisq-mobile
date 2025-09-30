@@ -1,28 +1,28 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSetTree
 
 plugins {
-    alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.kotlinCocoapods)
-    alias(libs.plugins.androidLibrary)
-    alias(libs.plugins.jetbrainsCompose)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.cocoapods)
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.jetbrains.compose)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
 }
 
 dependencies {
-    androidTestImplementation(libs.androidx.test.compose)
-    androidTestImplementation(libs.androidx.test.manifest)
+    androidTestImplementation(libs.androidx.test.compose.junit4)
+    androidTestImplementation(libs.androidx.test.compose.manifest)
+    debugImplementation(compose.uiTooling)
 }
 
 version = project.findProperty("shared.version") as String
 
 kotlin {
     androidTarget {
-        compilations.all {
-            kotlinOptions {
-                jvmTarget = "1.8"
-            }
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_1_8)
         }
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         instrumentedTestVariant.sourceSetTree.set(KotlinSourceSetTree.test)
@@ -59,7 +59,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.logging.kermit)
-            implementation(libs.kotlinx.coroutines)
+            implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)
             
             implementation(libs.koin.core)
@@ -73,19 +73,18 @@ kotlin {
             implementation(libs.koin.android)
         }
         androidUnitTest.dependencies {
-            implementation(libs.mock.io)
-            implementation(libs.kotlin.test.junit.v180)
+            implementation(libs.mockk)
+            implementation(libs.kotlin.test.junit)
             implementation(libs.junit)
 
-            implementation(libs.roboelectric)
-            implementation(libs.androidx.test)
-            implementation(libs.androidx.test.espresso)
+            implementation(libs.robolectric)
+            implementation(libs.androidx.test.core)
+            implementation(libs.androidx.test.espresso.core)
             implementation(libs.androidx.test.junit)
         }
         val commonTest by getting {
             dependencies {
                 implementation(libs.kotlin.test)
-//                implementation(kotlin("test"))
                 @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
                 implementation(compose.uiTest)
             }
@@ -95,9 +94,9 @@ kotlin {
 
 android {
     namespace = "network.bisq.mobile.shared.presentation"
-    compileSdk = 34
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig {
-        minSdk = 24
+        minSdk = libs.versions.android.minSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
