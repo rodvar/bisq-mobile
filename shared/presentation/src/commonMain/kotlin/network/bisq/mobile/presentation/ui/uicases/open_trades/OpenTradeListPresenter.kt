@@ -4,16 +4,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.update
 import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
-import network.bisq.mobile.i18n.i18n
 
 
 class OpenTradeListPresenter(
@@ -32,8 +32,7 @@ class OpenTradeListPresenter(
     val tradeGuideVisible: StateFlow<Boolean> get() = _tradeGuideVisible.asStateFlow()
     val tradesWithUnreadMessages: StateFlow<Map<String, Int>> get() = mainPresenter.tradesWithUnreadMessages
 
-    private val _avatarMap: MutableStateFlow<Map<String, PlatformImage?>> = MutableStateFlow(emptyMap())
-    val avatarMap: StateFlow<Map<String, PlatformImage?>> get() = _avatarMap.asStateFlow()
+    val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage get() = userProfileServiceFacade::getUserProfileIcon
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -48,12 +47,9 @@ class OpenTradeListPresenter(
                 _sortedOpenTradeItems.value = openTrades.sortedByDescending { it.bisqEasyTradeModel.takeOfferDate }
             }
         }
-
-        launchAvatarLoaderJob()
     }
 
     override fun onViewUnattaching() {
-        _avatarMap.update { emptyMap() }
         super.onViewUnattaching()
     }
 
@@ -83,23 +79,6 @@ class OpenTradeListPresenter(
 
     fun onNavigateToOfferbook() {
         navigateToTab(Routes.TabOfferbook)
-    }
-
-    fun launchAvatarLoaderJob() {
-        launchIO {
-            tradesServiceFacade.openTradeItems.collect { trades ->
-                trades.forEach { trade ->
-                    val userProfile = trade.peersUserProfile
-                    if (_avatarMap.value[userProfile.nym] == null) {
-                        val currentAvatarMap = _avatarMap.value.toMutableMap()
-                        currentAvatarMap[userProfile.nym] = userProfileServiceFacade.getUserAvatar(
-                            userProfile
-                        )
-                        _avatarMap.value = currentAvatarMap
-                    }
-                }
-            }
-        }
     }
 
     private fun navigateToOpenTrade(openTradeItem: TradeItemPresentationModel) {

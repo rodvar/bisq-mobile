@@ -54,8 +54,6 @@ fun OpenTradeListScreen() {
     val tradesWithUnreadMessages by presenter.tradesWithUnreadMessages.collectAsState()
     val sortedOpenTradeItems by presenter.sortedOpenTradeItems.collectAsState()
 
-    val userAvatarMap by presenter.avatarMap.collectAsState()
-
     if (tradeGuideVisible) {
         InformationConfirmationDialog(
             message = "bisqEasy.tradeGuide.notConfirmed.warn".i18n(),
@@ -88,7 +86,7 @@ fun OpenTradeListScreen() {
                         modifier = Modifier.clip(shape = RoundedCornerShape(12.dp))
                             .background(color = BisqTheme.colors.dark_grey30)
                             .padding(12.dp),
-                        ) {
+                    ) {
                         WelcomeToFirstTradePane(presenter)
                     }
                 }
@@ -111,23 +109,22 @@ fun OpenTradeListScreen() {
                     OpenTradeListItem(
                         trade,
                         unreadCount = tradesWithUnreadMessages.getOrElse(trade.tradeId) { 0 },
-                        userAvatar = userAvatarMap[trade.peersUserProfile.nym],
+                        userProfileIconProvider = presenter.userProfileIconProvider,
                         onSelect = { presenter.onSelect(trade) }
                     )
                 }
             }
-        //}
         } else {
             LazyColumn(
                 // modifier = Modifier.padding(top = 48.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
+            ) {
                 items(sortedOpenTradeItems, key = { it.tradeId }) { trade ->
                     OpenTradeListItem(
                         trade,
                         unreadCount = tradesWithUnreadMessages.getOrElse(trade.tradeId) { 0 },
-                        userAvatar = userAvatarMap[trade.peersUserProfile.nym],
+                        userProfileIconProvider = presenter.userProfileIconProvider,
                         onSelect = { presenter.onSelect(trade) }
                     )
                 }

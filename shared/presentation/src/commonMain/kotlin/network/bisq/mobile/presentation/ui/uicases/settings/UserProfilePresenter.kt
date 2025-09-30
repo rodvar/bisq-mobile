@@ -1,7 +1,6 @@
 package network.bisq.mobile.presentation.ui.uicases.settings
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +17,6 @@ import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
-import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.utils.DateUtils
@@ -30,27 +28,24 @@ import network.bisq.mobile.presentation.MainPresenter
 class UserProfilePresenter(
     private val userProfileServiceFacade: UserProfileServiceFacade,
     private val reputationServiceFacade: ReputationServiceFacade,
-    private val userRepository: UserRepository,
     mainPresenter: MainPresenter
 ) : BasePresenter(mainPresenter), IUserProfilePresenter {
 
     companion object Companion {
+        // We use 120.dp here, so we want the max size with 300 px for good resolution
+        const val iconSize = 300
         /**
          * Get localized "N/A" value
          */
         fun getLocalizedNA(): String = "data.na".i18n()
     }
 
-    private val selectedUserProfile: Flow<UserProfileVO?>
-        get() =
-            userProfileServiceFacade.selectedUserProfile
+    override val selectedUserProfile: StateFlow<UserProfileVO?> get() = userProfileServiceFacade.selectedUserProfile
+    override val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage
+        get() = { userProfile ->
+            userProfileServiceFacade.getUserProfileIcon(userProfile, iconSize)
+        }
 
-    override val uniqueAvatar: StateFlow<PlatformImage?> =
-        userRepository.data.map { it.uniqueAvatar }.stateIn(
-            presenterScope,
-            SharingStarted.Lazily,
-            null,
-        )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override val reputation: StateFlow<String> = selectedUserProfile

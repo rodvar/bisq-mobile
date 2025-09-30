@@ -32,6 +32,7 @@ import network.bisq.mobile.domain.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
 import network.bisq.mobile.domain.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
 import network.bisq.mobile.domain.data.replicated.chat.reactions.ReactionEnum
+import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.molecules.JumpToBottomFloatingButton
@@ -48,7 +49,7 @@ fun ChatMessageList(
     ignoredUserIds: Set<String>,
     showChatRulesWarnBox: Boolean,
     readCount: Int,
-    avatarMap: Map<String, PlatformImage?> = emptyMap(),
+    userProfileIconProvider: () -> suspend (UserProfileVO) -> PlatformImage,
     onAddReaction: (BisqEasyOpenTradeMessageModel, ReactionEnum) -> Unit = { message: BisqEasyOpenTradeMessageModel, reaction: ReactionEnum -> },
     onRemoveReaction: (BisqEasyOpenTradeMessageModel, BisqEasyOpenTradeMessageReactionVO) -> Unit = { message: BisqEasyOpenTradeMessageModel, reaction: BisqEasyOpenTradeMessageReactionVO -> },
     onReply: (BisqEasyOpenTradeMessageModel) -> Unit = {},
@@ -78,7 +79,7 @@ fun ChatMessageList(
 
     var initialReadCount by remember { mutableStateOf(readCount) }
 
-    val unreadMarkerIndex = remember(messages,initialReadCount, canScrollDown) {
+    val unreadMarkerIndex = remember(messages, initialReadCount, canScrollDown) {
         if (canScrollDown) {
             (messages.size - initialReadCount).coerceIn(0, messages.size)
         } else {
@@ -133,6 +134,8 @@ fun ChatMessageList(
                 durationMillis = 100,
                 easing = FastOutSlowInEasing
             )
+
+            val userProfileIconProvider = remember(userProfileIconProvider) { userProfileIconProvider() }
 
             LazyColumn(
                 reverseLayout = true,
@@ -192,7 +195,7 @@ fun ChatMessageList(
                         else -> {
                             TextMessageBox(
                                 message = message,
-                                userAvatar = avatarMap.get(message.senderUserProfile.nym),
+                                userProfileIconProvider = userProfileIconProvider,
                                 onScrollToMessage = { id ->
                                     val index = messages.indexOfFirst { it.id == id }
                                     if (index >= 0) {

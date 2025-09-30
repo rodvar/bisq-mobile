@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.data.IODispatcher
@@ -64,6 +63,8 @@ class OfferbookPresenter(
 
     val selectedMarket get() = marketPriceServiceFacade.selectedMarketPriceItem
 
+    val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage get() = userProfileServiceFacade::getUserProfileIcon
+
     var notEnoughReputationHeadline: String = ""
     var notEnoughReputationMessage: String = ""
     var isReputationWarningForSellerAsTaker: Boolean = false
@@ -71,11 +72,6 @@ class OfferbookPresenter(
     private var selectedOffer: OfferItemPresentationModel? = null
 
     lateinit var selectedUserProfile: UserProfileVO
-
-    private val _avatarMap: MutableStateFlow<Map<String, PlatformImage?>> = MutableStateFlow(
-        emptyMap()
-    )
-    val avatarMap: StateFlow<Map<String, PlatformImage?>> get() = _avatarMap.asStateFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onViewAttached() {
@@ -139,11 +135,6 @@ class OfferbookPresenter(
         }
     }
 
-    override fun onViewUnattaching() {
-        _avatarMap.update { emptyMap() }
-        super.onViewUnattaching()
-    }
-
     private suspend fun processAllOffers(
         offers: List<OfferItemPresentationModel>
     ): List<OfferItemPresentationModel> = withContext(IODispatcher) {
@@ -192,8 +183,6 @@ class OfferbookPresenter(
             item.isInvalidDueToReputation = isInvalid
         }
 
-        ensureAvatarLoaded(item.makersUserProfile)
-
         return item
     }
 
@@ -240,14 +229,6 @@ class OfferbookPresenter(
     fun onDismissDeleteOffer() {
         _showDeleteConfirmation.value = false
         deselectOffer()
-    }
-
-    private suspend fun ensureAvatarLoaded(userProfile: UserProfileVO) = withContext(IODispatcher) {
-        val nym = userProfile.nym
-        if (_avatarMap.value[nym] == null) {
-            val image = userProfileServiceFacade.getUserAvatar(userProfile)
-            _avatarMap.update { it + (nym to image) }
-        }
     }
 
     private fun takeOffer() {

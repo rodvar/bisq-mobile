@@ -26,6 +26,7 @@ import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.mirror
 import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferItemPresentationModel
+import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.utils.StringUtils.truncate
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.AutoResizeText
@@ -42,8 +43,8 @@ import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 @Composable
 fun OfferCard(
     item: OfferItemPresentationModel,
-    userAvatar: PlatformImage? = null,
     onSelectOffer: () -> Unit,
+    userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage
 ) {
     val userName by item.userName.collectAsState()
     val sellColor = BisqTheme.colors.danger.copy(alpha = 0.8f)
@@ -55,7 +56,7 @@ fun OfferCard(
     val directionalLabelColor: Color
     val makersDirection = item.bisqEasyOffer.direction
     val takersDirection = makersDirection.mirror
-    
+
     if (isMyOffer) {
         directionalLabel = "mobile.bisqEasy.offerbook.offerCard.offerToBTC".i18n(makersDirection.displayString)
         directionalLabelColor = myOfferColor
@@ -73,10 +74,10 @@ fun OfferCard(
     val invalidOfferBackgroundColor = BisqTheme.colors.dark_grey50.copy(alpha = 0.4f)
     val backgroundColor = when {
         isMyOffer -> myOfferBackgroundColor
-        item.isInvalidDueToReputation-> invalidOfferBackgroundColor
+        item.isInvalidDueToReputation -> invalidOfferBackgroundColor
         else -> BisqTheme.colors.dark_grey50.copy(alpha = 0.9f)
     }
-    
+
     val height = 150.dp
     val maxUsernameChars = 24
 
@@ -96,8 +97,8 @@ fun OfferCard(
         horizontalArrangement = Arrangement.Start
     ) {
         UserProfile(
-            user = item.makersUserProfile,
-            userAvatar = userAvatar,
+            userProfile = item.makersUserProfile,
+            userProfileIconProvider = userProfileIconProvider,
             reputation = item.makersReputationScore,
             supportedLanguageCodes = item.bisqEasyOffer.supportedLanguageCodes,
             showUserName = false,
@@ -140,8 +141,10 @@ fun OfferCard(
                         textStyle = BisqTheme.typography.smallRegular,
                         maxLines = 2,
                         modifier = BisqModifier
-                            .textHighlight(BisqTheme.colors.dark_grey10
-                                .copy(alpha = 0.4f),  BisqTheme.colors.mid_grey10)
+                            .textHighlight(
+                                BisqTheme.colors.dark_grey10
+                                    .copy(alpha = 0.4f), BisqTheme.colors.mid_grey10
+                            )
                             .padding(top = 4.dp, bottom = 2.dp)
                             .align(Alignment.CenterVertically),
                     )

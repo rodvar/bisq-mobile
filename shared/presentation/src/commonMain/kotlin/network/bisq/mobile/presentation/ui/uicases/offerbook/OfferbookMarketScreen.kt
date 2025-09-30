@@ -9,13 +9,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVOExtensions.marketCodes
-import network.bisq.mobile.presentation.ui.components.CurrencyCard
+import network.bisq.mobile.presentation.ui.components.MarketCard
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.icons.GreenSortIcon
@@ -42,6 +42,7 @@ fun OfferbookMarketScreen() {
 
     val marketItems by presenter.marketListItemWithNumOffers.collectAsState()
     val filter by presenter.filter.collectAsState()
+    val sortBy by presenter.sortBy.collectAsState()
 
     BisqStaticLayout(
         contentPadding = PaddingValues(all = BisqUIConstants.Zero),
@@ -71,14 +72,24 @@ fun OfferbookMarketScreen() {
 
         BisqGap.V1()
 
-        // Simple, release-compatible list without scroll/identity tricks
-        LazyColumn {
-            items(marketItems, key = { it.market.marketCodes }) { item ->
-                CurrencyCard(
-                    item = item,
-                    hasIgnoredUsers = hasIgnoredUsers,
-                    onClick = { presenter.onSelectMarket(item) }
-                )
+        // Give the list a new identity when filter/sort changes so scroll resets to top
+        key(filter, sortBy) {
+            val listState = rememberLazyListState()
+            val firstKey = marketItems.firstOrNull()?.market?.marketCodes
+            // Scroll to top after the new sorted/filtered content is applied
+            LaunchedEffect(firstKey) {
+                if (firstKey != null) {
+                    listState.scrollToItem(0)
+                }
+            }
+            LazyColumn(state = listState) {
+                items(marketItems, key = { it.market.marketCodes }) { item ->
+                    MarketCard(
+                        item = item,
+                        hasIgnoredUsers = hasIgnoredUsers,
+                        onClick = { presenter.onSelectMarket(item) }
+                    )
+                }
             }
         }
 

@@ -19,14 +19,13 @@ import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.mapping.Mappings
 import network.bisq.mobile.android.node.service.AndroidNodeCatHashService
 import network.bisq.mobile.domain.PlatformImage
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import java.security.KeyPair
-import java.util.Base64
 import java.util.Random
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
 import kotlin.math.min
 
@@ -41,9 +40,6 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
 
     companion object {
         private const val AVATAR_VERSION = 0
-
-        // Image size > 60px would not get cached
-        private const val DEFAULT_SIZE = 60
     }
 
     // Dependencies
@@ -63,8 +59,6 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
 
     private val _numUserProfiles = MutableStateFlow(0)
     override val numUserProfiles: StateFlow<Int> get() = _numUserProfiles.asStateFlow()
-
-    private val avatarMap = ConcurrentHashMap<String, PlatformImage?>()
 
     // Misc
     private var pubKeyHash: ByteArray? = null
@@ -97,7 +91,6 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
         numUserProfilesPin?.unbind()
         numUserProfilesPin = null
         _numUserProfiles.value = 0
-        avatarMap.clear()
         super<ServiceFacade>.deactivate()
     }
 
@@ -191,10 +184,34 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
         return ids.mapNotNull { id -> findUserProfile(id) }
     }
 
-    override suspend fun getUserAvatar(userProfile: UserProfileVO): PlatformImage? {
-        val key = "${userProfile.id}-v${userProfile.avatarVersion}"
-        avatarMap[key]?.let { return it }
-        return generateCatHash(key, userProfile)
+    override suspend fun getUserProfileIcon(userProfile: UserProfileVO): PlatformImage {
+        return getUserProfileIcon(userProfile, AndroidNodeCatHashService.DEFAULT_SIZE)
+    }
+
+    override suspend fun getUserProfileIcon(userProfile: UserProfileVO, size: Number): PlatformImage {
+        return try {
+            // In case we create the image we want to run it in IO context.
+            // We cache the images in the catHashService if its <=120 px
+            withContext(IODispatcher) {
+                val ts = System.currentTimeMillis()
+                catHashService.getImage(
+                    Mappings.UserProfileMapping.toBisq2Model(userProfile),
+                    size.toDouble()
+                ).also {
+                    log.d { "Get userProfileIcon for ${userProfile.userName} took ${System.currentTimeMillis() - ts} ms. User profile ID=${userProfile.id}" }
+                }
+            }
+        } catch (e: Exception) {
+            log.e(e) { "Failed to get user profile icon; returning fallback" }
+            fallbackProfileImage()
+        }
+    }
+
+    private fun fallbackProfileImage(): PlatformImage {
+        // 1x1 transparent PNG
+        val base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y0iYy0AAAAASUVORK5CYII="
+        val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+        return PlatformImage.deserialize(bytes)
     }
 
     override suspend fun getUserPublishDate(): Long {
@@ -203,28 +220,6 @@ class NodeUserProfileServiceFacade(private val applicationService: AndroidApplic
 
     override suspend fun userActivityDetected() {
         userService.republishUserProfileService.userActivityDetected()
-    }
-
-    private suspend fun generateCatHash(
-        key: String,
-        userProfile: UserProfileVO
-    ): PlatformImage? {
-        return withContext(Dispatchers.IO) {
-            avatarMap.computeIfAbsent(key) {
-                try {
-                    log.d { "Generating avatar for ${userProfile.nym} on background thread" }
-                    catHashService.getImage(
-                        Base64.getDecoder().decode(userProfile.networkId.pubKey.hash),
-                        Base64.getDecoder().decode(userProfile.proofOfWork.solutionEncoded),
-                        userProfile.avatarVersion,
-                        DEFAULT_SIZE.toDouble()
-                    )
-                } catch (e: Exception) {
-                    log.e(e) { "Avatar generation failed for ${userProfile.nym}" }
-                    null
-                }
-            }
-        }
     }
 
     // Private

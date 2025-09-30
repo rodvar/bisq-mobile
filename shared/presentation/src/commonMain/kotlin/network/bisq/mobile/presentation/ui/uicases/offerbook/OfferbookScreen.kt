@@ -37,7 +37,6 @@ fun OfferbookScreen() {
     val selectedDirection by presenter.selectedDirection.collectAsState()
     val showDeleteConfirmation by presenter.showDeleteConfirmation.collectAsState()
     val showNotEnoughReputationDialog by presenter.showNotEnoughReputationDialog.collectAsState()
-    val userAvatarMap by presenter.avatarMap.collectAsState()
     val isInteractive by presenter.isInteractive.collectAsState()
     val selectedMarket by presenter.selectedMarket.collectAsState()
 
@@ -79,7 +78,7 @@ fun OfferbookScreen() {
                     onSelectOffer = {
                         presenter.onOfferSelected(item)
                     },
-                    userAvatar = userAvatarMap[item.makersUserProfile.nym]
+                    userProfileIconProvider = presenter.userProfileIconProvider
                 )
             }
         }

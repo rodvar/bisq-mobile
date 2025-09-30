@@ -10,16 +10,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.websocket.subscription.WebSocketEventPayload
 import network.bisq.mobile.domain.PlatformImage
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.utils.hexToByteArray
-import okio.ByteString.Companion.decodeBase64
 import kotlin.concurrent.Volatile
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.max
@@ -31,7 +32,6 @@ class ClientUserProfileServiceFacade(
     private val clientCatHashService: ClientCatHashService<PlatformImage>,
     private val json: Json
 ) : ServiceFacade(), UserProfileServiceFacade {
-
     private var keyMaterialResponse: KeyMaterialResponse? = null
 
     // Properties
@@ -40,9 +40,6 @@ class ClientUserProfileServiceFacade(
 
     private val _numUserProfiles = MutableStateFlow(0)
     override val numUserProfiles: StateFlow<Int> get() = _numUserProfiles.asStateFlow()
-
-    private val avatarMap: MutableMap<String, PlatformImage?> = mutableMapOf<String, PlatformImage?>()
-    private val avatarMapMutex = Mutex()
 
     private val _ignoredUserIds: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())
     override val ignoredProfileIds: StateFlow<Set<String>> get() = _ignoredUserIds.asStateFlow()
@@ -115,7 +112,10 @@ class ClientUserProfileServiceFacade(
         val pubKeyHash: ByteArray = preparedData.id.hexToByteArray()
         val solutionEncoded = preparedData.proofOfWork.solutionEncoded
         val image: PlatformImage? = clientCatHashService.getImage(
-            pubKeyHash, solutionEncoded.decodeBase64Bytes(), 0, imageSize
+            pubKeyHash,
+            solutionEncoded.decodeBase64Bytes(),
+            0,
+            imageSize
         )
 
         result(preparedData.id, preparedData.nym, image)
@@ -214,21 +214,35 @@ class ClientUserProfileServiceFacade(
         delay(delayDuration)
     }
 
-    override suspend fun getUserAvatar(userProfile: UserProfileVO): PlatformImage? =
-        avatarMapMutex.withLock {
-            if (avatarMap[userProfile.nym] == null) {
-                val avatar = try {
-                    val pubKeyHash = userProfile.networkId.pubKey.hash.decodeBase64()!!.toByteArray()
-                    val powSolution = userProfile.proofOfWork.solutionEncoded.decodeBase64()!!.toByteArray()
-                    clientCatHashService.getImage(pubKeyHash, powSolution, userProfile.avatarVersion, 120)
-                } catch (e: Exception) {
-                    log.e(e) { "Avatar generation failed for ${userProfile.nym}" }
-                    null
+    override suspend fun getUserProfileIcon(userProfile: UserProfileVO): PlatformImage {
+        return getUserProfileIcon(userProfile, ClientCatHashService.DEFAULT_SIZE)
+    }
+
+    override suspend fun getUserProfileIcon(userProfile: UserProfileVO, size: Number): PlatformImage {
+        return try {
+            // In case we create the image we want to run it in IO context.
+            // We cache the images in the catHashService if its <=120 px
+            withContext(IODispatcher) {
+                val ts = Clock.System.now().toEpochMilliseconds()
+                clientCatHashService.getImage(userProfile, size.toInt()).also {
+                    log.d {
+                        "Get userProfileIcon for ${userProfile.userName} took ${Clock.System.now().toEpochMilliseconds() - ts} ms. User profile ID=${userProfile.id}"
+                    }
                 }
-                avatarMap[userProfile.nym] = avatar
             }
-            return avatarMap[userProfile.nym]
+        } catch (e: Exception) {
+            log.e(e) { "Failed to get user profile icon; returning fallback" }
+            fallbackProfileImage()
         }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun fallbackProfileImage(): PlatformImage {
+        // 1x1 transparent PNG
+        val base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y0iYy0AAAAASUVORK5CYII="
+        val bytes = kotlin.io.encoding.Base64.decode(base64)
+        return PlatformImage.deserialize(bytes)
+    }
 
     override suspend fun getUserPublishDate(): Long {
         return selectedUserProfile.value?.publishDate ?: 0L
