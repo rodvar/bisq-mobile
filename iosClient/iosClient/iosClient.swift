@@ -1,6 +1,5 @@
 import SwiftUI
 import presentation
-import shared
 import UIKit
 import UserNotifications
 
@@ -32,11 +31,23 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 }
 
 class NotificationServiceWrapper: ObservableObject {
-    @Published var notificationServiceController: DomainNotificationServiceController
+    @Published var foregroundServiceController: any ForegroundServiceController
 
     init() {
-        self.notificationServiceController = get()
-        self.notificationServiceController.registerBackgroundTask()
+        print("KMP: NotificationServiceWrapper init - attempting to resolve ForegroundServiceController")
+        print("KMP: Koin instance: \(DependenciesProviderHelper.companion.koin)")
+
+        // Try to get the implementation class directly instead of the protocol
+        print("KMP: Attempting to resolve ForegroundServiceControllerImpl directly")
+        self.foregroundServiceController = get(ForegroundServiceControllerImpl.self)
+        print("KMP: ForegroundServiceController resolved successfully")
+
+        // Cast to implementation to access registerBackgroundTask
+        if let impl = self.foregroundServiceController as? ForegroundServiceControllerImpl {
+            print("KMP: Registering background task")
+            impl.registerBackgroundTask()
+            print("KMP: Background task registered")
+        }
     }
 }
 
@@ -45,10 +56,14 @@ struct iosClient: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
 //    @Environment(\.scenePhase) var scenePhase
-    @StateObject var notificationServiceWrapper = NotificationServiceWrapper()
+    @StateObject var notificationServiceWrapper: NotificationServiceWrapper = {
+        // Initialize Koin before creating NotificationServiceWrapper
+        DependenciesProviderHelper().doInitKoin()
+        return NotificationServiceWrapper()
+    }()
 
     init() {
-        DependenciesProviderHelper().doInitKoin()
+        // Koin is already initialized in the @StateObject closure above
     }
 
     var body: some Scene {

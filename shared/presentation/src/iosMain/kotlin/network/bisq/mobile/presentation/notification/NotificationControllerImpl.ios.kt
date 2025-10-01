@@ -4,6 +4,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import network.bisq.mobile.domain.service.ForegroundDetector
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.presentation.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.notification.model.NotificationPressAction
@@ -22,7 +23,7 @@ import platform.UserNotifications.UNUserNotificationCenter
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-class NotificationControllerImpl : NotificationController, Logging {
+class NotificationControllerImpl( private val foregroundDetector: ForegroundDetector) : NotificationController, Logging {
     private val logScope = CoroutineScope(Dispatchers.Main)
 
     @OptIn(ExperimentalForeignApi::class)
@@ -80,10 +81,7 @@ class NotificationControllerImpl : NotificationController, Logging {
     }
 
 
-    override fun isAppInForeground(): Boolean {
-        // for iOS we handle this externally
-        return false
-    }
+    override fun isAppInForeground(): Boolean = foregroundDetector.isForeground.value
 
     private fun logDebug(message: String) {
         logScope.launch { // (Dispatchers.Main)

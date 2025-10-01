@@ -12,13 +12,14 @@ import bisq.common.network.clear_net_address_types.AndroidEmulatorAddressTypeFac
 import bisq.common.network.clear_net_address_types.LANAddressTypeFacade
 import kotlinx.coroutines.runBlocking
 import network.bisq.mobile.android.node.di.androidNodeModule
-import network.bisq.mobile.android.node.di.serviceModule
+import network.bisq.mobile.android.node.di.nodeServiceModule
 import network.bisq.mobile.android.node.service.offers.NodeOffersServiceFacade
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.di.domainModule
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import network.bisq.mobile.presentation.MainApplication
 import network.bisq.mobile.presentation.di.presentationModule
+import network.bisq.mobile.presentation.di.serviceModule
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.koin.android.ext.android.get
 import org.koin.android.ext.android.inject
@@ -35,7 +36,7 @@ class NodeMainApplication : MainApplication(), ComponentCallbacks2 {
     private val nodeOffersServiceFacade: OffersServiceFacade? by inject()
 
     override fun getKoinModules(): List<Module> {
-        return listOf(domainModule, serviceModule, presentationModule, androidNodeModule)
+        return listOf(domainModule, serviceModule, presentationModule, androidNodeModule, nodeServiceModule)
     }
 
     override fun onCreated() {

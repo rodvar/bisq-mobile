@@ -7,4 +7,4 @@ interface ForegroundDetector {
 }
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
-expect class AppForegroundController
+expect class AppForegroundController : ForegroundDetector
