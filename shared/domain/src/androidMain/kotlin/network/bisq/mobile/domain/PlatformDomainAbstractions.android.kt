@@ -51,23 +51,9 @@ actual fun setupUncaughtExceptionHandler(onCrash: (Throwable) -> Unit) {
     Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
         println("Uncaught exception on thread: ${thread.name}")
         throwable.printStackTrace()
-
-        // TODO report to some sort non-survaillant crashlytics?
-
         try {
             // Call the error handler immediately on the current thread
             onCrash(throwable)
-
-            // For main thread exceptions, try to prevent crash
-            if (thread.name == "main") {
-                // Try to give the UI time to update
-                try {
-                    Thread.sleep(5000) // Give more time for UI to show error
-                    return@setDefaultUncaughtExceptionHandler
-                } catch (e: InterruptedException) {
-                    // Recovery interrupted, continue to original handler
-                }
-            }
         } catch (e: Exception) {
             println("Error in exception handler: ${e.message}")
             e.printStackTrace()
