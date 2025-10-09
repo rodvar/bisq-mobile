@@ -122,7 +122,9 @@ actual val decimalFormatter: DecimalFormatter = object : DecimalFormatter {
         val locale = Locale.getDefault()
         val key = precision to locale
         val formatter = formatters.getOrPut(key) {
-            DecimalFormat(generatePattern(precision), DecimalFormatSymbols(locale))
+            val format = DecimalFormat(generatePattern(precision), DecimalFormatSymbols(locale))
+            format.isGroupingUsed = true
+            format
         }
         return formatter.format(value)
     }
@@ -130,11 +132,11 @@ actual val decimalFormatter: DecimalFormatter = object : DecimalFormatter {
     private fun generatePattern(precision: Int): String {
         return if (precision > 0) {
             buildString {
-                append("0.")
+                append("#,##0.")
                 repeat(precision) { append("0") }
             }
         } else {
-            "0"
+            "#,##0"
         }
     }
 }

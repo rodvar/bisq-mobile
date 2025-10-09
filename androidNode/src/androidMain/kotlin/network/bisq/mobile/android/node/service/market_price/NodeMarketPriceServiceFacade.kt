@@ -2,7 +2,6 @@ package network.bisq.mobile.android.node.service.market_price
 
 import bisq.bonded_roles.market_price.MarketPriceService
 import bisq.common.observable.Pin
-import bisq.presentation.formatters.PriceFormatter
 import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.mapping.Mappings
 import network.bisq.mobile.android.node.mapping.Mappings.MarketMapping
@@ -102,7 +101,7 @@ class NodeMarketPriceServiceFacade(
             marketPriceService.findMarketPriceQuote(market)
                 .ifPresent { priceQuote ->
                     val marketVO = MarketMapping.fromBisq2Model(market)
-                    val formattedPrice = PriceFormatter.formatWithCode(priceQuote)
+                    val formattedPrice = MarketPriceFormatter.format(priceQuote.value, marketVO)
                     _selectedFormattedMarketPrice.value = formattedPrice
                     val priceQuoteVO = Mappings.PriceQuoteMapping.fromBisq2Model(priceQuote)
                     _selectedMarketPriceItem.value = MarketPriceItem(marketVO, priceQuoteVO, formattedPrice)
