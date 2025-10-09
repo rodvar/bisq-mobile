@@ -23,34 +23,36 @@ data class UserProfileVO(
     val publishDate: Long
 )
 
-val userProfileDemoObj = UserProfileVO(
-    version = 1,
-    nickName = "demo",
-    proofOfWork = ProofOfWorkVO(
-        payloadEncoded = "payload",
-        counter = 1L,
-        challengeEncoded = "challenge",
-        difficulty = 2.0,
-        solutionEncoded = "sol",
-        duration = 100L
-    ),
-    avatarVersion = 1,
-    networkId = NetworkIdVO(
-        addressByTransportTypeMap = AddressByTransportTypeMapVO(mapOf()),
-        pubKey = PubKeyVO(
-            publicKey = PublicKeyVO("pub"),
-            keyId = "key",
-            hash = "hash",
-            id = "id"
-        )
-    ),
-    terms = "my terms",
-    statement = "my statement",
-    applicationVersion = "2.1.7",
-    nym = "mynym",
-    userName = "demo",
-    publishDate = 10342435345324L
-)
+val userProfileDemoObj by lazy {
+    UserProfileVO(
+        version = 1,
+        nickName = "demo",
+        proofOfWork = ProofOfWorkVO(
+            payloadEncoded = "payload",
+            counter = 1L,
+            challengeEncoded = "challenge",
+            difficulty = 2.0,
+            solutionEncoded = "sol",
+            duration = 100L
+        ),
+        avatarVersion = 1,
+        networkId = NetworkIdVO(
+            addressByTransportTypeMap = AddressByTransportTypeMapVO(mapOf()),
+            pubKey = PubKeyVO(
+                publicKey = PublicKeyVO("pub"),
+                keyId = "key",
+                hash = "hash",
+                id = "id"
+            )
+        ),
+        terms = "my terms",
+        statement = "my statement",
+        applicationVersion = "2.1.7",
+        nym = "mynym",
+        userName = "demo",
+        publishDate = 10342435345324L
+    )
+}
 
 /**
  * a fast way to create a mock user profile
@@ -65,5 +67,6 @@ fun createMockUserProfile(name: String = createUuid()): UserProfileVO {
             )
         ),
         nym = name,
+        userName = name
     )
 }
