@@ -124,33 +124,11 @@ open class MainPresenter(
         }.take(1).launchIn(presenterScope)
     }
 
-    override fun onResume() {
-        super.onResume()
-        onResumeServices()
-    }
-
-    override fun onPause() {
-        onPauseServices()
-        super.onPause()
-    }
-
     @CallSuper
     override fun onDestroying() {
         // to stop notification service and fully kill app (no zombie mode)
         stopOpenTradeNotificationsService()
         super.onDestroying()
-    }
-
-    open fun reactivateServices() {
-        log.d { "Reactivating services default: skip" }
-    }
-
-    protected open fun onResumeServices() {
-        stopOpenTradeNotificationsService()
-    }
-
-    protected open fun onPauseServices() {
-        openTradesNotificationService.launchNotificationService()
     }
 
     private fun stopOpenTradeNotificationsService() {

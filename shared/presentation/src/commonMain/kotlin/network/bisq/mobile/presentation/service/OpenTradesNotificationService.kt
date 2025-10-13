@@ -1,10 +1,23 @@
 package network.bisq.mobile.presentation.service
 
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.datetime.Clock
 import network.bisq.mobile.domain.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.domain.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
+import network.bisq.mobile.domain.service.ForegroundDetector
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
@@ -28,50 +41,84 @@ class OpenTradesNotificationService(
     private val foregroundServiceController: ForegroundServiceController,
     private val tradesServiceFacade: TradesServiceFacade,
     private val userProfileServiceFacade: UserProfileServiceFacade,
+    private val appForegroundController: ForegroundDetector
 ) : Logging {
 
     private val observedTradeIds = mutableSetOf<String>()
+
+    // Payment account info can trigger notifications via both trade state transitions and data changes
+    // This set prevents duplicate notifications for the same trade
     private val notifiedPaymentInfo = mutableSetOf<String>()
-    private val notifiedBitcoinInfo = mutableSetOf<String>()
-    private val perTradeFlows = mutableMapOf<String, List<StateFlow<*>>>()
+    private val perTradeFlows = mutableMapOf<String, MutableList<Flow<*>>>()
     private val perTradePeerMessageCount = mutableMapOf<String, Int>()
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var lifecycleObserverJob: Job? = null
+
+    companion object {
+        private const val FOREGROUND_DEBOUNCE_MS = 1000L
+    }
+
+    init {
+        setupLifecycleObserver()
+    }
+
+    @OptIn(FlowPreview::class)
+    private fun setupLifecycleObserver() {
+        if (lifecycleObserverJob?.isActive == true) {
+            log.d { "Lifecycle observer is already running." }
+            return
+        }
+
+        lifecycleObserverJob = appForegroundController.isForeground
+            .debounce(FOREGROUND_DEBOUNCE_MS)
+            .distinctUntilChanged()
+            .onEach { isForeground ->
+                if (isForeground) {
+                    log.d { "App entered foreground (debounced). Stopping service and observers." }
+                    stopObserversAndService()
+                } else {
+                    log.d { "App entered background (debounced). Starting service and observers." }
+                    startServiceAndObservers()
+                }
+            }
+            .launchIn(scope)
+    }
 
     private fun getIgnoredProfileIds() = userProfileServiceFacade.ignoredProfileIds.value
 
-    fun launchNotificationService() {
+    fun stopNotificationService() {
+        log.d { "Permanently stopping OpenTradesNotificationService." }
+        lifecycleObserverJob?.cancel()
+        lifecycleObserverJob = null
+        stopObserversAndService()
+        foregroundServiceController.dispose()
+        scope.cancel()
+    }
+
+    private fun startServiceAndObservers() {
         foregroundServiceController.startService()
         runCatching {
-            foregroundServiceController.registerObserver(tradesServiceFacade.openTradeItems) { newValue ->
-                log.d { "open trades in total: ${newValue.size}" }
+            foregroundServiceController.registerObserver(tradesServiceFacade.openTradeItems) { trades ->
+                log.d { "open trades in total: ${trades.size}" }
                 cleanupOrphanedTrades()
-                newValue.sortedByDescending { it.bisqEasyTradeModel.takeOfferDate }
-                    .forEach { trade ->
-                        onTradeUpdate(trade)
-                    }
+                trades.sortedByDescending { it.bisqEasyTradeModel.takeOfferDate }
+                    .forEach { trade -> onTradeUpdate(trade) }
             }
         }.onFailure {
-            log.e(it) { "Failed to register observer" }
+            log.e(it) { "Failed to register observer for openTradeItems" }
         }
     }
 
-    fun stopNotificationService() {
-        foregroundServiceController.unregisterObserver(tradesServiceFacade.openTradeItems)
-
-        // Unregister per-trade observers to prevent leaks
-        perTradeFlows.forEach { (_, tradeFlows) ->
-            tradeFlows.forEach {
-                foregroundServiceController.unregisterObserver(it)
-            }
-        }
+    private fun stopObserversAndService() {
+        foregroundServiceController.unregisterObservers()
         perTradeFlows.clear()
         perTradePeerMessageCount.clear()
 
         foregroundServiceController.stopService()
 
-        // Clear all tracking sets to prevent memory leaks
         observedTradeIds.clear()
         notifiedPaymentInfo.clear()
-        notifiedBitcoinInfo.clear()
         log.d { "OpenTradesNotificationService stopped and all tracking sets cleared" }
     }
 
@@ -85,12 +132,10 @@ class OpenTradesNotificationService(
 
         val orphanedObserved = observedTradeIds - currentTradeIds
         val orphanedPayment = notifiedPaymentInfo - currentTradeIds
-        val orphanedBitcoin = notifiedBitcoinInfo - currentTradeIds
 
-        if (orphanedObserved.isNotEmpty() || orphanedPayment.isNotEmpty() || orphanedBitcoin.isNotEmpty()) {
-            observedTradeIds.removeAll(orphanedObserved)
+        if (orphanedObserved.isNotEmpty()) {
             notifiedPaymentInfo.removeAll(orphanedPayment)
-            notifiedBitcoinInfo.removeAll(orphanedBitcoin)
+            observedTradeIds.removeAll(orphanedObserved)
 
             // Clean up orphaned per-trade flows
             orphanedObserved.forEach { tradeId ->
@@ -100,7 +145,29 @@ class OpenTradesNotificationService(
                 }
             }
 
-            log.d { "Cleaned up orphaned trades - observed: $orphanedObserved, payment: $orphanedPayment, bitcoin: $orphanedBitcoin" }
+            log.d { "Cleaned up orphaned trades - observed: $orphanedObserved" }
+        }
+    }
+
+    /**
+     * Check if the trade was taken within the last 10 seconds
+     */
+    private fun isTradeRecentlyTaken(trade: TradeItemPresentationModel): Boolean {
+        return try {
+            val takeOfferDate = trade.bisqEasyTradeModel.takeOfferDate
+            val currentTime = Clock.System.now().toEpochMilliseconds()
+            val timeDifference = currentTime - takeOfferDate
+            val isRecent = timeDifference < 10_000 // 10 seconds in milliseconds
+
+            log.d {
+                "Trade ${trade.shortTradeId} taken at $takeOfferDate (formatted: ${trade.formattedDate} ${trade.formattedTime}), " +
+                        "current time: $currentTime, difference: ${timeDifference}ms, isRecent: $isRecent"
+            }
+
+            isRecent
+        } catch (e: Exception) {
+            log.e(e) { "Error checking if trade ${trade.shortTradeId} is recently taken" }
+            false
         }
     }
 
@@ -109,59 +176,98 @@ class OpenTradesNotificationService(
      * Triggers push notifications for important trade state changes
      */
     private fun onTradeUpdate(trade: TradeItemPresentationModel) {
-        log.d { "onTradeUpdate called for trade ${trade.shortTradeId}" }
-
-        // First, check the current state and send notification if needed
         val currentState = trade.bisqEasyTradeModel.tradeState.value
-        log.d { "Current trade state for ${trade.shortTradeId}: $currentState" }
-        handleTradeStateNotification(trade, currentState, isInitialState = true)
+        log.d { "onTradeUpdate called for trade ${trade.shortTradeId}: $currentState" }
 
-        // Then all observers:
+        // Only trigger initial state notification if trade was taken within last 10 seconds
+        if (isTradeRecentlyTaken(trade)) {
+            log.d { "Trade ${trade.shortTradeId} is recent (within 10s), triggering initial state notification" }
+            handleTradeStateNotification(trade, currentState)
+        } else {
+            log.d { "Trade ${trade.shortTradeId} is not recent, skipping initial state notification" }
+        }
+
+        // Register observers for this trade if not already done
         if (observedTradeIds.add(trade.shortTradeId)) {
             observeFutureStateChanges(trade)
             observePaymentAccountData(trade)
             observeBitcoinPaymentData(trade)
             observeChatMessages(trade)
-
-            // Register the StateFlows for cleanup on service stop
-            perTradeFlows[trade.shortTradeId] = listOf(
-                trade.bisqEasyTradeModel.tradeState,
-                trade.bisqEasyTradeModel.paymentAccountData,
-                trade.bisqEasyTradeModel.bitcoinPaymentData,
-                trade.bisqEasyOpenTradeChannelModel.chatMessages,
-            )
         } else {
             log.d { "Observers already registered for trade ${trade.shortTradeId}" }
         }
     }
 
-    private fun observeBitcoinPaymentData(trade: TradeItemPresentationModel) {
-        foregroundServiceController.registerObserver(trade.bisqEasyTradeModel.bitcoinPaymentData) { bitcoinData ->
-            log.d { "Bitcoin payment data changed for trade ${trade.shortTradeId}: ${bitcoinData?.isNotEmpty()}" }
-            if (!bitcoinData.isNullOrEmpty() && notifiedBitcoinInfo.add(trade.shortTradeId)) {
-                // Determine if user sent or received bitcoin info based on trade role
-                val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isBuyer) {
-                    // User is buyer -> they sent bitcoin info
-                    "mobile.openTradeNotifications.bitcoinInfoSent.title" to "mobile.openTradeNotifications.bitcoinInfoSent.message"
-                } else {
-                    // User is seller -> they received bitcoin info
-                    "mobile.openTradeNotifications.bitcoinInfoReceived.title" to "mobile.openTradeNotifications.bitcoinInfoReceived.message"
-                }
+    /**
+     * Helper function to register a flow observer for a specific trade
+     * Skips initial value and only emits on actual state changes
+     */
+    private fun <T> registerTradeFlowObserver(
+        trade: TradeItemPresentationModel,
+        flow: Flow<T>,
+        onStateChange: (T) -> Unit
+    ) {
+        val changeFlow = flow
+            .distinctUntilChanged()  // Only emit when state actually changes
+            .drop(1)  // Skip the initial/current value
 
-                notify(
-                    trade,
-                    NotificationIds.getBitcoinPaymentUpdatedId(trade.shortTradeId),
-                    titleKey.i18n(trade.shortTradeId),
-                    messageKey.i18n(trade.peersUserName),
-                )
+        perTradeFlows.getOrPut(trade.shortTradeId) { mutableListOf() }.add(changeFlow)
+        foregroundServiceController.registerObserver(changeFlow, onStateChange)
+    }
+
+    private fun observeFutureStateChanges(trade: TradeItemPresentationModel) {
+        // Register observer for trade state changes
+        registerTradeFlowObserver(trade, trade.bisqEasyTradeModel.tradeState) { newState ->
+            log.d { "Trade State Changed to: $newState for trade ${trade.shortTradeId}" }
+            handleTradeStateNotification(trade, newState)
+
+            // Clean up when trade concludes
+            if (OffersServiceFacade.Companion.isTerminalState(newState)) {
+                observedTradeIds.remove(trade.shortTradeId)
+                perTradePeerMessageCount.remove(trade.shortTradeId)
+                notifiedPaymentInfo.remove(trade.shortTradeId)
+
+                // Unregister the flows for this trade
+                perTradeFlows.remove(trade.shortTradeId)?.forEach { flow ->
+                    foregroundServiceController.unregisterObserver(flow)
+                }
+                log.d { "Trade ${trade.shortTradeId} completed and unregistered for notification updates" }
             }
         }
     }
 
+    private fun observeBitcoinPaymentData(trade: TradeItemPresentationModel) {
+        // Register observer for bitcoin payment data changes
+        registerTradeFlowObserver(
+            trade,
+            trade.bisqEasyTradeModel.bitcoinPaymentData
+        ) { bitcoinData ->
+            log.d { "Bitcoin payment data changed for trade ${trade.shortTradeId}: ${bitcoinData?.isNotEmpty()}" }
+            // Determine if user sent or received bitcoin info based on trade role
+            val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isBuyer) {
+                // User is buyer -> they sent bitcoin info
+                "mobile.openTradeNotifications.bitcoinInfoSent.title" to "mobile.openTradeNotifications.bitcoinInfoSent.message"
+            } else {
+                // User is seller -> they received bitcoin info
+                "mobile.openTradeNotifications.bitcoinInfoReceived.title" to "mobile.openTradeNotifications.bitcoinInfoReceived.message"
+            }
+
+            notify(
+                trade,
+                NotificationIds.getBitcoinPaymentUpdatedId(trade.shortTradeId),
+                titleKey.i18n(trade.shortTradeId),
+                messageKey.i18n(trade.peersUserName),
+            )
+        }
+    }
+
     private fun observePaymentAccountData(trade: TradeItemPresentationModel) {
-        foregroundServiceController.registerObserver(trade.bisqEasyTradeModel.paymentAccountData) { paymentData ->
-            log.d { "Payment account data changed for trade ${trade.shortTradeId}: ${paymentData?.isNotEmpty()}" }
-            if (!paymentData.isNullOrEmpty() && notifiedPaymentInfo.add(trade.shortTradeId)) {
+        registerTradeFlowObserver(
+            trade,
+            trade.bisqEasyTradeModel.paymentAccountData
+        ) { paymentData ->
+            if (notifiedPaymentInfo.add(trade.shortTradeId)) {
+                log.d { "Payment account data changed for trade ${trade.shortTradeId}: ${paymentData?.isNotEmpty()}" }
                 // Determine if user sent or received payment info based on trade role
                 val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isSeller) {
                     // User is seller -> they sent payment info
@@ -182,16 +288,18 @@ class OpenTradesNotificationService(
     }
 
     private fun observeChatMessages(trade: TradeItemPresentationModel) {
-        perTradePeerMessageCount.put(
-            trade.shortTradeId,
-            getUnignoredMessageCount(trade.bisqEasyOpenTradeChannelModel.chatMessages.value),
-        )
-        foregroundServiceController.registerObserver(trade.bisqEasyOpenTradeChannelModel.chatMessages) { newChatMessages ->
-            log.d { "Chat messages updated for trade ${trade.shortTradeId}" }
+        // Initialize chat message count
+        perTradePeerMessageCount[trade.shortTradeId] =
+            getUnignoredMessageCount(trade.bisqEasyOpenTradeChannelModel.chatMessages.value)
 
-            val currentPeerMsgCount =
-                getUnignoredMessageCount(trade.bisqEasyOpenTradeChannelModel.chatMessages.value)
-            val lastCount = perTradePeerMessageCount.getOrElse(trade.shortTradeId) { 0 }
+        // Register observer for chat message changes
+        registerTradeFlowObserver(
+            trade,
+            trade.bisqEasyOpenTradeChannelModel.chatMessages
+        ) { newChatMessages ->
+            log.d { "Chat messages updated for trade ${trade.shortTradeId}" }
+            val currentPeerMsgCount = getUnignoredMessageCount(newChatMessages)
+            val lastCount = perTradePeerMessageCount[trade.shortTradeId] ?: 0
             if (currentPeerMsgCount > lastCount) {
                 notify(
                     trade,
@@ -201,10 +309,7 @@ class OpenTradesNotificationService(
                     true,
                 )
             }
-            perTradePeerMessageCount.put(
-                trade.shortTradeId,
-                currentPeerMsgCount,
-            )
+            perTradePeerMessageCount[trade.shortTradeId] = currentPeerMsgCount
         }
     }
 
@@ -215,35 +320,14 @@ class OpenTradesNotificationService(
         }.size
     }
 
-    private fun observeFutureStateChanges(trade: TradeItemPresentationModel) {
-        foregroundServiceController.registerObserver(trade.bisqEasyTradeModel.tradeState) { newState ->
-            log.d { "Trade State Changed to: $newState for trade ${trade.shortTradeId}" }
-            handleTradeStateNotification(trade, newState, isInitialState = false)
-
-            // Unregister observer when trade concludes
-            if (OffersServiceFacade.Companion.isTerminalState(newState)) {
-                foregroundServiceController.unregisterObserver(trade.bisqEasyTradeModel.tradeState)
-                foregroundServiceController.unregisterObserver(trade.bisqEasyTradeModel.paymentAccountData)
-                foregroundServiceController.unregisterObserver(trade.bisqEasyTradeModel.bitcoinPaymentData)
-                foregroundServiceController.unregisterObserver(trade.bisqEasyOpenTradeChannelModel.chatMessages)
-                observedTradeIds.remove(trade.shortTradeId)
-                notifiedPaymentInfo.remove(trade.shortTradeId)
-                notifiedBitcoinInfo.remove(trade.shortTradeId)
-                perTradeFlows.remove(trade.shortTradeId)
-                log.d { "Trade ${trade.shortTradeId} completed and unregistered for notification updates" }
-            }
-        }
-    }
-
     /**
      * Handle trade state notifications for both initial states and state changes
      */
     private fun handleTradeStateNotification(
         trade: TradeItemPresentationModel,
-        state: BisqEasyTradeStateEnum,
-        isInitialState: Boolean
+        state: BisqEasyTradeStateEnum
     ) {
-        log.d { "handleTradeStateNotification - trade: ${trade.shortTradeId}, state: $state, isInitial: $isInitialState" }
+        log.d { "handleTradeStateNotification - trade: ${trade.shortTradeId}, state: $state" }
 
         // Send notifications for important intermediate states
         when (state) {
@@ -282,6 +366,7 @@ class OpenTradesNotificationService(
                 )
             }
 
+            BisqEasyTradeStateEnum.BUYER_RECEIVED_SELLERS_FIAT_RECEIPT_CONFIRMATION,
             BisqEasyTradeStateEnum.SELLER_CONFIRMED_FIAT_RECEIPT -> {
                 val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isBuyer) {
                     // User is buyer -> peer (seller) confirmed receiving the payment
@@ -335,34 +420,30 @@ class OpenTradesNotificationService(
 
             // Early trade states that might be missed - offer taking notifications
             BisqEasyTradeStateEnum.TAKER_SENT_TAKE_OFFER_REQUEST -> {
-                if (!isInitialState) { // Only notify on state changes, not initial discovery
-                    notify(
-                        trade,
-                        NotificationIds.getTradeStateUpdatedId(trade.shortTradeId),
-                        "mobile.openTradeNotifications.offerTaken.title".i18n(trade.shortTradeId),
-                        "mobile.openTradeNotifications.offerTaken.message".i18n(trade.peersUserName),
-                    )
-                }
+                notify(
+                    trade,
+                    NotificationIds.getTradeStateUpdatedId(trade.shortTradeId),
+                    "mobile.openTradeNotifications.offerTaken.title".i18n(trade.shortTradeId),
+                    "mobile.openTradeNotifications.offerTaken.message".i18n(trade.peersUserName),
+                )
             }
 
             // Maker states - when someone takes the user's offer (user is maker)
             BisqEasyTradeStateEnum.MAKER_SENT_TAKE_OFFER_RESPONSE__SELLER_DID_NOT_SENT_ACCOUNT_DATA__SELLER_DID_NOT_RECEIVED_BTC_ADDRESS,
             BisqEasyTradeStateEnum.MAKER_SENT_TAKE_OFFER_RESPONSE__BUYER_DID_NOT_SENT_BTC_ADDRESS__BUYER_DID_NOT_RECEIVED_ACCOUNT_DATA -> {
-                if (!isInitialState) { // Only notify on state changes, not initial discovery
-                    notify(
-                        trade,
-                        NotificationIds.getTradeStateUpdatedId(trade.shortTradeId),
-                        "mobile.openTradeNotifications.offerTaken.title".i18n(trade.shortTradeId),
-                        "mobile.openTradeNotifications.offerTaken.message".i18n(trade.peersUserName),
-                    )
-                }
+                notify(
+                    trade,
+                    NotificationIds.getTradeStateUpdatedId(trade.shortTradeId),
+                    "mobile.openTradeNotifications.offerTaken.title".i18n(trade.shortTradeId),
+                    "mobile.openTradeNotifications.offerTaken.message".i18n(trade.peersUserName),
+                )
             }
 
             // States where payment account info is exchanged
             BisqEasyTradeStateEnum.TAKER_RECEIVED_TAKE_OFFER_RESPONSE__BUYER_DID_NOT_SENT_BTC_ADDRESS__BUYER_RECEIVED_ACCOUNT_DATA,
             BisqEasyTradeStateEnum.TAKER_RECEIVED_TAKE_OFFER_RESPONSE__SELLER_SENT_ACCOUNT_DATA__SELLER_DID_NOT_RECEIVED_BTC_ADDRESS_,
             BisqEasyTradeStateEnum.MAKER_SENT_TAKE_OFFER_RESPONSE__BUYER_DID_NOT_SENT_BTC_ADDRESS__BUYER_RECEIVED_ACCOUNT_DATA -> {
-                if (!isInitialState) { // Only notify on state changes, not initial discovery
+                if (notifiedPaymentInfo.add(trade.shortTradeId)) {
                     // Determine if user sent or received payment info based on trade role
                     val (titleKey, messageKey) = if (trade.bisqEasyTradeModel.isSeller) {
                         // User is seller -> they sent payment info

@@ -6,7 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import network.bisq.mobile.domain.service.AppForegroundController
 import network.bisq.mobile.domain.utils.Logging
@@ -19,12 +20,11 @@ class ForegroundServiceControllerImpl(
 ) : ForegroundServiceController, Logging {
     private val context get() = appForegroundController.context
 
-    private val serviceScope = CoroutineScope(SupervisorJob())
-    private val observerJobs = mutableMapOf<StateFlow<*>, Job>()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val observerJobs = mutableMapOf<Flow<*>, Job>()
 
     @Volatile
     private var isRunning = false
-
 
     /**
      * Starts the service in the appropriate mode based on the current device running Android API
@@ -65,22 +65,36 @@ class ForegroundServiceControllerImpl(
         }
     }
 
-    override fun <T> registerObserver(stateFlow: StateFlow<T>, onStateChange: (T) -> Unit) {
-        if (observerJobs.contains(stateFlow)) {
-            log.w { "State flow observer already registered, skipping registration" }
+    override fun <T> registerObserver(flow: Flow<T>, onStateChange: (T) -> Unit) {
+        if (observerJobs.contains(flow)) {
+            log.w { "Flow observer already registered, skipping registration" }
             return
         }
-        val job = serviceScope.launch(Dispatchers.Default) {
-            stateFlow.collect { onStateChange(it) }
+        val job = serviceScope.launch {
+            try {
+                flow.collect { onStateChange(it) }
+            } catch (e: Exception) {
+                log.e(e) { "Error in flow observer, flow collection terminated" }
+            }
         }
-        observerJobs[stateFlow] = job
+        observerJobs[flow] = job
     }
 
-    override fun unregisterObserver(stateFlow: StateFlow<*>) {
-        observerJobs[stateFlow]?.cancel()
-        observerJobs.remove(stateFlow)
+    override fun unregisterObserver(flow: Flow<*>) {
+        observerJobs[flow]?.cancel()
+        observerJobs.remove(flow)
+    }
+
+    override fun unregisterObservers() {
+        observerJobs.forEach { it.value.cancel() }
+        observerJobs.clear()
     }
 
     override fun isServiceRunning() = isRunning
+
+    override fun dispose() {
+        unregisterObservers()
+        serviceScope.cancel()
+    }
 
 }

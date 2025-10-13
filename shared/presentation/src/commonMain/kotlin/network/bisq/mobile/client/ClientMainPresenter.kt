@@ -105,13 +105,13 @@ open class ClientMainPresenter(
         activateServices()
     }
 
-    override fun onResumeServices() {
-        super.onResumeServices()
+    override fun onResume() {
+        super.onResume()
         connectivityService.startMonitoring()
     }
 
-    override fun onPauseServices() {
-        super.onPauseServices()
+    override fun onPause() {
+        super.onPause()
         connectivityService.stopMonitoring()
     }
 
