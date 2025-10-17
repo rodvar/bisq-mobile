@@ -1,14 +1,10 @@
 package network.bisq.mobile.client.di
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
+import network.bisq.mobile.client.httpclient.HttpClientService
 import network.bisq.mobile.client.service.accounts.AccountsApiGateway
 import network.bisq.mobile.client.service.accounts.ClientAccountsServiceFacade
 import network.bisq.mobile.client.service.bootstrap.ClientApplicationBootstrapFacade
@@ -35,7 +31,7 @@ import network.bisq.mobile.client.service.trades.TradesApiGateway
 import network.bisq.mobile.client.service.user_profile.ClientUserProfileServiceFacade
 import network.bisq.mobile.client.service.user_profile.UserProfileApiGateway
 import network.bisq.mobile.client.websocket.WebSocketClientFactory
-import network.bisq.mobile.client.websocket.WebSocketClientProvider
+import network.bisq.mobile.client.websocket.WebSocketClientService
 import network.bisq.mobile.client.websocket.api_proxy.WebSocketApiClient
 import network.bisq.mobile.client.websocket.messages.SubscriptionRequest
 import network.bisq.mobile.client.websocket.messages.SubscriptionResponse
@@ -136,15 +132,6 @@ val clientModule = module {
 
     single { json }
 
-    single {
-        HttpClient(CIO) {
-            install(WebSockets)
-            install(ContentNegotiation) {
-                json(json)
-            }
-        }
-    }
-
     single<ApplicationBootstrapFacade> { ClientApplicationBootstrapFacade(get(), get()) }
 
     single { EnvironmentController() }
@@ -153,13 +140,21 @@ val clientModule = module {
     single(named("WebSocketApiHost")) { get<EnvironmentController>().getWebSocketHost() }
     single(named("WebSocketApiPort")) { get<EnvironmentController>().getWebSocketPort() }
 
+    single {
+        HttpClientService(
+            get(),
+            get(),
+            get(named("ApiHost")),
+            get(named("ApiPort")),
+        )
+    }
+
     single { WebSocketClientFactory(get()) }
 
     single {
-        WebSocketClientProvider(
+        WebSocketClientService(
             get(named("WebSocketApiHost")),
             get(named("WebSocketApiPort")),
-            get(),
             get(),
             get(),
         )
@@ -172,8 +167,6 @@ val clientModule = module {
             get(),
             get(),
             get(),
-            get(named("WebSocketApiHost")),
-            get(named("WebSocketApiPort"))
         )
     }
 
@@ -212,7 +205,7 @@ val clientModule = module {
     single { SettingsApiGateway(get()) }
     single<SettingsServiceFacade> { ClientSettingsServiceFacade(get()) }
 
-    single { AccountsApiGateway(get(), get()) }
+    single { AccountsApiGateway(get()) }
     single<AccountsServiceFacade> { ClientAccountsServiceFacade(get()) }
 
     single<LanguageServiceFacade> { ClientLanguageServiceFacade() }

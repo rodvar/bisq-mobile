@@ -114,7 +114,7 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.serialization.core)
             implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.network)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.websockets)
@@ -141,6 +141,7 @@ kotlin {
 
             implementation(libs.koin.core)
             implementation(libs.koin.android)
+            implementation(libs.ktor.client.okhttp)
         }
         androidUnitTest.dependencies {
             implementation(libs.mockk)
@@ -159,6 +160,7 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.koin.core)
             implementation(libs.kmp.tor.resource.noexec)
+            implementation(libs.ktor.client.darwin)
         }
 
         iosTest.dependencies {

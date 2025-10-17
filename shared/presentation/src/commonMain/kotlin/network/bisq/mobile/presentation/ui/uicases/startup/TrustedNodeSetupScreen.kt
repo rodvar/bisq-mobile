@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.ui.uicases.startup
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -19,19 +19,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.client.httpclient.NetworkType
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.client.websocket.ConnectionState
 import network.bisq.mobile.client.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
+import network.bisq.mobile.presentation.ui.components.atoms.BisqSwitch
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
@@ -43,7 +44,6 @@ import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.helpers.spaceBetweenWithMin
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
-import network.bisq.mobile.presentation.ui.uicases.startup.TrustedNodeSetupPresenter.NetworkType
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -60,6 +60,11 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
     val hostPrompt by presenter.hostPrompt.collectAsState()
     val status by presenter.status.collectAsState()
     val isApiUrlValid by presenter.isApiUrlValid.collectAsState()
+    val isProxyUrlValid by presenter.isProxyUrlValid.collectAsState()
+    val proxyHost by presenter.proxyHost.collectAsState()
+    val proxyPort by presenter.proxyPort.collectAsState()
+    val useExternalProxy by presenter.useExternalProxy.collectAsState()
+    val isNewApiUrl by presenter.isNewApiUrl.collectAsState()
 
     // Add state for dialog
     val showConfirmDialog = remember { mutableStateOf(false) }
@@ -68,10 +73,6 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
         listOf(NetworkType.LAN, NetworkType.TOR)
     } else {
         listOf(NetworkType.LAN)
-    }
-
-    val isNewApiUrl by produceState(initialValue = false, host, port, selectedNetworkType) {
-        value = presenter.isNewApiUrl()
     }
 
     BisqScrollScaffold(
@@ -116,7 +117,7 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                         KeyboardType.Text
                     },
                     disabled = isLoading,
-                    validation = { return@BisqTextField presenter.validateHost(it) }
+                    validation = { return@BisqTextField presenter.validateHost(it, selectedNetworkType) }
                 )
                 BisqTextField(
                     modifier = Modifier.weight(0.2f),
@@ -129,7 +130,42 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                     validation = { return@BisqTextField presenter.validatePort(it) }
                 )
             }
-            BisqGap.V3()
+            BisqGap.V1()
+            AnimatedVisibility(selectedNetworkType == NetworkType.TOR) {
+                BisqSwitch(
+                    label = "mobile.trustedNodeSetup.tor.useExternalProxy".i18n(),
+                    checked = useExternalProxy,
+                    onSwitch = presenter::onUseExternalProxyChanged,
+                )
+            }
+            AnimatedVisibility(selectedNetworkType == NetworkType.TOR && useExternalProxy) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spaceBetweenWithMin(BisqUIConstants.ScreenPadding),
+                ) {
+                    BisqTextField(
+                        modifier = Modifier.weight(0.8f),
+                        label = "mobile.trustedNodeSetup.proxyHost".i18n(),
+                        onValueChange = { host, _ -> presenter.onProxyHostChanged(host) },
+                        value = proxyHost,
+                        placeholder = "127.0.0.1",
+                        keyboardType = KeyboardType.Decimal,
+                        disabled = isLoading,
+                        validation = presenter::validateProxyHost,
+                    )
+                    BisqTextField(
+                            modifier = Modifier.weight(0.2f),
+                    label = "mobile.trustedNodeSetup.port".i18n(),
+                    onValueChange = { port, _ -> presenter.onProxyPortChanged(port) },
+                    value = proxyPort,
+                    placeholder = "9050",
+                    keyboardType = KeyboardType.Decimal,
+                    disabled = isLoading,
+                    validation = presenter::validatePort,
+                    )
+                }
+            }
+            BisqGap.V2()
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BisqText.largeRegular(
                     status,
@@ -142,10 +178,10 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                         BisqTheme.colors.danger,
                 )
             }
-            BisqGap.V3()
 
             val error = (connectionState as? ConnectionState.Disconnected)?.error
             if (error is IncompatibleHttpApiVersionException) {
+                BisqGap.V3()
                 BisqText.baseRegular("mobile.trustedNodeSetup.version.expectedAPI".i18n(BuildConfig.BISQ_API_VERSION))
                 BisqText.baseRegular(
                     "mobile.trustedNodeSetup.version.nodeAPI".i18n(
@@ -155,45 +191,28 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
             }
         }
 
-        BisqGap.V4()
+        if (!isWorkflow) {
+            BisqText.baseRegular("mobile.trustedNodeSetup.testConnection.message".i18n(), BisqTheme.colors.warning)
+        }
 
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(
-                BisqUIConstants.ScreenPadding,
-                Alignment.CenterHorizontally
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
+        BisqGap.V3()
+
+        Row(
+            horizontalArrangement = Arrangement.Center,
         ) {
-            item {
-                if (connectionState !is ConnectionState.Connected) {
-                    BisqButton(
-                        modifier = Modifier.animateItem(),
-                        text = "mobile.trustedNodeSetup.testConnection".i18n(),
-                        color = if (host.isEmpty()) BisqTheme.colors.mid_grey10 else BisqTheme.colors.light_grey10,
-                        disabled = isLoading || !isApiUrlValid,
-                        onClick = {
-                            if (isNewApiUrl) {
-                                showConfirmDialog.value = true
-                            } else {
-                                presenter.testConnection(isWorkflow)
-                            }
-                        },
-                        padding = PaddingValues(horizontal = 32.dp, vertical = 12.dp),
-                    )
-                } else {
-                    BisqButton(
-                        modifier = Modifier.animateItem(),
-                        text = if (isWorkflow) "mobile.trustedNodeSetup.createProfile".i18n() else "action.save".i18n(),
-                        color = BisqTheme.colors.light_grey10,
-                        onClick = {
-                            if (isWorkflow) presenter.navigateToCreateProfile()
-                            else presenter.onSave()
-                        },
-                        padding = PaddingValues(horizontal = 32.dp, vertical = 12.dp),
-                    )
-                }
-            }
+            BisqButton(
+                text = "mobile.trustedNodeSetup.testAndSave".i18n(),
+                color = if (host.isEmpty()) BisqTheme.colors.mid_grey10 else BisqTheme.colors.light_grey10,
+                disabled = !isWorkflow || isLoading || !isApiUrlValid || !isProxyUrlValid,
+                onClick = {
+                    if (isNewApiUrl) {
+                        showConfirmDialog.value = true
+                    } else {
+                        presenter.onTestAndSavePressed(isWorkflow)
+                    }
+                },
+                padding = PaddingValues(horizontal = 32.dp, vertical = 12.dp),
+            )
         }
     }
 
@@ -237,7 +256,7 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                         text = "mobile.trustedNodeSetup.continue".i18n(),
                         onClick = {
                             showConfirmDialog.value = false
-                            presenter.testConnection(isWorkflow)
+                            presenter.onTestAndSavePressed(isWorkflow)
                         }
                     )
                 }
