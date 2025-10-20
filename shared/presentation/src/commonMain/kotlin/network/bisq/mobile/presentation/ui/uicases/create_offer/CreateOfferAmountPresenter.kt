@@ -1,8 +1,11 @@
 package network.bisq.mobile.presentation.ui.uicases.create_offer
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
@@ -112,6 +115,17 @@ class CreateOfferAmountPresenter(
     private lateinit var baseSideMaxRangeAmount: CoinVO
     private val _isBuy: MutableStateFlow<Boolean> = MutableStateFlow(true)
     val isBuy: StateFlow<Boolean> get() = _isBuy.asStateFlow()
+
+    // Sample heavy-ish updates during drags to reduce allocation churn on main thread.
+    // 32ms ~ 30 FPS. We do a leading-edge immediate update, then coalesce subsequent updates
+    // within the window into a single trailing-edge update.
+    private var fixedDragJob: Job? = null
+    private var rangeMinDragJob: Job? = null
+    private var rangeMaxDragJob: Job? = null
+    private val dragUpdateSampleMs: Long = 32
+    private var latestFixedPending: Float? = null
+    private var latestRangeMinPending: Float? = null
+    private var latestRangeMaxPending: Float? = null
 
     private val _formattedReputationBasedMaxAmount: MutableStateFlow<String> = MutableStateFlow("")
     val formattedReputationBasedMaxAmount: StateFlow<String> get() = _formattedReputationBasedMaxAmount.asStateFlow()
@@ -279,28 +293,102 @@ class CreateOfferAmountPresenter(
     }
 
     fun onFixedAmountSliderValueChange(value: Float) {
-        applyFixedAmountSliderValue(value)
-        updateAmountLimitInfo()
+        if (fixedDragJob == null) {
+            // Leading-edge immediate update for responsive feedback
+            applyFixedAmountSliderValue(value)
+            fixedDragJob = presenterScope.launch {
+                // Trailing-edge coalesced update
+                delay(dragUpdateSampleMs)
+                latestFixedPending?.let {
+                    applyFixedAmountSliderValue(it)
+                    latestFixedPending = null
+                }
+                fixedDragJob = null
+            }
+        } else {
+            // Coalesce subsequent updates within the sample window
+            latestFixedPending = value
+        }
     }
 
     fun onMinRangeSliderValueChange(value: Float) {
-        applyMinRangeAmountSliderValue(value)
-        updateAmountLimitInfo()
+        if (rangeMinDragJob == null) {
+            applyMinRangeAmountSliderValue(value)
+            rangeMinDragJob = presenterScope.launch {
+                delay(dragUpdateSampleMs)
+                latestRangeMinPending?.let { applyMinRangeAmountSliderValue(it) }
+                latestRangeMinPending = null
+                rangeMinDragJob = null
+            }
+        } else {
+            latestRangeMinPending = value
+        }
     }
 
     fun onMaxRangeSliderValueChange(value: Float) {
-        applyMaxRangeAmountSliderValue(value)
-        updateAmountLimitInfo()
+        if (rangeMaxDragJob == null) {
+            applyMaxRangeAmountSliderValue(value)
+            rangeMaxDragJob = presenterScope.launch {
+                delay(dragUpdateSampleMs)
+                latestRangeMaxPending?.let { applyMaxRangeAmountSliderValue(it) }
+                latestRangeMaxPending = null
+                rangeMaxDragJob = null
+            }
+        } else {
+            latestRangeMaxPending = value
+        }
     }
 
     fun onRangeAmountSliderChanged(value: ClosedFloatingPointRange<Float>) {
-        applyRangeAmountSliderValue(value)
-        updateAmountLimitInfo()
+        // Handle each thumb independently to preserve immediate feedback per-thumb
+        if (rangeMinDragJob == null) {
+            applyMinRangeAmountSliderValue(value.start)
+            rangeMinDragJob = presenterScope.launch {
+                delay(dragUpdateSampleMs)
+                latestRangeMinPending?.let { applyMinRangeAmountSliderValue(it) }
+                latestRangeMinPending = null
+                rangeMinDragJob = null
+            }
+        } else {
+            latestRangeMinPending = value.start
+        }
+
+        if (rangeMaxDragJob == null) {
+            applyMaxRangeAmountSliderValue(value.endInclusive)
+            rangeMaxDragJob = presenterScope.launch {
+                delay(dragUpdateSampleMs)
+                latestRangeMaxPending?.let { applyMaxRangeAmountSliderValue(it) }
+                latestRangeMaxPending = null
+                rangeMaxDragJob = null
+            }
+        } else {
+            latestRangeMaxPending = value.endInclusive
+        }
     }
 
     fun onBack() {
         commitToModel()
         navigateBack()
+    }
+
+    fun onSliderDragFinished() {
+        // Flush any pending coalesced updates and run heavy path
+        fixedDragJob?.cancel()
+        rangeMinDragJob?.cancel()
+        rangeMaxDragJob?.cancel()
+
+        latestFixedPending?.let { applyFixedAmountSliderValue(it) }
+        latestFixedPending = null
+
+        latestRangeMinPending?.let { applyMinRangeAmountSliderValue(it) }
+        latestRangeMaxPending?.let { applyMaxRangeAmountSliderValue(it) }
+        latestRangeMinPending = null
+        latestRangeMaxPending = null
+        fixedDragJob = null
+        rangeMinDragJob = null
+        rangeMaxDragJob = null
+
+        updateAmountLimitInfo()
     }
 
     fun onClose() {
