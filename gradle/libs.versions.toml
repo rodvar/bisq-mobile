@@ -2,7 +2,7 @@
 
 # -------------------- Project Specific --------------------
 bisq-core = "2.1.7"
-bisq-core-commit = "c6aa6323d978f3ce99855bb52482424f265473db"
+bisq-core-commit = "8080f366246c5ebde63113c1f2d5341b5e76273d"
 # API version is usually same as bisq-core but for more control we keep it separated
 #bisq-api = "2.1.7"
 
