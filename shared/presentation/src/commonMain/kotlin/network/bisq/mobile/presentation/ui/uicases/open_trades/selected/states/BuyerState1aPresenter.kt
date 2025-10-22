@@ -10,6 +10,7 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.components.molecules.inputfield.BitcoinLnAddressFieldType
+import network.bisq.mobile.presentation.ui.helpers.BitcoinLightningNormalization
 import network.bisq.mobile.presentation.ui.navigation.NavRoute
 
 class BuyerState1aPresenter(
@@ -34,6 +35,16 @@ class BuyerState1aPresenter(
 
     private val _showInvalidAddressDialog = MutableStateFlow(false)
     val showInvalidAddressDialog: StateFlow<Boolean> get() = _showInvalidAddressDialog.asStateFlow()
+
+    private val _showBarcodeView = MutableStateFlow(false)
+    val showBarcodeView: StateFlow<Boolean> = _showBarcodeView.asStateFlow()
+
+    private val _showBarcodeError = MutableStateFlow(false)
+    val showBarcodeError: StateFlow<Boolean> = _showBarcodeError.asStateFlow()
+
+    private val _triggerBitcoinLnAddressValidation = MutableStateFlow(0)
+    val triggerBitcoinLnAddressValidation = _triggerBitcoinLnAddressValidation.asStateFlow()
+
     fun setShowInvalidAddressDialog(value: Boolean) {
         _showInvalidAddressDialog.value = value
     }
@@ -42,9 +53,12 @@ class BuyerState1aPresenter(
         super.onViewAttached()
         require(tradesServiceFacade.selectedTrade.value != null)
         val openTradeItemModel = tradesServiceFacade.selectedTrade.value!!
-        val paymentMethod = openTradeItemModel.bisqEasyTradeModel.contract.baseSidePaymentMethodSpec.paymentMethod
-        _headline.value = "bisqEasy.tradeState.info.buyer.phase1a.bitcoinPayment.headline.$paymentMethod".i18n()
-        _description.value = "bisqEasy.tradeState.info.buyer.phase1a.bitcoinPayment.description.$paymentMethod".i18n()
+        val paymentMethod =
+            openTradeItemModel.bisqEasyTradeModel.contract.baseSidePaymentMethodSpec.paymentMethod
+        _headline.value =
+            "bisqEasy.tradeState.info.buyer.phase1a.bitcoinPayment.headline.$paymentMethod".i18n()
+        _description.value =
+            "bisqEasy.tradeState.info.buyer.phase1a.bitcoinPayment.description.$paymentMethod".i18n()
         _bitcoinAddressFieldType.value = if (openTradeItemModel.bitcoinSettlementMethod == "LN")
             BitcoinLnAddressFieldType.Lightning
         else
@@ -63,6 +77,31 @@ class BuyerState1aPresenter(
         } else {
             onSend()
         }
+    }
+
+    fun onBarcodeClick() {
+        _showBarcodeView.value = true
+    }
+
+    fun onBarcodeFail() {
+        _showBarcodeView.value = false
+        _showBarcodeError.value = true
+    }
+
+    fun onBarcodeErrorClose() {
+        _showBarcodeError.value = false
+    }
+
+    fun onBarcodeViewDismiss() {
+        _showBarcodeView.value = false
+    }
+
+    fun onBarcodeResult(value: String) {
+        // Normalize + clean: remove scheme (case-insensitive), drop leading slashes, strip query/fragment
+        val cleaned = BitcoinLightningNormalization.cleanForValidation(value)
+        onBitcoinPaymentDataInput(cleaned, false)
+        _showBarcodeView.value = false
+        _triggerBitcoinLnAddressValidation.value++
     }
 
     fun onSend() {

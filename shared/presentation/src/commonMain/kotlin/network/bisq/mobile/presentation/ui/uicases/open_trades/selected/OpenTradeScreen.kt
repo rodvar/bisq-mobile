@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.ui.components.BarcodeScannerView
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
@@ -31,6 +32,7 @@ import network.bisq.mobile.presentation.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.WarningConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.inputfield.PaymentProofType
+import network.bisq.mobile.presentation.ui.components.organisms.BisqGeneralErrorDialog
 import network.bisq.mobile.presentation.ui.components.organisms.chat.UndoIgnoreDialog
 import network.bisq.mobile.presentation.ui.components.organisms.trades.CancelTradeDialog
 import network.bisq.mobile.presentation.ui.components.organisms.trades.CloseTradeDialog
@@ -87,6 +89,8 @@ fun OpenTradeScreen(tradeId: String) {
     val sellerState3aIsLightning by sellerState3aPresenter.isLightning.collectAsState()
     val buyerState4ShowCloseTradeDialog by buyerState4Presenter.showCloseTradeDialog.collectAsState()
     val sellerState4ShowCloseTradeDialog by sellerState4Presenter.showCloseTradeDialog.collectAsState()
+    val showBarcodeViewFromBuyerState1a by buyerState1aPresenter.showBarcodeView.collectAsState()
+    val showBarcodeError by buyerState1aPresenter.showBarcodeError.collectAsState()
 
     val shouldBlurBg by remember {
         derivedStateOf {
@@ -106,7 +110,13 @@ fun OpenTradeScreen(tradeId: String) {
             TopBar(
                 "mobile.bisqEasy.openTrades.title".i18n(
                     selectedTrade?.shortTradeId ?: ""
-                )
+                ),
+                backBehavior = {
+                    when {
+                        showBarcodeViewFromBuyerState1a -> buyerState1aPresenter.onBarcodeViewDismiss()
+                        else -> presenter.onBackPressed()
+                    }
+                }
             )
         },
         shouldBlurBg = shouldBlurBg,
@@ -178,6 +188,23 @@ fun OpenTradeScreen(tradeId: String) {
                 }
             }
         }
+    }
+
+    if (showBarcodeViewFromBuyerState1a) {
+        BarcodeScannerView(
+            onCanceled = buyerState1aPresenter::onBarcodeViewDismiss,
+            onFailed = { buyerState1aPresenter.onBarcodeFail() }
+        ) {
+            buyerState1aPresenter.onBarcodeResult(it.data)
+        }
+    }
+
+    if (showBarcodeError) {
+        BisqGeneralErrorDialog(
+            errorTitle = "mobile.barcode.error.title".i18n(),
+            errorMessage = "mobile.barcode.error.message".i18n(),
+            onClose = buyerState1aPresenter::onBarcodeErrorClose
+        )
     }
 
     if (showTradeNotFoundDialog) {
