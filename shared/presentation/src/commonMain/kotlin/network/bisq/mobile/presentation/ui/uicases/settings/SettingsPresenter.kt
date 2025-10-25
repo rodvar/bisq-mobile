@@ -1,10 +1,13 @@
 package network.bisq.mobile.presentation.ui.uicases.settings
 
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.settings.SettingsVO
 import network.bisq.mobile.domain.formatters.NumberFormatter
 import network.bisq.mobile.domain.service.common.LanguageServiceFacade
@@ -23,6 +26,8 @@ open class SettingsPresenter(
 
     override val i18nPairs get() = languageServiceFacade.i18nPairs
     override val allLanguagePairs get() = languageServiceFacade.allPairs
+    override val blockInteractivityOnAttached: Boolean = true
+    private val fetchMutex = Mutex()
 
     private val _languageCode: MutableStateFlow<String> = MutableStateFlow("en")
     override val languageCode: StateFlow<String> get() = _languageCode.asStateFlow()
@@ -38,11 +43,6 @@ open class SettingsPresenter(
                 settingsServiceFacade.setLanguageCode(langCode) // Update lang in bisq2 lib / WS
                 _languageCode.value = langCode
                 log.i { "Successfully set language code to: $langCode" }
-
-                // As per chat with @Henrik Feb 4, it's okay not to translate `supported languages` lists into selected languages, for now.
-                // To update display values in i18Pairs, allLanguagePairs with the new language
-                // languageServiceFacade.setDefaultLanguage(langCode)
-                // languageServiceFacade.sync()
             } catch (e: Exception) {
                 log.e(e) { "Failed to set language code to: $langCode" }
                 // Reset to previous language on error
@@ -183,8 +183,6 @@ open class SettingsPresenter(
 
     override val shouldShowPoWAdjustmentFactor: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
 
-    private var jobs: MutableSet<Job> = mutableSetOf()
-
     private var isUserInitiatedLanguageChange = false
 
     init {
@@ -202,15 +200,20 @@ open class SettingsPresenter(
         launchFetchSettings()
     }
 
-    override fun onViewUnattaching() {
-        jobs.forEach { it.cancel() }
-        jobs.clear()
-        super.onViewUnattaching()
-    }
-
     private fun launchFetchSettings() {
-        launchIO {
-            fetchSettings()
+        launchUI {
+            disableInteractive()
+            try {
+                fetchMutex.withLock {
+                    withContext(IODispatcher) {
+                        fetchSettings()
+                    }
+                }
+            } catch (e: Exception) {
+                log.e(e) { "Failed to fetch settings" }
+            } finally {
+                enableInteractive()
+            }
         }
     }
 
@@ -228,10 +231,7 @@ open class SettingsPresenter(
         }
 
         _languageCode.value = langCode
-        _supportedLanguageCodes.value = if (settings.supportedLanguageCodes.isNotEmpty())
-            settings.supportedLanguageCodes
-        else
-            setOf("en")
+        _supportedLanguageCodes.value = settings.supportedLanguageCodes.ifEmpty { setOf("en") }
         _closeOfferWhenTradeTaken.value = settings.closeMyOfferWhenTaken
         _tradePriceTolerance.value = NumberFormatter.format(settings.maxTradePriceDeviation * 100)
         _useAnimations.value = settings.useAnimations

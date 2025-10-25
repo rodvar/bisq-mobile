@@ -17,26 +17,27 @@ class NotificationServiceWrapper: ObservableObject {
     @Published var notificationControllerImpl: NotificationControllerImpl
 
     init() {
-        print("KMP: NotificationServiceWrapper init - attempting to resolve ForegroundServiceController")
-        print("KMP: Koin instance: \(DependenciesProviderHelper.companion.koin)")
+        // print() log calls are left since this will run only once on app init
+        print("NotificationServiceWrapper init - attempting to resolve ForegroundServiceController")
+        print("Koin instance: \(DependenciesProviderHelper.companion.koin)")
 
         // Try to get the implementation class directly instead of the protocol
-        print("KMP: Attempting to resolve NotificationControllerImpl directly")
+        print("Attempting to resolve NotificationControllerImpl directly")
         self.notificationControllerImpl = get(NotificationControllerImpl.self)
-        print("KMP: ForegroundServiceController resolved successfully")
-        
+        print("NotificationController resolved successfully")
+
         // Try to get the implementation class directly instead of the protocol
-        print("KMP: Attempting to resolve ForegroundServiceControllerImpl directly")
+        print("Attempting to resolve ForegroundServiceControllerImpl directly")
         self.foregroundServiceController = get(ForegroundServiceControllerImpl.self)
-        print("KMP: ForegroundServiceController resolved successfully")
-        
-        print("KMP: Setting up notification controller")
+        print("ForegroundServiceController resolved successfully")
+
+        print("Setting up notification controller")
         self.notificationControllerImpl.setup()
-        print("KMP: notification controller setup complete")
-        
-        print("KMP: Registering background task")
+        print("notification controller setup complete")
+
+        print("Registering background task")
         self.foregroundServiceController.registerBackgroundTask()
-        print("KMP: Background task registered")
+        print("Background task registered")
     }
 }
 
