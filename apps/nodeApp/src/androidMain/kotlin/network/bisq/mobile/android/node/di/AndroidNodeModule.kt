@@ -126,7 +126,7 @@ val androidNodeModule = module {
 
     single<ReputationServiceFacade> { NodeReputationServiceFacade(get()) }
 
-    single { NodeConnectivityService(get()) } bind ConnectivityService::class
+    single { NodeConnectivityService(get(), get()) } bind ConnectivityService::class
 
     single<UrlLauncher> { AndroidUrlLauncher(androidContext()) }
 

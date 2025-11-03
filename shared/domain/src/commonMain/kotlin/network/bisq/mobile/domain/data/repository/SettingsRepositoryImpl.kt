@@ -66,6 +66,12 @@ class SettingsRepositoryImpl(
         }
     }
 
+    override suspend fun setEverReceivedAllData(value: Boolean) {
+        settingsStore.updateData {
+            it.copy(everReceivedAllData = value)
+        }
+    }
+
     override suspend fun update(transform: suspend (t: Settings) -> Settings) {
         settingsStore.updateData(transform)
     }

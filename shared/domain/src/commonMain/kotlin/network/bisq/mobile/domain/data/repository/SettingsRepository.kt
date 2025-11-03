@@ -26,6 +26,8 @@ interface SettingsRepository {
 
     suspend fun setSelectedProxyOption(value: BisqProxyOption)
 
+    suspend fun setEverReceivedAllData(value: Boolean)
+
     suspend fun update(transform: suspend (t: Settings) -> Settings)
 
     suspend fun clear()

@@ -3,10 +3,14 @@ package network.bisq.mobile.android.node.service.network
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import network.bisq.mobile.android.node.BuildNodeConfig
+
+import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.service.network.ConnectivityService
 
 class NodeConnectivityService(
-    private val nodeNetworkServiceFacade: NodeNetworkServiceFacade
+    private val nodeNetworkServiceFacade: NodeNetworkServiceFacade,
+    private val settingsRepository: SettingsRepository,
 ) : ConnectivityService() {
 
     private var hasOnceReceivedAllData: Boolean = false
@@ -16,14 +20,32 @@ class NodeConnectivityService(
     override fun activate() {
         collectJob?.cancel()
         collectJob = serviceScope.launch {
+            // Load persisted flag before collecting status changes, with version gating
+            val settings = try {
+                settingsRepository.fetch()
+            } catch (e: Exception) {
+                null
+            }
+            val isFirstRunAfterUpgrade = settings?.lastSeenNodeAppVersion != BuildNodeConfig.APP_VERSION
+            hasOnceReceivedAllData = if (isFirstRunAfterUpgrade) false else (settings?.everReceivedAllData ?: false)
+            // Do not update lastSeenNodeAppVersion yet; wait until we have full data in this version
+
             combine(nodeNetworkServiceFacade.numConnections, nodeNetworkServiceFacade.allDataReceived) { numConnections, allDataReceived ->
                 numConnections to allDataReceived
             }.collect { (numConnections, allDataReceived) ->
                 // allDataReceived in the network layer will get reset to false when we lose all connections.
-                // We want to keep the information if we have ever received all data, as we distinguish then to show the reconnect
-                // overlay instead of the connections lost dialogue which is used when bootstrap fails.
+                // We keep whether we've ever seen full data to distinguish reconnect flows
                 if (allDataReceived && !hasOnceReceivedAllData) {
                     hasOnceReceivedAllData = true
+                    // Persist flags for this version once we have full data
+                    try {
+                        settingsRepository.update {
+                            it.copy(
+                                everReceivedAllData = true,
+                                lastSeenNodeAppVersion = BuildNodeConfig.APP_VERSION
+                            )
+                        }
+                    } catch (_: Exception) { /* ignore */ }
                 }
 
                 if (numConnections < 0) {

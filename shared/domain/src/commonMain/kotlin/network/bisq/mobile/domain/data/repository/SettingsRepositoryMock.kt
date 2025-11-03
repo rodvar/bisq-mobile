@@ -56,6 +56,12 @@ class SettingsRepositoryMock : SettingsRepository, Logging {
         }
     }
 
+    override suspend fun setEverReceivedAllData(value: Boolean) {
+        _data.update {
+            it.copy(everReceivedAllData = value)
+        }
+    }
+
     override suspend fun update(transform: suspend (Settings) -> Settings) {
         _data.update { transform(it) }
     }

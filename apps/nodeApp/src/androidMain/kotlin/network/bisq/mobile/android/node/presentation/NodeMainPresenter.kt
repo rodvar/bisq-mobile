@@ -12,6 +12,7 @@ import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.service.OpenTradesNotificationService
+import androidx.annotation.VisibleForTesting
 
 class NodeMainPresenter(
     urlLauncher: UrlLauncher,
@@ -30,13 +31,21 @@ class NodeMainPresenter(
     tradeReadStateRepository,
     urlLauncher
 ) {
+    companion object {
+        @VisibleForTesting
+        fun shouldShowReconnectOverlay(
+            status: ConnectivityStatus,
+        ): Boolean {
+            return (status == ConnectivityStatus.RECONNECTING)
+        }
+    }
 
     override fun onViewAttached() {
         super.onViewAttached()
 
         collectUI(connectivityService.status) { status ->
-            _showAllConnectionsLostDialogue.value = ConnectivityStatus.DISCONNECTED == status
-            _showReconnectOverlay.value = ConnectivityStatus.RECONNECTING == status
+            _showAllConnectionsLostDialogue.value = (status == ConnectivityStatus.DISCONNECTED)
+            _showReconnectOverlay.value = shouldShowReconnectOverlay(status)
         }
     }
 
@@ -61,4 +70,5 @@ class NodeMainPresenter(
         }
         nodeApplicationLifecycleService.terminateApp(activity)
     }
+
 }

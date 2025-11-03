@@ -13,6 +13,10 @@ data class Settings (
     // client node specific:
     val selectedProxyOption: BisqProxyOption = BisqProxyOption.NONE,
     val externalProxyUrl: String = "",
+    // app-wide telemetry flags
+    val everReceivedAllData: Boolean = false,
+    // node app only: used to suppress reconnect overlay on first run after upgrade
+    val lastSeenNodeAppVersion: String = "",
 )
 
 @Serializable
