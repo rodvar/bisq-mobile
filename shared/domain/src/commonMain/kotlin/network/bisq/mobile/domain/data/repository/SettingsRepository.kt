@@ -26,6 +26,10 @@ interface SettingsRepository {
 
     suspend fun setSelectedProxyOption(value: BisqProxyOption)
 
+    /**
+     * Sets the flag indicating whether the app has ever received all data from the network.
+     * Used to determine if the reconnect overlay should be shown after app recovery.
+     */
     suspend fun setEverReceivedAllData(value: Boolean)
 
     suspend fun update(transform: suspend (t: Settings) -> Settings)

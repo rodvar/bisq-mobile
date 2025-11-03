@@ -9,7 +9,7 @@ class NodeMainPresenterOverlayTest {
 
 
     @Test
-    fun bootstrapping_first_run_after_upgrade_is_suppressed() {
+    fun bootstrapping_status_does_not_show_overlay() {
         val show = NodeMainPresenter.shouldShowReconnectOverlay(
             status = ConnectivityStatus.BOOTSTRAPPING
         )
@@ -17,23 +17,7 @@ class NodeMainPresenterOverlayTest {
     }
 
     @Test
-    fun requesting_inventory_first_run_after_upgrade_is_suppressed() {
-        val show = NodeMainPresenter.shouldShowReconnectOverlay(
-            status = ConnectivityStatus.REQUESTING_INVENTORY
-        )
-        assertFalse(show)
-    }
-
-    @Test
-    fun bootstrapping_never_shows_even_after_upgrade_completed() {
-        val show = NodeMainPresenter.shouldShowReconnectOverlay(
-            status = ConnectivityStatus.BOOTSTRAPPING
-        )
-        assertFalse(show)
-    }
-
-    @Test
-    fun requesting_inventory_never_shows_even_after_upgrade_completed() {
+    fun requesting_inventory_status_does_not_show_overlay() {
         val show = NodeMainPresenter.shouldShowReconnectOverlay(
             status = ConnectivityStatus.REQUESTING_INVENTORY
         )

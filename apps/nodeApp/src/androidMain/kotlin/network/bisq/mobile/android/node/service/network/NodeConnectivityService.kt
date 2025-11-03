@@ -24,6 +24,7 @@ class NodeConnectivityService(
             val settings = try {
                 settingsRepository.fetch()
             } catch (e: Exception) {
+                log.w(e) { "Failed to load settings during connectivity activation" }
                 null
             }
             val isFirstRunAfterUpgrade = settings?.lastSeenNodeAppVersion != BuildNodeConfig.APP_VERSION
@@ -45,7 +46,9 @@ class NodeConnectivityService(
                                 lastSeenNodeAppVersion = BuildNodeConfig.APP_VERSION
                             )
                         }
-                    } catch (_: Exception) { /* ignore */ }
+                    } catch (e: Exception) {
+                        log.w(e) { "Failed to persist connectivity flags" }
+                    }
                 }
 
                 if (numConnections < 0) {

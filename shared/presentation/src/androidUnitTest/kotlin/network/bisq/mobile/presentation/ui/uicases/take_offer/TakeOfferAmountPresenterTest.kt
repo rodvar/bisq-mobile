@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
@@ -88,7 +89,7 @@ class TakeOfferAmountPresenterTest {
         override suspend fun setNotificationPermissionState(value: network.bisq.mobile.domain.data.model.NotificationPermissionState) {}
         override suspend fun setExternalProxyUrl(value: String) {}
         override suspend fun setSelectedProxyOption(value: BisqProxyOption) {}
-        override suspend fun setEverReceivedAllData(value: Boolean) { _data.value = _data.value.copy(everReceivedAllData = value) }
+        override suspend fun setEverReceivedAllData(value: Boolean) { _data.update { it.copy(everReceivedAllData = value) } }
         override suspend fun update(transform: suspend (t: Settings) -> Settings) { _data.value = transform(_data.value) }
         override suspend fun clear() { _data.value = Settings() }
     }
