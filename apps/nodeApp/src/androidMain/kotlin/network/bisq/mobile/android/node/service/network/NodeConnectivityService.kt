@@ -13,7 +13,8 @@ class NodeConnectivityService(
     private val settingsRepository: SettingsRepository,
 ) : ConnectivityService() {
 
-    private var hasOnceReceivedAllData: Boolean = false
+    // Cached mirror of settings-scoped flag indicating we have fully synced on this app version
+    private var hasSyncedOnThisVersion: Boolean = false
     private var collectJob: Job? = null
 
     // Activated after application service is initialized.
@@ -28,7 +29,7 @@ class NodeConnectivityService(
                 null
             }
             val isFirstRunAfterUpgrade = settings?.lastSeenNodeAppVersion != BuildNodeConfig.APP_VERSION
-            hasOnceReceivedAllData = if (isFirstRunAfterUpgrade) false else (settings?.everReceivedAllData ?: false)
+            hasSyncedOnThisVersion = if (isFirstRunAfterUpgrade) false else (settings?.everReceivedAllData ?: false)
             // Do not update lastSeenNodeAppVersion yet; wait until we have full data in this version
 
             combine(nodeNetworkServiceFacade.numConnections, nodeNetworkServiceFacade.allDataReceived) { numConnections, allDataReceived ->
@@ -36,8 +37,8 @@ class NodeConnectivityService(
             }.collect { (numConnections, allDataReceived) ->
                 // allDataReceived in the network layer will get reset to false when we lose all connections.
                 // We keep whether we've ever seen full data to distinguish reconnect flows
-                if (allDataReceived && !hasOnceReceivedAllData) {
-                    hasOnceReceivedAllData = true
+                if (allDataReceived && !hasSyncedOnThisVersion) {
+                    hasSyncedOnThisVersion = true
                     // Persist flags for this version once we have full data
                     try {
                         settingsRepository.update {
@@ -54,7 +55,7 @@ class NodeConnectivityService(
                 if (numConnections < 0) {
                     _status.value = ConnectivityStatus.BOOTSTRAPPING
                 } else if (numConnections == 0) {
-                    if (hasOnceReceivedAllData) {
+                    if (hasSyncedOnThisVersion) {
                         _status.value = ConnectivityStatus.RECONNECTING
                     } else {
                         _status.value = ConnectivityStatus.DISCONNECTED
