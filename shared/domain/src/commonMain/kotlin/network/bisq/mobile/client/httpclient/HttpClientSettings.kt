@@ -2,7 +2,7 @@ package network.bisq.mobile.client.httpclient
 
 import io.ktor.client.engine.ProxyBuilder
 import network.bisq.mobile.domain.PlatformType
-import network.bisq.mobile.domain.data.model.Settings
+import network.bisq.mobile.domain.data.model.SensitiveSettings
 import network.bisq.mobile.domain.data.replicated.common.network.AddressVO
 import network.bisq.mobile.domain.getPlatformInfo
 import network.bisq.mobile.domain.service.network.KmpTorService
@@ -13,12 +13,13 @@ data class HttpClientSettings(
     val selectedProxyOption: BisqProxyOption = BisqProxyOption.NONE,
     val proxyUrl: String? = null,
     val isTorProxy: Boolean = false,
+    val password: String? = null,
 ) {
     companion object {
         /**
          * Warning: Suspends until [KmpTorService] is started if selected proxy option is [BisqProxyOption.INTERNAL_TOR]
          */
-        suspend fun from(settings: Settings, kmpTorService: KmpTorService): HttpClientSettings {
+        suspend fun from(settings: SensitiveSettings, kmpTorService: KmpTorService): HttpClientSettings {
             val selectedProxyOption = settings.selectedProxyOption
             var proxyUrl: String?
             val isTorProxy: Boolean
@@ -49,6 +50,7 @@ data class HttpClientSettings(
                 selectedProxyOption,
                 proxyUrl,
                 isTorProxy,
+                settings.bisqApiPassword,
             )
         }
     }

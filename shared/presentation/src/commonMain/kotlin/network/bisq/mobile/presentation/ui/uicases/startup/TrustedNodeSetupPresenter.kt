@@ -16,12 +16,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.client.httpclient.BisqProxyOption
+import network.bisq.mobile.client.httpclient.exception.PasswordIncorrectOrMissingException
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.client.websocket.ConnectionState
 import network.bisq.mobile.client.websocket.WebSocketClientService
 import network.bisq.mobile.client.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.domain.data.IODispatcher
-import network.bisq.mobile.domain.data.repository.SettingsRepository
+import network.bisq.mobile.domain.data.repository.SensitiveSettingsRepository
 import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.domain.service.network.KmpTorService
@@ -41,7 +42,7 @@ import org.koin.core.component.inject
 class TrustedNodeSetupPresenter(
     mainPresenter: MainPresenter,
     private val userRepository: UserRepository,
-    private val settingsRepository: SettingsRepository,
+    private val sensitiveSettingsRepository: SensitiveSettingsRepository,
     private val kmpTorService: KmpTorService,
     private val applicationBootstrapFacade: ApplicationBootstrapFacade,
 ) : BasePresenter(mainPresenter) {
@@ -73,8 +74,11 @@ class TrustedNodeSetupPresenter(
     private val _proxyPort = MutableStateFlow("9050")
     val proxyPort: StateFlow<String> = _proxyPort.asStateFlow()
 
+    private val _password = MutableStateFlow("")
+    val password: StateFlow<String> = _password.asStateFlow()
+
     val isNewApiUrl: StateFlow<Boolean> =
-        combine(settingsRepository.data, apiUrl) { settings, newUrl ->
+        combine(sensitiveSettingsRepository.data, apiUrl) { settings, newUrl ->
             settings.bisqApiUrl.isNotBlank() && settings.bisqApiUrl != newUrl
         }.stateIn(presenterScope, SharingStarted.Lazily, false)
 
@@ -139,8 +143,9 @@ class TrustedNodeSetupPresenter(
         launchUI {
             try {
                 val settings = withContext(IODispatcher) {
-                    settingsRepository.fetch()
+                    sensitiveSettingsRepository.fetch()
                 }
+                _password.value = settings.bisqApiPassword
                 _selectedProxyOption.value = settings.selectedProxyOption
                 if (settings.bisqApiUrl.isBlank()) {
                     if (apiUrl.value.isNotBlank()) onApiUrlChanged(apiUrl.value)
@@ -176,6 +181,10 @@ class TrustedNodeSetupPresenter(
         _proxyPort.value = port
     }
 
+    fun onPasswordChanged(value: String) {
+        _password.value = value
+    }
+
     fun onProxyOptionChanged(value: BisqProxyOption) {
         _selectedProxyOption.value = value
         _userExplicitlyChangedProxy.value = true
@@ -205,6 +214,7 @@ class TrustedNodeSetupPresenter(
                 val newProxyPort: Int?
                 val newProxyIsTor: Boolean
                 val newProxyOption = selectedProxyOption.value
+                val password = _password.value
                 when (newProxyOption) {
                     BisqProxyOption.INTERNAL_TOR -> {
                         if (kmpTorService.state.value != KmpTorService.State.STARTED) {
@@ -255,6 +265,7 @@ class TrustedNodeSetupPresenter(
                         newProxyHost,
                         newProxyPort,
                         newProxyIsTor,
+                        password,
                     )
                     countdownJob.cancel()
                     result
@@ -267,7 +278,7 @@ class TrustedNodeSetupPresenter(
                     val newApiUrl = newApiUrl!!
                     // we only dispose client if we are sure new settings differ from the old one
                     // because it wont emit if they are the same, and new clients wont be instantiated
-                    val currentSettings = settingsRepository.fetch()
+                    val currentSettings = sensitiveSettingsRepository.fetch()
                     val updatedSettings = currentSettings.copy(
                         bisqApiUrl = newApiUrl.toString(),
                         externalProxyUrl = when (newProxyOption) {
@@ -277,11 +288,12 @@ class TrustedNodeSetupPresenter(
                             else -> ""
                         },
                         selectedProxyOption = newProxyOption,
+                        bisqApiPassword = password,
                     )
                     if (currentSettings != updatedSettings) {
                         wsClientService.disposeClient()
                         // we need to do it in 1 update to not trigger unnecessary flow emits
-                        settingsRepository.update { updatedSettings }
+                        sensitiveSettingsRepository.update { updatedSettings }
                     }
                     val error = wsClientService.connect() // waits till new clients are initialized
                     if (error != null) {
@@ -333,6 +345,10 @@ class TrustedNodeSetupPresenter(
                 log.d { "Invalid version cannot connect" }
                 showSnackbar("mobile.trustedNodeSetup.connectionJob.messages.incompatible".i18n())
                 _status.value = "mobile.trustedNodeSetup.status.invalidVersion".i18n()
+            }
+
+            is PasswordIncorrectOrMissingException -> {
+                _status.value = "mobile.trustedNodeSetup.status.passwordIncorrectOrMissing".i18n()
             }
 
             else -> {
