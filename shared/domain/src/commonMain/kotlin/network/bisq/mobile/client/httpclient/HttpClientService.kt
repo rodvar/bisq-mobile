@@ -30,6 +30,8 @@ import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.httpclient.exception.PasswordIncorrectOrMissingException
 import network.bisq.mobile.crypto.getSha256
+import network.bisq.mobile.domain.utils.toHex
+
 import network.bisq.mobile.domain.createHttpClient
 import network.bisq.mobile.domain.data.repository.SensitiveSettingsRepository
 import network.bisq.mobile.domain.service.ServiceFacade
@@ -174,7 +176,7 @@ class HttpClientService(
                                 if (bytes.size > MAX_BODY_SIZE_BYTES) {
                                     throw IllegalArgumentException("Request body exceeds maximum size of $MAX_BODY_SIZE_BYTES bytes")
                                 }
-                                getSha256(bytes).toHexString()
+                                getSha256(bytes).toHex()
                             }
 
                             is OutgoingContent.ReadChannelContent -> {
@@ -186,7 +188,7 @@ class HttpClientService(
                                 }
                                 reconstructedBody =
                                     ByteArrayContent(bytes, content.contentType, content.status)
-                                getSha256(bytes).toHexString()
+                                getSha256(bytes).toHex()
                             }
 
                             is OutgoingContent.WriteChannelContent -> {
@@ -201,7 +203,7 @@ class HttpClientService(
                                     }
                                     reconstructedBody =
                                         ByteArrayContent(bytes, content.contentType, content.status)
-                                    getSha256(bytes).toHexString()
+                                    getSha256(bytes).toHex()
                                 } finally {
                                     channel.close()
                                 }

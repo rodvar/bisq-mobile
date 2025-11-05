@@ -55,6 +55,8 @@ import network.bisq.mobile.client.websocket.subscription.ModificationType
 import network.bisq.mobile.client.websocket.subscription.Topic
 import network.bisq.mobile.client.websocket.subscription.WebSocketEventObserver
 import network.bisq.mobile.crypto.getSha256
+import network.bisq.mobile.domain.utils.toHex
+
 import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.settings.ApiVersionSettingsVO
 import network.bisq.mobile.domain.utils.DateUtils
@@ -241,7 +243,7 @@ class WebSocketClientImpl(
                     ?: throw IllegalArgumentException("Invalid path provided: $webSocketRequest.path")
                 val normalizedPath = AuthUtils.getNormalizedPathAndQuery(parsedPath)
                 val bodySha256Hex = if (webSocketRequest.body.isNotBlank()) {
-                    getSha256(webSocketRequest.body.toByteArray()).toHexString()
+                    getSha256(webSocketRequest.body.toByteArray()).toHex()
                 } else {
                     null
                 }
