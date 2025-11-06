@@ -87,6 +87,8 @@ class WebSocketApiClient(
 
     suspend inline fun <reified T, reified R> post(path: String, requestBody: R): Result<T> {
         if (useHttpClient) {
+            log.d { "HTTP POST to ${apiPath + path}" }
+            log.d { "Request body: $requestBody" }
             try {
                 val response: HttpResponse = httpClientService.post {
                     url{
@@ -96,8 +98,10 @@ class WebSocketApiClient(
                     accept(ContentType.Application.Json)
                     setBody(requestBody)
                 }
+                log.d { "HTTP POST done status=${response.status}" }
                 return getResultFromHttpResponse<T>(response)
             } catch (e: Exception) {
+                log.e(e) { "HTTP POST failed for ${apiPath + path}: ${e.message}" }
                 return Result.failure(e)
             }
         } else {
