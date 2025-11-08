@@ -150,6 +150,20 @@ jobs:
         if: startsWith(runner.os, 'macOS') && runner.arch == 'ARM64'
         run: ./gradlew shared:presentation:iosSimulatorArm64Test
 
+      - name: Run domain iOS Tests (Intel runner)
+        if: startsWith(runner.os, 'macOS') && runner.arch == 'X64'
+        env:
+          CI: true
+        run: |
+          ./gradlew :shared:domain:iosSimulatorX64Test --info
+
+      - name: Run domain iOS Tests (Apple Silicon runner)
+        if: startsWith(runner.os, 'macOS') && runner.arch == 'ARM64'
+        env:
+          CI: true
+        run: |
+          ./gradlew :shared:domain:iosSimulatorArm64Test --info
+
   # --- Node-specific Maven build (needs secrets) ---
   node-maven:
     name: Node Build (Needs Secrets)
