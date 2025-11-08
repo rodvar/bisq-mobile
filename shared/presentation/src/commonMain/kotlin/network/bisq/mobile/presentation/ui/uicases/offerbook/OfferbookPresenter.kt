@@ -1,6 +1,5 @@
 package network.bisq.mobile.presentation.ui.uicases.offerbook
 
-import com.ionspin.kotlin.bignum.integer.Quadruple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,8 +52,21 @@ class OfferbookPresenter(
     private val _selectedDirection = MutableStateFlow(DirectionEnum.BUY)
     val selectedDirection: StateFlow<DirectionEnum> get() = _selectedDirection.asStateFlow()
 
+    private val _selectedPaymentMethodIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedPaymentMethodIds: StateFlow<Set<String>> = _selectedPaymentMethodIds.asStateFlow()
+    private val _selectedSettlementMethodIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedSettlementMethodIds: StateFlow<Set<String>> get() = _selectedSettlementMethodIds.asStateFlow()
+    private val _onlyMyOffers = MutableStateFlow(false)
+    val onlyMyOffers: StateFlow<Boolean> get() = _onlyMyOffers.asStateFlow()
+
     private val _sortedFilteredOffers = MutableStateFlow<List<OfferItemPresentationModel>>(emptyList())
     val sortedFilteredOffers: StateFlow<List<OfferItemPresentationModel>> get() = _sortedFilteredOffers.asStateFlow()
+
+    // Baseline available method sets (direction+ignored-user filtered, independent of method selections)
+    private val _availablePaymentMethodIds = MutableStateFlow<Set<String>>(emptySet())
+    val availablePaymentMethodIds: StateFlow<Set<String>> get() = _availablePaymentMethodIds.asStateFlow()
+    private val _availableSettlementMethodIds = MutableStateFlow<Set<String>>(emptySet())
+    val availableSettlementMethodIds: StateFlow<Set<String>> get() = _availableSettlementMethodIds.asStateFlow()
 
     private val _showDeleteConfirmation = MutableStateFlow(false)
     val showDeleteConfirmation: StateFlow<Boolean> get() = _showDeleteConfirmation.asStateFlow()
@@ -80,45 +92,97 @@ class OfferbookPresenter(
 
         selectedOffer = null
         launchIO {
+            // pack strongly-typed, use vararg combine -> Array, then map
             combine(
                 offersServiceFacade.offerbookListItems,
                 selectedDirection,
                 offersServiceFacade.selectedOfferbookMarket,
-                mainPresenter.languageCode,
+                mainPresenter.languageCode, // included to refresh formatting when language changes
                 userProfileServiceFacade.selectedUserProfile,
-            ) { offers, direction, selectedMarket, _, selectedProfile ->
-                Quadruple(offers, direction, selectedMarket, selectedProfile)
+                selectedPaymentMethodIds,
+                selectedSettlementMethodIds,
+                onlyMyOffers,
+            ) { values: Array<Any?> ->
+                @Suppress("UNCHECKED_CAST")
+                OfferbookPresenterInputs(
+                    offers = values[0] as List<OfferItemPresentationModel>,
+                    direction = values[1] as DirectionEnum,
+                    selectedMarket = values[2] as network.bisq.mobile.domain.data.model.offerbook.OfferbookMarket,
+                    selectedProfile = values[4] as UserProfileVO?,
+                    payments = values[5] as Set<String>,
+                    settlements = values[6] as Set<String>,
+                    onlyMine = values[7] as Boolean,
+                )
             }
-                .mapLatest { (offers, direction, selectedMarket, selectedProfile) ->
-                    log.d { "OfferbookPresenter filtering - Selected market: ${selectedMarket.market.quoteCurrencyCode}, Direction: $direction, Input offers: ${offers.size}" }
+                .mapLatest { inp ->
+                    val offers = inp.offers
+                    val direction = inp.direction
+                    val selectedMarket = inp.selectedMarket
+                    val selectedProfile = inp.selectedProfile
+                    val payments = inp.payments
+                    val settlements = inp.settlements
+                    val onlyMine = inp.onlyMine
+
+                    log.d { "OfferbookPresenter filtering - Market: ${selectedMarket.market.quoteCurrencyCode}, Dir: $direction, In: ${offers.size}, paySel=${payments.size}, setSel=${settlements.size}, onlyMine=$onlyMine" }
 
                     val filtered = mutableListOf<OfferItemPresentationModel>()
                     if (selectedProfile == null) return@mapLatest filtered to selectedProfile
                     var directionFilteredCount = 0
                     var ignoredUserFilteredCount = 0
+                    var methodFilteredCount = 0
+                    var onlyMyFilteredCount = 0
+
+                    // Baseline availability (direction + ignored-user + only-my if enabled), independent of method selections
+                    val availablePayments = mutableSetOf<String>()
+                    val availableSettlements = mutableSetOf<String>()
 
                     for (item in offers) {
                         val offerCurrency = item.bisqEasyOffer.market.quoteCurrencyCode
                         val offerDirection = item.bisqEasyOffer.direction.mirror
                         val isIgnoredUser = isOfferFromIgnoredUserCached(item.bisqEasyOffer)
 
-                        log.v { "Offer ${item.offerId} - Currency: $offerCurrency, Direction: $offerDirection, IsIgnored: $isIgnoredUser" }
+                        log.v { "Offer ${item.offerId} - Currency: $offerCurrency, Direction: $offerDirection, IsIgnored: $isIgnoredUser, isMy=${item.isMyOffer}" }
 
-                        if (offerDirection == direction) {
-                            directionFilteredCount++
-                            if (!isIgnoredUser) {
-                                filtered += item
-                                log.v { "Offer ${item.offerId} included - Currency: $offerCurrency, Amount: ${item.formattedQuoteAmount}" }
-                            } else {
-                                ignoredUserFilteredCount++
-                                log.v { "Offer ${item.offerId} filtered out (ignored user)" }
-                            }
-                        } else {
+                        if (offerDirection != direction) {
                             log.v { "Offer ${item.offerId} filtered out (wrong direction: $offerDirection != $direction)" }
+                            continue
                         }
+                        directionFilteredCount++
+
+                        if (isIgnoredUser) {
+                            ignoredUserFilteredCount++
+                            log.v { "Offer ${item.offerId} filtered out (ignored user)" }
+                            continue
+                        }
+
+                        if (onlyMine && !item.isMyOffer) {
+                            onlyMyFilteredCount++
+                            log.v { "Offer ${item.offerId} filtered out (only my offers enabled)" }
+                            continue
+                        }
+
+                        // Contribute to baseline availability regardless of current method selections
+                        availablePayments.addAll(item.quoteSidePaymentMethods)
+                        availableSettlements.addAll(item.baseSidePaymentMethods)
+
+                        // Method filter: empty selections mean "filter none" (explicit NONE in UI hides all)
+                        val paymentOk = if (payments.isEmpty()) false else item.quoteSidePaymentMethods.any { it in payments }
+                        val settlementOk = if (settlements.isEmpty()) false else item.baseSidePaymentMethods.any { it in settlements }
+                        if (!paymentOk || !settlementOk) {
+                            methodFilteredCount++
+                            log.v { "Offer ${item.offerId} filtered out (methods) payOk=$paymentOk setOk=$settlementOk" }
+                            continue
+                        }
+
+                        filtered += item
+                        log.v { "Offer ${item.offerId} included - Currency: $offerCurrency, Amount: ${item.formattedQuoteAmount}" }
                     }
 
-                    log.d { "OfferbookPresenter filtering results - Market: ${selectedMarket.market.quoteCurrencyCode}, Direction matches: $directionFilteredCount, Ignored users filtered: $ignoredUserFilteredCount, Final count: ${filtered.size}" }
+                    // Publish baseline availability independent of current method selections
+                    _availablePaymentMethodIds.value = availablePayments
+                    _availableSettlementMethodIds.value = availableSettlements
+
+                    log.d { "OfferbookPresenter filtering results - Market: ${selectedMarket.market.quoteCurrencyCode}, Dir matches: $directionFilteredCount, Ignored: $ignoredUserFilteredCount, OnlyMy: $onlyMyFilteredCount, Methods: $methodFilteredCount, Final: ${filtered.size}" }
                     filtered to selectedProfile
                 }
                 .collectLatest { (filtered, selectedProfile) ->
@@ -329,6 +393,7 @@ class OfferbookPresenter(
                 notEnoughReputationHeadline = "chat.message.takeOffer.buyer.invalidOffer.headline".i18n()
                 val warningKey = if (isAmountRangeOffer) "chat.message.takeOffer.buyer.invalidOffer.rangeAmount.text"
                 else "chat.message.takeOffer.buyer.invalidOffer.fixedAmount.text"
+
                 notEnoughReputationMessage = warningKey.i18n(
                     sellersScore,
                     if (isAmountRangeOffer) requiredReputationScoreForMinOrFixed else requiredReputationScoreForMaxOrFixed,
@@ -359,6 +424,18 @@ class OfferbookPresenter(
         _selectedDirection.value = direction
     }
 
+    fun setOnlyMyOffers(enabled: Boolean) {
+        _onlyMyOffers.value = enabled
+    }
+
+    fun setSelectedPaymentMethodIds(ids: Set<String>) {
+        _selectedPaymentMethodIds.value = ids
+    }
+
+    fun setSelectedSettlementMethodIds(ids: Set<String>) {
+        _selectedSettlementMethodIds.value = ids
+    }
+
     fun createOffer() {
         disableInteractive()
         try {
@@ -366,6 +443,7 @@ class OfferbookPresenter(
             createOfferPresenter.onStartCreateOffer()
 
             // Check if a market is already selected (not EMPTY)
+
             val hasValidMarket = selectedMarket.baseCurrencyCode.isNotEmpty() && selectedMarket.quoteCurrencyCode.isNotEmpty()
 
             if (hasValidMarket) {
