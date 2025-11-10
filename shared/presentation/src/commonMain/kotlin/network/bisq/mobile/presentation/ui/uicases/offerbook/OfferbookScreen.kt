@@ -13,7 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
-
+import kotlinx.coroutines.delay
 
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,10 +29,13 @@ import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.WebLinkConfirmationDialog
+import network.bisq.mobile.presentation.ui.components.molecules.dialog.LoadingDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 import org.koin.compose.koinInject
+
+const val MAX_LOADING_TIME_MS = 2500L
 
 @Composable
 fun OfferbookScreen() {
@@ -46,6 +49,21 @@ fun OfferbookScreen() {
     val isInteractive by presenter.isInteractive.collectAsState()
     val selectedMarket by presenter.selectedMarket.collectAsState()
     val onlyMyOffers by presenter.onlyMyOffers.collectAsState()
+
+    // Show a loading overlay while offers are being fetched (per market, direction)
+    var showLoading by remember { mutableStateOf(true) }
+
+    // Reset and start a short grace period every time market or tab (direction) changes; hide early if data arrives.
+    LaunchedEffect(selectedMarket, selectedDirection) {
+        showLoading = true
+        // Allow data to arrive; if still empty after the delay, fall back to real empty state.
+        delay(MAX_LOADING_TIME_MS)
+        if (sortedFilteredOffers.isEmpty()) showLoading = false
+    }
+    // If offers arrive sooner, immediately hide the loading overlay.
+    LaunchedEffect(sortedFilteredOffers) {
+        if (sortedFilteredOffers.isNotEmpty()) showLoading = false
+    }
 
     BisqStaticScaffold(
         topBar = {
@@ -193,7 +211,7 @@ fun OfferbookScreen() {
         }
 
 
-        if (sortedFilteredOffers.isEmpty()) {
+        if (sortedFilteredOffers.isEmpty() && !showLoading) {
             NoOffersSection(presenter)
             return@BisqStaticScaffold
         }
@@ -214,6 +232,11 @@ fun OfferbookScreen() {
                 )
             }
         }
+    }
+
+    // Loading overlay for initial fetches on slow connections (e.g., Tor - specially on Connect)
+    if (showLoading) {
+        LoadingDialog()
     }
 
     if (showDeleteConfirmation) {
