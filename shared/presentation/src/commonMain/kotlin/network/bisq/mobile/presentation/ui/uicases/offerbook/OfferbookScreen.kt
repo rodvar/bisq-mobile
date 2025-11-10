@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.background
+
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -17,9 +21,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.dp
+
 
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.BisqLinks
@@ -55,11 +63,13 @@ fun OfferbookScreen() {
     var showLoading by remember { mutableStateOf(true) }
 
     // Reset and start a short grace period every time market or tab (direction) changes; hide early if data arrives.
-    LaunchedEffect(selectedMarket, selectedDirection) {
+    // Important: use a stable market identity (quote code) to avoid retriggering on reactive price updates.
+    val marketKey = selectedMarket?.market?.quoteCurrencyCode
+    LaunchedEffect(marketKey, selectedDirection) {
         showLoading = true
         // Allow data to arrive; if still empty after the delay, fall back to real empty state.
         delay(MAX_LOADING_TIME_MS)
-        if (sortedFilteredOffers.isEmpty()) showLoading = false
+        showLoading = false
     }
     // If offers arrive sooner, immediately hide the loading overlay.
     LaunchedEffect(sortedFilteredOffers) {
@@ -118,17 +128,65 @@ fun OfferbookScreen() {
 
         BisqGap.V1()
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            items(items = sortedFilteredOffers, key = { it.offerId }) { item ->
-                OfferCard(
-                    item,
-                    onSelectOffer = {
-                        presenter.onOfferSelected(item)
-                    },
-                    userProfileIconProvider = presenter.userProfileIconProvider
+        // Vertical edge fades on the offers list to hint scrollability
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        val canScrollUp by remember(listState) {
+            androidx.compose.runtime.derivedStateOf {
+                listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
+            }
+        }
+        val canScrollDown by remember(listState) {
+            androidx.compose.runtime.derivedStateOf {
+                val info = listState.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()
+                last != null && (last.index < info.totalItemsCount - 1 || (last.offset + last.size) > info.viewportEndOffset)
+            }
+        }
+
+        Box {
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(items = sortedFilteredOffers, key = { it.offerId }) { item ->
+                    OfferCard(
+                        item,
+                        onSelectOffer = {
+                            presenter.onOfferSelected(item)
+                        },
+                        userProfileIconProvider = presenter.userProfileIconProvider
+                    )
+                }
+            }
+
+            // Subtle edge fades to indicate vertical scrollability (only when list has content)
+            val fadeHeight = 12.dp
+            if (sortedFilteredOffers.isNotEmpty() && canScrollUp) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(fadeHeight)
+                        .align(Alignment.TopCenter)
+                        .background(
+                            brush = verticalGradient(
+                                colors = listOf(BisqTheme.colors.dark_grey30, Color.Transparent)
+                            )
+                        )
+                )
+            }
+            if (sortedFilteredOffers.isNotEmpty() && canScrollDown) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(fadeHeight)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            brush = verticalGradient(
+                                colors = listOf(Color.Transparent, BisqTheme.colors.dark_grey40)
+                            )
+                        )
                 )
             }
         }
