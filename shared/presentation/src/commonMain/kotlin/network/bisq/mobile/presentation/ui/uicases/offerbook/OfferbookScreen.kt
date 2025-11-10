@@ -1,11 +1,14 @@
 package network.bisq.mobile.presentation.ui.uicases.offerbook
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,7 +32,6 @@ import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.WebLinkConfirmationDialog
-import network.bisq.mobile.presentation.ui.components.molecules.dialog.LoadingDialog
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
@@ -48,7 +50,6 @@ fun OfferbookScreen() {
     val showNotEnoughReputationDialog by presenter.showNotEnoughReputationDialog.collectAsState()
     val isInteractive by presenter.isInteractive.collectAsState()
     val selectedMarket by presenter.selectedMarket.collectAsState()
-    val onlyMyOffers by presenter.onlyMyOffers.collectAsState()
 
     // Show a loading overlay while offers are being fetched (per market, direction)
     var showLoading by remember { mutableStateOf(true) }
@@ -86,125 +87,24 @@ fun OfferbookScreen() {
             onStateChange = { direction -> presenter.onSelectDirection(direction) }
         )
 
-        val availablePaymentIds by presenter.availablePaymentMethodIds.collectAsState()
-        val availableSettlementIds by presenter.availableSettlementMethodIds.collectAsState()
-
-        // Keep selections stable across recompositions and offer set changes.
-        var selectedPaymentIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-        var selectedSettlementIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-        var prevAvailPayment by remember { mutableStateOf<Set<String>>(emptySet()) }
-        var prevAvailSettlement by remember { mutableStateOf<Set<String>>(emptySet()) }
-        var hasManualPaymentFilter by remember { mutableStateOf(false) }
-        var hasManualSettlementFilter by remember { mutableStateOf(false) }
-
-
-        // Initialize defaults (all selected) and handle changes in available sets via side-effects
-        LaunchedEffect(availablePaymentIds) {
-            if (prevAvailPayment != availablePaymentIds) {
-                val newlyAdded = availablePaymentIds - prevAvailPayment
-                val newSelection = (selectedPaymentIds intersect availablePaymentIds) +
-                    if (hasManualPaymentFilter) emptySet() else newlyAdded
-                if (newSelection != selectedPaymentIds) {
-                    selectedPaymentIds = newSelection
-                }
-                presenter.setSelectedPaymentMethodIds(newSelection)
-                prevAvailPayment = availablePaymentIds
-            }
-        }
-        LaunchedEffect(availableSettlementIds) {
-            if (prevAvailSettlement != availableSettlementIds) {
-                val newlyAdded = availableSettlementIds - prevAvailSettlement
-                val newSelection = (selectedSettlementIds intersect availableSettlementIds) +
-                    if (hasManualSettlementFilter) emptySet() else newlyAdded
-                if (newSelection != selectedSettlementIds) {
-                    selectedSettlementIds = newSelection
-                }
-                presenter.setSelectedSettlementMethodIds(newSelection)
-                prevAvailSettlement = availableSettlementIds
-            }
-        }
-
-        fun humanizePaymentId(id: String): String {
-            // Prefer i18n; if missing, make a readable fallback (preserve common acronyms)
-            val (name, missing) = network.bisq.mobile.presentation.ui.helpers.i18NPaymentMethod(id)
-            if (!missing) return name
-            val acronyms = setOf("SEPA", "SWIFT", "ACH", "UPI", "PIX", "ZELLE", "F2F")
-            return id.split('_', '-').joinToString(" ") { part ->
-                val up = part.uppercase()
-                if (up in acronyms) up else part.lowercase().replaceFirstChar { it.titlecase() }
-            }
-        }
-
-        val paymentUi = availablePaymentIds.toList().sorted().map { id ->
-            MethodIconState(
-                id = id,
-                label = humanizePaymentId(id),
-                iconPath = paymentIconPath(id),
-                selected = id in selectedPaymentIds
-            )
-        }
-        val settlementUi = availableSettlementIds.toList().sorted().map { id ->
-            val label = when (id.uppercase()) {
-                "BTC", "MAIN_CHAIN", "ONCHAIN", "ON_CHAIN" -> "mobile.settlement.bitcoin".i18n()
-                "LIGHTNING", "LN" -> "mobile.settlement.lightning".i18n()
-                else -> id
-            }
-            MethodIconState(
-                id = id,
-                label = label,
-                iconPath = settlementIconPath(id),
-                selected = id in selectedSettlementIds
-            )
-        }
-
-        val hasActiveFilters = onlyMyOffers || paymentUi.any { !it.selected } || settlementUi.any { !it.selected }
-        val filterState = OfferbookFilterUiState(
-            payment = paymentUi,
-            settlement = settlementUi,
-            onlyMyOffers = onlyMyOffers,
-            hasActiveFilters = hasActiveFilters,
-        )
+        val filterUi by presenter.filterUiState.collectAsState()
 
         // Track bottom sheet expansion at the screen level to avoid auto-closing when we temporarily hide.
         var filterExpanded by remember { mutableStateOf(false) }
 
         // Hide the filter controller when there are no offers and no filters are active,
         // but keep it visible if the bottom sheet is currently expanded.
-        val shouldShowFilter = hasActiveFilters || sortedFilteredOffers.isNotEmpty() || filterExpanded
+        val shouldShowFilter = filterUi.hasActiveFilters || sortedFilteredOffers.isNotEmpty() || filterExpanded
         if (shouldShowFilter) {
             BisqGap.V1()
             OfferbookFilterController(
-                state = filterState,
-                onTogglePayment = { id ->
-                    selectedPaymentIds = if (id in selectedPaymentIds) selectedPaymentIds - id else selectedPaymentIds + id
-                    hasManualPaymentFilter = selectedPaymentIds != availablePaymentIds
-                    presenter.setSelectedPaymentMethodIds(selectedPaymentIds)
-                },
-                onToggleSettlement = { id ->
-                    selectedSettlementIds = if (id in selectedSettlementIds) selectedSettlementIds - id else selectedSettlementIds + id
-                    hasManualSettlementFilter = selectedSettlementIds != availableSettlementIds
-                    presenter.setSelectedSettlementMethodIds(selectedSettlementIds)
-                },
-                onOnlyMyOffersChange = { enabled -> presenter.setOnlyMyOffers(enabled) },
-                onClearAll = {
-                    selectedPaymentIds = availablePaymentIds
-                    selectedSettlementIds = availableSettlementIds
-                    hasManualPaymentFilter = false
-                    hasManualSettlementFilter = false
-                    presenter.setSelectedPaymentMethodIds(selectedPaymentIds)
-                    presenter.setSelectedSettlementMethodIds(selectedSettlementIds)
-                    presenter.setOnlyMyOffers(false)
-                },
-                onSetPaymentSelection = { ids ->
-                    selectedPaymentIds = ids
-                    hasManualPaymentFilter = selectedPaymentIds != availablePaymentIds
-                    presenter.setSelectedPaymentMethodIds(selectedPaymentIds)
-                },
-                onSetSettlementSelection = { ids ->
-                    selectedSettlementIds = ids
-                    hasManualSettlementFilter = selectedSettlementIds != availableSettlementIds
-                    presenter.setSelectedSettlementMethodIds(selectedSettlementIds)
-                },
+                state = filterUi,
+                onTogglePayment = presenter::togglePaymentMethod,
+                onToggleSettlement = presenter::toggleSettlementMethod,
+                onOnlyMyOffersChange = presenter::setOnlyMyOffers,
+                onClearAll = presenter::clearAllFilters,
+                onSetPaymentSelection = presenter::setPaymentSelection,
+                onSetSettlementSelection = presenter::setSettlementSelection,
                 isExpanded = filterExpanded,
                 onExpandedChange = { filterExpanded = it },
             )
@@ -232,11 +132,15 @@ fun OfferbookScreen() {
                 )
             }
         }
-    }
-
-    // Loading overlay for initial fetches on slow connections (e.g., Tor - specially on Connect)
-    if (showLoading) {
-        LoadingDialog()
+        // Loading overlay for initial fetches on slow connections (e.g., Tor - specially on Connect)
+        if (showLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = BisqTheme.colors.primary)
+            }
+        }
     }
 
     if (showDeleteConfirmation) {
