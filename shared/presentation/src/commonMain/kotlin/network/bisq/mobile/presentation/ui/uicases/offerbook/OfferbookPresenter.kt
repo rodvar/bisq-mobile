@@ -2,6 +2,7 @@ package network.bisq.mobile.presentation.ui.uicases.offerbook
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,7 +11,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.PlatformImage
-import network.bisq.mobile.domain.data.IODispatcher
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory.from
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
@@ -285,7 +285,7 @@ class OfferbookPresenter(
     private suspend fun processAllOffers(
         offers: List<OfferItemPresentationModel>,
         userProfile: UserProfileVO,
-    ): List<OfferItemPresentationModel> = withContext(IODispatcher) {
+    ): List<OfferItemPresentationModel> = withContext(Dispatchers.IO) {
         offers.map { offer -> processOffer(offer, userProfile) }
     }
 
@@ -368,7 +368,7 @@ class OfferbookPresenter(
             selectedOffer?.let { item ->
                 require(item.isMyOffer)
                 launchUI {
-                    withContext(IODispatcher) {
+                    withContext(Dispatchers.IO) {
                         val result = offersServiceFacade.deleteOffer(item.offerId)
                             .getOrDefault(false)
                         log.d { "delete offer success $result" }
@@ -466,7 +466,7 @@ class OfferbookPresenter(
             userProfile.id // I am seller (taker selling to maker who wants to buy)
         }
 
-        val reputationResult: Result<ReputationScoreVO> = withContext(IODispatcher) {
+        val reputationResult: Result<ReputationScoreVO> = withContext(Dispatchers.IO) {
             reputationServiceFacade.getReputation(userProfileId)
         }
 
