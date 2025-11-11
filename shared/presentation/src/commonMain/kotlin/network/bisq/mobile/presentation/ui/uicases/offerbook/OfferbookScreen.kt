@@ -60,7 +60,7 @@ fun OfferbookScreen() {
     val selectedMarket by presenter.selectedMarket.collectAsState()
 
     // Show a loading overlay while offers are being fetched (per market, direction)
-    var showLoading by remember { mutableStateOf(true) }
+    var showLoading by remember { mutableStateOf(sortedFilteredOffers.isEmpty()) }
 
     // Reset and start a short grace period every time market or tab (direction) changes; hide early if data arrives.
     // Important: use a stable market identity (quote code) to avoid retriggering on reactive price updates.
@@ -171,7 +171,7 @@ fun OfferbookScreen() {
                         .align(Alignment.TopCenter)
                         .background(
                             brush = verticalGradient(
-                                colors = listOf(BisqTheme.colors.dark_grey30, Color.Transparent)
+                                colors = listOf(BisqTheme.colors.dark_grey20, Color.Transparent)
                             )
                         )
                 )
