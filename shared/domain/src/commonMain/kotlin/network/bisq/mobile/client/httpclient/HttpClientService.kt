@@ -19,12 +19,15 @@ import io.ktor.http.content.OutgoingContent
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readRemaining
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.datetime.Clock
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
@@ -34,6 +37,7 @@ import network.bisq.mobile.domain.createHttpClient
 import network.bisq.mobile.domain.data.repository.SensitiveSettingsRepository
 import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.network.KmpTorService
+import network.bisq.mobile.domain.utils.awaitOrCancel
 import kotlin.concurrent.Volatile
 
 /**
@@ -59,12 +63,16 @@ class HttpClientService(
     private var _httpClient: MutableStateFlow<HttpClient?> = MutableStateFlow(null)
     private val _httpClientChangedFlow = MutableSharedFlow<HttpClientSettings>(1)
     val httpClientChangedFlow get() = _httpClientChangedFlow.asSharedFlow()
+    private val stopFlow = MutableSharedFlow<Unit>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST) // signal to cancel waiters
 
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun activate() {
         super.activate()
 
-        collectIO(sensitiveSettingsRepository.data) {
-            val newConfig = HttpClientSettings.from(it, kmpTorService)
+        stopFlow.resetReplayCache()
+
+        collectIO(getHttpClientSettingsFlow()) { newConfig ->
             if (lastConfig != newConfig) {
                 lastConfig = newConfig
                 _httpClient.value?.close()
@@ -75,9 +83,32 @@ class HttpClientService(
     }
 
     override fun deactivate() {
+        stopFlow.tryEmit(Unit)
         super.deactivate()
 
         disposeClient()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun getHttpClientSettingsFlow(): Flow<HttpClientSettings> {
+        // this allows waiting for kmp tor service to be initialized properly and listened to
+        // if BisqProxyOption.INTERNAL_TOR proxy option is used
+        return combine(
+            sensitiveSettingsRepository.data,
+            kmpTorService.state
+        ) { settings, state -> settings to state }
+            .mapLatest { (settings, state) ->
+                if (settings.selectedProxyOption == BisqProxyOption.INTERNAL_TOR) {
+                    if (state is KmpTorService.TorState.Stopped) {
+                        null
+                    } else {
+                        kmpTorService.awaitSocksPort()
+                            ?.let { HttpClientSettings.from(settings, it) }
+                    }
+                } else {
+                    HttpClientSettings.from(settings, null)
+                }
+            }.filterNotNull()
     }
 
     /**
@@ -85,9 +116,10 @@ class HttpClientService(
      * to instantiate it's websocket client.
      */
     suspend fun getClient(): HttpClient {
-        return withContext(serviceScope.coroutineContext) {
-            _httpClient.filterNotNull().first()
-        }
+        return awaitOrCancel(
+            _httpClient.filterNotNull(),
+            stopFlow,
+        )
     }
 
     fun disposeClient() {
@@ -167,7 +199,8 @@ class HttpClientService(
                         val method = request.method.value
                         val timestamp = Clock.System.now().toEpochMilliseconds().toString()
                         val nonce = AuthUtils.generateNonce()
-                        val normalizedPathAndQuery = AuthUtils.getNormalizedPathAndQuery(request.url.build())
+                        val normalizedPathAndQuery =
+                            AuthUtils.getNormalizedPathAndQuery(request.url.build())
                         val bodySha256Hex = when (content) {
                             is OutgoingContent.ByteArrayContent -> {
                                 val bytes = content.bytes()
@@ -207,6 +240,20 @@ class HttpClientService(
                                 }
                             }
 
+                            is String -> {
+                                if (content.isEmpty()) {
+                                    null
+                                } else {
+                                    val bytes = content.encodeToByteArray()
+                                    if (bytes.size > MAX_BODY_SIZE_BYTES) {
+                                        throw IllegalArgumentException(
+                                            "Request body exceeds maximum size of $MAX_BODY_SIZE_BYTES bytes"
+                                        )
+                                    }
+                                    getSha256(bytes).toHexString()
+                                }
+                            }
+
                             else -> null
                         }
 
@@ -224,7 +271,10 @@ class HttpClientService(
                         request.headers.append("AUTH-TS", timestamp)
                         request.headers.append("AUTH-NONCE", nonce)
                     }
-                    reconstructedBody ?: content as OutgoingContent?
+                    reconstructedBody ?: when (content) {
+                        is OutgoingContent -> content
+                        else -> null // transformation not applicable
+                    }
                 }
             })
         }

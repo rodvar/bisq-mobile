@@ -1,5 +1,7 @@
 package network.bisq.mobile.client.service.bootstrap
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import network.bisq.mobile.client.httpclient.BisqProxyOption
 import network.bisq.mobile.client.websocket.WebSocketClientService
@@ -24,7 +26,12 @@ class ClientApplicationBootstrapFacade(
             val settings = sensitiveSettingsRepository.fetch()
             if (settings.selectedProxyOption == BisqProxyOption.INTERNAL_TOR) {
                 observeTorState()
-                kmpTorService.startTor().await()
+                try {
+                    kmpTorService.startTor()
+                } catch (_: Throwable) {
+                    currentCoroutineContext().ensureActive()
+                    // error logging is handled by observeTorState
+                }
             } else {
                 onTorStartedOrSkipped()
             }
@@ -39,7 +46,7 @@ class ClientApplicationBootstrapFacade(
 
             if (url.isBlank()) {
                 // fresh install scenario, let it proceed to onboarding
-                setState("mobile.bootstrap.connectedToTrustedNode".i18n())
+                setState("mobile.bootstrap.preparingInitialSetup".i18n())
                 setProgress(1.0f)
             } else {
                 setProgress(0.5f)

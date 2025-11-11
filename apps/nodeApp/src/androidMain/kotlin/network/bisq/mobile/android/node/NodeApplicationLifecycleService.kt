@@ -8,12 +8,9 @@ import androidx.lifecycle.LifecycleOwner
 import bisq.common.network.TransportType
 import bisq.network.NetworkServiceConfig
 import com.jakewharton.processphoenix.ProcessPhoenix
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import network.bisq.mobile.android.node.service.AndroidMemoryReportService
 import network.bisq.mobile.android.node.service.network.NodeConnectivityService
 import network.bisq.mobile.domain.service.BaseService
@@ -36,7 +33,6 @@ import network.bisq.mobile.presentation.MainActivity
 import network.bisq.mobile.presentation.service.OpenTradesNotificationService
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.system.exitProcess
 
 /**
@@ -64,11 +60,6 @@ class NodeApplicationLifecycleService(
     private val messageDeliveryServiceFacade: MessageDeliveryServiceFacade,
     private val connectivityService: NodeConnectivityService,
 ) : BaseService() {
-
-    companion object Companion {
-        const val TIMEOUT_SEC: Long = 60
-    }
-
     private val alreadyKilled = AtomicBoolean(false)
     private val isRestarting = AtomicBoolean(false)
 
@@ -84,8 +75,12 @@ class NodeApplicationLifecycleService(
 
                 val networkServiceConfig: NetworkServiceConfig = androidApplicationService.networkServiceConfig
                 if (isTorSupported(networkServiceConfig)) {
-                    // Block until tor is ready or a timeout exception is thrown
-                    initializeTor().await()
+                    // Block until tor is started to initialize or a timeout exception is thrown
+                    // We handle bootstrap timeout of tor in ApplicationBootstrapFacade
+                    val torStarted = kmpTorService.startTor()
+                    if (!torStarted) {
+                        throw IllegalStateException("Failed to start Tor - cannot initialize application")
+                    }
                 }
 
                 log.i { "Start initializing applicationService" }
@@ -105,13 +100,13 @@ class NodeApplicationLifecycleService(
         }
     }
 
-    fun shutdown() {
+    suspend fun shutdown() {
         log.i { "Destroying NodeMainPresenter" }
         androidMemoryReportService.shutdown()
         shutdownServicesAndTor()
     }
 
-    private fun shutdownServicesAndTor() {
+    private suspend fun shutdownServicesAndTor() {
         try {
             log.i { "Stopping service facades" }
             deactivateServiceFacades()
@@ -128,7 +123,7 @@ class NodeApplicationLifecycleService(
 
         try {
             log.i { "Stopping Tor" }
-            kmpTorService.stopTorSync()
+            kmpTorService.stopTor()
             log.i { "Tor stopped" }
         } catch (e: Exception) {
             log.e("Error at stopTor", e)
@@ -266,34 +261,6 @@ class NodeApplicationLifecycleService(
             Process.killProcess(Process.myPid())
             exitProcess(0)
         }
-    }
-
-    private fun initializeTor(): CompletableDeferred<Boolean> {
-        val result = CompletableDeferred<Boolean>()
-        launchIO {
-            try {
-                log.i { "Starting Tor" }
-                // We block until Tor is ready, or timeout after 60 sec
-                withTimeout(TIMEOUT_SEC * 1000) { kmpTorService.startTor().await() }
-                log.i { "Tor successfully started" }
-                result.complete(true)
-            } catch (e: TimeoutCancellationException) {
-                log.e(e) { "Tor initialization not completed after $TIMEOUT_SEC seconds" }
-                result.completeExceptionally(e)
-            } catch (e: CancellationException) {
-                result.cancel(e)
-                throw e
-            } catch (e: Exception) {
-                val failure = kmpTorService.startupFailure.value
-                val errorMessage = listOfNotNull(
-                    failure?.message,
-                    failure?.cause?.message
-                ).firstOrNull() ?: "Unknown Tor error"
-                result.completeExceptionally(e)
-                log.e(e) { "Tor initialization failed - $errorMessage" }
-            }
-        }
-        return result
     }
 
     private fun activateServiceFacades() {
