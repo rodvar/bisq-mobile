@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -20,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
 
@@ -129,18 +131,14 @@ fun OfferbookScreen() {
         BisqGap.V1()
 
         // Vertical edge fades on the offers list to hint scrollability
-        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-        val canScrollUp by remember(listState) {
-            androidx.compose.runtime.derivedStateOf {
-                listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
-            }
+        val listState = rememberLazyListState()
+        val canScrollUp by derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
         }
-        val canScrollDown by remember(listState) {
-            androidx.compose.runtime.derivedStateOf {
-                val info = listState.layoutInfo
-                val last = info.visibleItemsInfo.lastOrNull()
-                last != null && (last.index < info.totalItemsCount - 1 || (last.offset + last.size) > info.viewportEndOffset)
-            }
+        val canScrollDown by derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            last != null && (last.index < info.totalItemsCount - 1 || (last.offset + last.size) > info.viewportEndOffset)
         }
 
         Box {
