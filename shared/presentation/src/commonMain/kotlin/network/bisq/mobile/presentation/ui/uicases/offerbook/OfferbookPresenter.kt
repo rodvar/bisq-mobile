@@ -68,6 +68,23 @@ class OfferbookPresenter(
     private val _availableSettlementMethodIds = MutableStateFlow<Set<String>>(emptySet())
     val availableSettlementMethodIds: StateFlow<Set<String>> get() = _availableSettlementMethodIds.asStateFlow()
 
+    // Presenter-provided UI state for the filter controller
+    private val _filterUiState = MutableStateFlow(
+        OfferbookFilterUiState(
+            payment = emptyList(),
+            settlement = emptyList(),
+            onlyMyOffers = false,
+            hasActiveFilters = false,
+        )
+    )
+    val filterUiState: StateFlow<OfferbookFilterUiState> = _filterUiState.asStateFlow()
+
+    // Track availability deltas and whether user customized filters
+    private var prevAvailPayment: Set<String> = emptySet()
+    private var prevAvailSettlement: Set<String> = emptySet()
+    private var hasManualPaymentFilter: Boolean = false
+    private var hasManualSettlementFilter: Boolean = false
+
     private val _showDeleteConfirmation = MutableStateFlow(false)
     val showDeleteConfirmation: StateFlow<Boolean> get() = _showDeleteConfirmation.asStateFlow()
 
@@ -178,6 +195,7 @@ class OfferbookPresenter(
                         log.v { "Offer ${item.offerId} included - Currency: $offerCurrency, Amount: ${item.formattedQuoteAmount}" }
                     }
 
+
                     // Publish baseline availability independent of current method selections
                     _availablePaymentMethodIds.value = availablePayments
                     _availableSettlementMethodIds.value = availableSettlements
@@ -195,6 +213,71 @@ class OfferbookPresenter(
                     }
                 }
         }
+
+        // Derive and publish filter UI state from available + selected sets
+        launchIO {
+            combine(
+                availablePaymentMethodIds,
+                availableSettlementMethodIds,
+                selectedPaymentMethodIds,
+                selectedSettlementMethodIds,
+                onlyMyOffers,
+            ) { payAvail, setAvail, paySel, setSel, onlyMine ->
+                val paymentUi = payAvail.toList().sorted().map { id ->
+                    MethodIconState(
+                        id = id,
+                        label = humanizePaymentId(id),
+                        iconPath = paymentIconPath(id),
+                        selected = id in paySel
+                    )
+                }
+                val settlementUi = setAvail.toList().sorted().map { id ->
+                    val label = settlementLabelFor(id)
+                    MethodIconState(
+                        id = id,
+                        label = label,
+                        iconPath = settlementIconPath(id),
+                        selected = id in setSel
+                    )
+                }
+                val hasActive = onlyMine || paymentUi.any { !it.selected } || settlementUi.any { !it.selected }
+                OfferbookFilterUiState(
+                    payment = paymentUi,
+                    settlement = settlementUi,
+                    onlyMyOffers = onlyMine,
+                    hasActiveFilters = hasActive,
+                )
+            }.collectLatest { ui ->
+                _filterUiState.value = ui
+            }
+        }
+
+        // Auto-manage default selections and availability changes
+        launchIO {
+            availablePaymentMethodIds.collectLatest { avail ->
+                val current = _selectedPaymentMethodIds.value
+                val newlyAdded = avail - prevAvailPayment
+                val newSelection = (current intersect avail) + (if (hasManualPaymentFilter) emptySet() else newlyAdded)
+                val finalSelection = if (current.isEmpty()) avail else newSelection
+                if (finalSelection != current) {
+                    _selectedPaymentMethodIds.value = finalSelection
+                }
+                prevAvailPayment = avail
+            }
+        }
+        launchIO {
+            availableSettlementMethodIds.collectLatest { avail ->
+                val current = _selectedSettlementMethodIds.value
+                val newlyAdded = avail - prevAvailSettlement
+                val newSelection = (current intersect avail) + (if (hasManualSettlementFilter) emptySet() else newlyAdded)
+                val finalSelection = if (current.isEmpty()) avail else newSelection
+                if (finalSelection != current) {
+                    _selectedSettlementMethodIds.value = finalSelection
+                }
+                prevAvailSettlement = avail
+            }
+        }
+
     }
 
     private suspend fun processAllOffers(
@@ -260,6 +343,23 @@ class OfferbookPresenter(
             takeOffer()
         }
     }
+
+    private fun humanizePaymentId(id: String): String {
+        val (name, missing) = network.bisq.mobile.presentation.ui.helpers.i18NPaymentMethod(id)
+        if (!missing) return name
+        val acronyms = setOf("SEPA", "SWIFT", "ACH", "UPI", "PIX", "ZELLE", "F2F")
+        return id.split('_', '-').joinToString(" ") { part ->
+            val up = part.uppercase()
+            if (up in acronyms) up else part.lowercase().replaceFirstChar { it.titlecase() }
+        }
+    }
+
+    private fun settlementLabelFor(id: String): String = when (id.uppercase()) {
+        "BTC", "MAIN_CHAIN", "ONCHAIN", "ON_CHAIN" -> "mobile.settlement.bitcoin".i18n()
+        "LIGHTNING", "LN" -> "mobile.settlement.lightning".i18n()
+        else -> id
+    }
+
 
     fun onConfirmedDeleteOffer() {
         runCatching {
@@ -429,11 +529,51 @@ class OfferbookPresenter(
     }
 
     fun setSelectedPaymentMethodIds(ids: Set<String>) {
-        _selectedPaymentMethodIds.value = ids
+        val avail = _availablePaymentMethodIds.value
+        val clamped = ids intersect avail
+        hasManualPaymentFilter = clamped != avail
+        _selectedPaymentMethodIds.value = clamped
     }
 
     fun setSelectedSettlementMethodIds(ids: Set<String>) {
-        _selectedSettlementMethodIds.value = ids
+        val avail = _availableSettlementMethodIds.value
+        val clamped = ids intersect avail
+        hasManualSettlementFilter = clamped != avail
+        _selectedSettlementMethodIds.value = clamped
+    }
+
+    fun togglePaymentMethod(id: String) {
+        val avail = _availablePaymentMethodIds.value
+        if (id !in avail) return
+        val current = _selectedPaymentMethodIds.value
+        val next = if (id in current) current - id else current + id
+        hasManualPaymentFilter = true
+        _selectedPaymentMethodIds.value = next
+    }
+
+    fun toggleSettlementMethod(id: String) {
+        val avail = _availableSettlementMethodIds.value
+        if (id !in avail) return
+        val current = _selectedSettlementMethodIds.value
+        val next = if (id in current) current - id else current + id
+        hasManualSettlementFilter = true
+        _selectedSettlementMethodIds.value = next
+    }
+
+    fun clearAllFilters() {
+        hasManualPaymentFilter = false
+        hasManualSettlementFilter = false
+        _selectedPaymentMethodIds.value = _availablePaymentMethodIds.value
+        _selectedSettlementMethodIds.value = _availableSettlementMethodIds.value
+        _onlyMyOffers.value = false
+    }
+
+    fun setPaymentSelection(ids: Set<String>) {
+        setSelectedPaymentMethodIds(ids)
+    }
+
+    fun setSettlementSelection(ids: Set<String>) {
+        setSelectedSettlementMethodIds(ids)
     }
 
     fun createOffer() {
