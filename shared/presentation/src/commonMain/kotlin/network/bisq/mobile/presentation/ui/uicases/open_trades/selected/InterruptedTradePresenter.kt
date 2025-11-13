@@ -15,6 +15,7 @@ import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.error.GenericErrorHandler
 
 class InterruptedTradePresenter(
     mainPresenter: MainPresenter,
@@ -150,16 +151,31 @@ class InterruptedTradePresenter(
     }
 
     fun onCloseTrade() {
-        val trade = selectedTrade.value
-        if (trade == null) return
+        val trade = selectedTrade.value ?: return
         launchUI {
             _showLoadingDialog.value = true
-            tradeReadStateRepository.clearId(trade.tradeId)
-            withContext(Dispatchers.IO) {
-                tradesServiceFacade.closeTrade()
+            try {
+                val result = withContext(Dispatchers.IO) { tradesServiceFacade.closeTrade() }
+                if (result.isFailure) {
+                    val msg = result.exceptionOrNull()?.message ?: ""
+                    GenericErrorHandler.handleGenericError(
+                        "mobile.bisqEasy.openTrades.closeTrade.failed".i18n(msg)
+                    )
+                    return@launchUI
+                }
+
+                // On success, clear read state. If this fails, report but still navigate back.
+                runCatching { tradeReadStateRepository.clearId(trade.tradeId) }
+                    .onFailure { ex ->
+                        GenericErrorHandler.handleGenericError(
+                            "mobile.bisqEasy.openTrades.clearReadState.failed".i18n(ex.message ?: "")
+                        )
+                    }
+
+                navigateBack()
+            } finally {
+                _showLoadingDialog.value = false
             }
-            navigateBack()
-            _showLoadingDialog.value = false
         }
     }
 
