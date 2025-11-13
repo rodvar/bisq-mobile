@@ -1,11 +1,8 @@
 package network.bisq.mobile.presentation.ui.uicases.open_trades.selected
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.replicated.contract.RoleEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
@@ -155,7 +152,7 @@ class InterruptedTradePresenter(
         launchUI {
             _showLoadingDialog.value = true
             try {
-                val result = withContext(Dispatchers.IO) { tradesServiceFacade.closeTrade() }
+                val result = tradesServiceFacade.closeTrade()
                 if (result.isFailure) {
                     val msg = result.exceptionOrNull()?.message ?: ""
                     GenericErrorHandler.handleGenericError(
