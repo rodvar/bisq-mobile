@@ -1,11 +1,8 @@
 package network.bisq.mobile.presentation.ui.uicases.open_trades.selected
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.replicated.contract.RoleEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
@@ -15,6 +12,7 @@ import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.error.GenericErrorHandler
 
 class InterruptedTradePresenter(
     mainPresenter: MainPresenter,
@@ -150,16 +148,31 @@ class InterruptedTradePresenter(
     }
 
     fun onCloseTrade() {
-        val trade = selectedTrade.value
-        if (trade == null) return
+        val trade = selectedTrade.value ?: return
         launchUI {
             _showLoadingDialog.value = true
-            tradeReadStateRepository.clearId(trade.tradeId)
-            withContext(Dispatchers.IO) {
-                tradesServiceFacade.closeTrade()
+            try {
+                val result = tradesServiceFacade.closeTrade()
+                if (result.isFailure) {
+                    val msg = result.exceptionOrNull()?.message ?: ""
+                    GenericErrorHandler.handleGenericError(
+                        "mobile.bisqEasy.openTrades.closeTrade.failed".i18n(msg)
+                    )
+                    return@launchUI
+                }
+
+                // On success, clear read state. If this fails, report but still navigate back.
+                runCatching { tradeReadStateRepository.clearId(trade.tradeId) }
+                    .onFailure { ex ->
+                        GenericErrorHandler.handleGenericError(
+                            "mobile.bisqEasy.openTrades.clearReadState.failed".i18n(ex.message ?: "")
+                        )
+                    }
+
+                navigateBack()
+            } finally {
+                _showLoadingDialog.value = false
             }
-            navigateBack()
-            _showLoadingDialog.value = false
         }
     }
 
