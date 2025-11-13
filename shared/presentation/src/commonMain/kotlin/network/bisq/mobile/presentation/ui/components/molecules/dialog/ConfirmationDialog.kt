@@ -37,10 +37,12 @@ fun ConfirmationDialog(
     marginTop: Dp = BisqUIConstants.ScreenPadding8X,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalButtonPlacement: Boolean = false,
+    dismissOnClickOutside: Boolean = true,
     onConfirm: () -> Unit,
     onDismiss: (Boolean) -> Unit = {}   // true on dismiss button click; false on bg click dismiss
 ) {
     BisqDialog(
+        dismissOnClickOutside = dismissOnClickOutside,
         horizontalAlignment = horizontalAlignment,
         marginTop = marginTop,
         onDismissRequest = { onDismiss(false) }
@@ -128,6 +130,22 @@ private fun ConfirmationDialogPreview_Default() {
             message = "This action is irreversible and will permanently do the thing you're about to do. Please think twice.",
             confirmButtonText = "Yes, I'm Sure",
             dismissButtonText = "Cancel",
+            onConfirm = {},
+            onDismiss = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ConfirmationDialogPreview_Default_single_button() {
+    BisqTheme.Preview {
+        ConfirmationDialog(
+            headline = "Unrecoverable error",
+            headlineColor = BisqTheme.colors.warning,
+            message = "You need to close and restart the app",
+            confirmButtonText = "Close",
+            dismissButtonText = "",
             onConfirm = {},
             onDismiss = {}
         )
