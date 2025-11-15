@@ -22,6 +22,7 @@ import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.domain.utils.DefaultCoroutineJobsManager
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.GlobalUiManager
 import network.bisq.mobile.presentation.ui.error.GenericErrorHandler
 import network.bisq.mobile.presentation.ui.navigation.manager.NavigationManager
 import org.koin.core.context.startKoin
@@ -44,6 +45,9 @@ class InterruptedTradePresenterTest {
     private val tradeReadStateRepository: TradeReadStateRepository = mockk(relaxed = true)
     private val navigationManager: NavigationManager = mockk(relaxed = true)
 
+    // Use lazy initialization to inject test dispatcher into GlobalUiManager
+    private val globalUiManager by lazy { GlobalUiManager(testDispatcher) }
+
     // Koin module for BasePresenter dependencies
     private val testKoinModule = module {
         single { CoroutineExceptionHandlerSetup() }
@@ -53,6 +57,7 @@ class InterruptedTradePresenterTest {
             }
         }
         single<NavigationManager> { navigationManager }
+        single<GlobalUiManager> { globalUiManager }
     }
 
     @BeforeTest
@@ -96,8 +101,8 @@ class InterruptedTradePresenterTest {
         // Then: navigates back
         verify(timeout = 500) { navigationManager.navigateBack(any()) }
         // And loading hidden
-        waitUntil(timeoutMs = 1000) { presenter.showLoadingDialog.value == false }
-        assertFalse(presenter.showLoadingDialog.value)
+        waitUntil(timeoutMs = 1000) { globalUiManager.showLoadingDialog.value == false }
+        assertFalse(globalUiManager.showLoadingDialog.value)
     }
 
     @Test
@@ -126,8 +131,8 @@ class InterruptedTradePresenterTest {
         // Should NOT navigate back
         verify(timeout = 300, exactly = 0) { navigationManager.navigateBack(any()) }
         // Loading hidden
-        waitUntil(timeoutMs = 1000) { presenter.showLoadingDialog.value == false }
-        assertFalse(presenter.showLoadingDialog.value)
+        waitUntil(timeoutMs = 1000) { globalUiManager.showLoadingDialog.value == false }
+        assertFalse(globalUiManager.showLoadingDialog.value)
         // Error shown
         waitUntil(timeoutMs = 500) { GenericErrorHandler.genericErrorMessage.value != null }
         assertEquals(
@@ -161,8 +166,8 @@ class InterruptedTradePresenterTest {
         // Error was shown for clearReadState failure
         waitUntil(timeoutMs = 500) { GenericErrorHandler.genericErrorMessage.value?.contains("Failed to update read state") == true }
         // Loading hidden
-        waitUntil(timeoutMs = 1000) { presenter.showLoadingDialog.value == false }
-        assertFalse(presenter.showLoadingDialog.value)
+        waitUntil(timeoutMs = 1000) { globalUiManager.showLoadingDialog.value == false }
+        assertFalse(globalUiManager.showLoadingDialog.value)
     }
 
     // Helper: simple polling wait

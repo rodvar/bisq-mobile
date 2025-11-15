@@ -1,8 +1,6 @@
 package network.bisq.mobile.presentation.ui.uicases.create_offer
 
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVOExtensions.marketCodes
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnumExtensions.isBuy
@@ -37,9 +35,6 @@ class CreateOfferReviewPresenter(
     override val blockInteractivityOnAttached: Boolean = true
 
     private lateinit var createOfferModel: CreateOfferPresenter.CreateOfferModel
-
-    private val _showLoadingDialog = MutableStateFlow(false)
-    val showLoadingDialog = _showLoadingDialog.asStateFlow()
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -150,8 +145,8 @@ class CreateOfferReviewPresenter(
     }
 
     fun onCreateOffer() {
-        _showLoadingDialog.value = true
         launchUI {
+            showLoading()
             createOfferPresenter.createOffer()
                 .onSuccess {
                     navigateToOfferbookTab()
@@ -165,7 +160,7 @@ class CreateOfferReviewPresenter(
                         showSnackbar("mobile.bisqEasy.createOffer.failed".i18n())
                     }
                 }
-            _showLoadingDialog.value = false
+            hideLoading()
         }
     }
 }

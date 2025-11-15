@@ -27,6 +27,7 @@ import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.AppPresenter
 import network.bisq.mobile.presentation.ui.BisqLinks
+import network.bisq.mobile.presentation.ui.GlobalUiManager
 import network.bisq.mobile.presentation.ui.components.organisms.BisqSnackbarVisuals
 import network.bisq.mobile.presentation.ui.error.GenericErrorHandler
 import network.bisq.mobile.presentation.ui.navigation.NavRoute
@@ -112,7 +113,6 @@ interface ViewPresenter {
 abstract class BasePresenter(private val rootPresenter: MainPresenter?) :
     ViewPresenter, KoinComponent, Logging {
     companion object {
-        const val NAV_GRAPH_MOUNTING_DELAY = 100L
         const val EXIT_WARNING_TIMEOUT = 3000L
         const val SMALLEST_PERCEPTIVE_DELAY = 250L
         var isDemo = false
@@ -130,12 +130,18 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) :
 
     private val dependants = if (isRoot()) mutableListOf<BasePresenter>() else null
 
+    /**
+     * override in your presenter if you want to block interactivity on view attached
+     */
+    protected open val blockInteractivityOnAttached = false
+
     // Presenter is interactive by default
     private val _isInteractive = MutableStateFlow(true)
     override val isInteractive: StateFlow<Boolean> get() = _isInteractive.asStateFlow()
     private val snackbarHostState: SnackbarHostState = SnackbarHostState()
 
-    protected open val blockInteractivityOnAttached = false
+    // Global UI manager for app-wide UI state (loading dialogs, etc.)
+    protected val globalUiManager: GlobalUiManager by inject()
 
     override fun getSnackState(): SnackbarHostState {
         return snackbarHostState
@@ -172,15 +178,41 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) :
         rootPresenter?.registerChild(child = this)
     }
 
-    protected fun disableInteractive() {
-        _isInteractive.value = false
-    }
-
+    /**
+     * Enable interactive state with a small delay to avoid flicker.
+     * Link your UI to this state to disable user interactions.
+     */
     protected fun enableInteractive() {
         launchUI {
             delay(SMALLEST_PERCEPTIVE_DELAY)
             _isInteractive.value = true
         }
+    }
+
+    /**
+     * Disable interactive state immediately.
+     * Link your UI to this state to disable user interactions.
+     */
+    protected fun disableInteractive() {
+        _isInteractive.value = false
+    }
+
+    /**
+     * Schedule showing a loading dialog after a grace delay.
+     * If the operation completes before the delay expires, the dialog never appears (avoiding flicker).
+     * Call hideLoading() when the operation completes to cancel the scheduled show and hide the dialog.
+     * Delegates to GlobalUiManager for app-level loading dialog management.
+     */
+    protected fun showLoading() {
+        globalUiManager.scheduleShowLoading()
+    }
+
+    /**
+     * Hide the loading dialog and cancel any scheduled show.
+     * Delegates to GlobalUiManager for app-level loading dialog management.
+     */
+    protected fun hideLoading() {
+        globalUiManager.hideLoading()
     }
 
     override fun isIOS(): Boolean {
@@ -322,12 +354,16 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?) :
 
     @CallSuper
     override fun onViewUnattaching() {
+        // Cancel any pending global loading dialog to prevent stuck overlays
+        hideLoading()
         // Presenter level support for auto disposal
         CoroutineScope(Dispatchers.IO).launch { jobsManager.dispose() }
     }
 
     @CallSuper
     override fun onDestroying() {
+        // Cancel any pending global loading dialog to prevent stuck overlays
+        hideLoading()
         // default impl
         log.i { "onDestroying" }
     }

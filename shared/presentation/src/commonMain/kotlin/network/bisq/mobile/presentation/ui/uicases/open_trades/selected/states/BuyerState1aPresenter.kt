@@ -46,8 +46,6 @@ class BuyerState1aPresenter(
     private val _triggerBitcoinLnAddressValidation = MutableStateFlow(0)
     val triggerBitcoinLnAddressValidation = _triggerBitcoinLnAddressValidation.asStateFlow()
 
-    private val _showLoadingDialog = MutableStateFlow(false)
-    val showLoadingDialog = _showLoadingDialog.asStateFlow()
 
     fun setShowInvalidAddressDialog(value: Boolean) {
         _showInvalidAddressDialog.value = value
@@ -113,10 +111,15 @@ class BuyerState1aPresenter(
         if (bitcoinPaymentData.isEmpty()) return
         setShowInvalidAddressDialog(false)
         launchUI {
-            withContext(Dispatchers.IO) {
-                _showLoadingDialog.value = true
+            showLoading()
+            val result = withContext(Dispatchers.IO) {
                 tradesServiceFacade.buyerSendBitcoinPaymentData(bitcoinPaymentData)
-                _showLoadingDialog.value = false
+            }
+            hideLoading()
+
+            if (result.isFailure) {
+                log.e(result.exceptionOrNull()) { "Failed to send bitcoin payment data" }
+                showSnackbar("mobile.bisqEasy.tradeState.error.sendPaymentData".i18n(), true)
             }
         }
     }
