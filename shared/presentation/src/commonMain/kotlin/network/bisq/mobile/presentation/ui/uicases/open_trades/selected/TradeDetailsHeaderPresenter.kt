@@ -75,9 +75,6 @@ class TradeDetailsHeaderPresenter(
     private val _isShowDetails: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isShowDetails: StateFlow<Boolean> get() = this._isShowDetails.asStateFlow()
 
-    private val _showLoadingDialog = MutableStateFlow(false)
-    val showLoadingDialog = _showLoadingDialog.asStateFlow()
-
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage get() = userProfileServiceFacade::getUserProfileIcon
 
     override fun onViewAttached() {
@@ -264,8 +261,8 @@ class TradeDetailsHeaderPresenter(
         if (selectedTrade == null) {
             return
         }
-        _showLoadingDialog.value = true
         launchUI {
+            showLoading()
             withContext(Dispatchers.IO) {
                 when (tradeCloseType.value) {
                     TradeCloseType.REJECT -> {
@@ -280,7 +277,7 @@ class TradeDetailsHeaderPresenter(
                 }
             }
             _showInterruptionConfirmationDialog.value = false
-            _showLoadingDialog.value = false
+            hideLoading()
         }
     }
 
@@ -299,8 +296,8 @@ class TradeDetailsHeaderPresenter(
             return
         }
         _showMediationConfirmationDialog.value = false
-        _showLoadingDialog.value = true
         launchIO {
+            showLoading()
             mediationServiceFacade.reportToMediator(trade)
                 .onFailure { exception ->
                     when (exception) {
@@ -315,7 +312,7 @@ class TradeDetailsHeaderPresenter(
                         }
                     }
                 }
-            _showLoadingDialog.value = false
+            hideLoading()
         }
     }
 

@@ -39,8 +39,6 @@ class InterruptedTradePresenter(
     private val _reportToMediatorButtonVisible: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val reportToMediatorButtonVisible: StateFlow<Boolean> get() = _reportToMediatorButtonVisible.asStateFlow()
 
-    private val _showLoadingDialog = MutableStateFlow(false)
-    val showLoadingDialog = _showLoadingDialog.asStateFlow()
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -150,29 +148,27 @@ class InterruptedTradePresenter(
     fun onCloseTrade() {
         val trade = selectedTrade.value ?: return
         launchUI {
-            _showLoadingDialog.value = true
-            try {
-                val result = tradesServiceFacade.closeTrade()
-                if (result.isFailure) {
-                    val msg = result.exceptionOrNull()?.message ?: ""
+            showLoading()
+            val result = tradesServiceFacade.closeTrade()
+            if (result.isFailure) {
+                val msg = result.exceptionOrNull()?.message ?: ""
+                GenericErrorHandler.handleGenericError(
+                    "mobile.bisqEasy.openTrades.closeTrade.failed".i18n(msg)
+                )
+                hideLoading()
+                return@launchUI
+            }
+
+            // On success, clear read state. If this fails, report but still navigate back.
+            runCatching { tradeReadStateRepository.clearId(trade.tradeId) }
+                .onFailure { ex ->
                     GenericErrorHandler.handleGenericError(
-                        "mobile.bisqEasy.openTrades.closeTrade.failed".i18n(msg)
+                        "mobile.bisqEasy.openTrades.clearReadState.failed".i18n(ex.message ?: "")
                     )
-                    return@launchUI
                 }
 
-                // On success, clear read state. If this fails, report but still navigate back.
-                runCatching { tradeReadStateRepository.clearId(trade.tradeId) }
-                    .onFailure { ex ->
-                        GenericErrorHandler.handleGenericError(
-                            "mobile.bisqEasy.openTrades.clearReadState.failed".i18n(ex.message ?: "")
-                        )
-                    }
-
-                navigateBack()
-            } finally {
-                _showLoadingDialog.value = false
-            }
+            hideLoading()
+            navigateBack()
         }
     }
 
@@ -180,9 +176,9 @@ class InterruptedTradePresenter(
         val trade = selectedTrade.value
         if (trade == null) return
         launchIO {
-            _showLoadingDialog.value = true
+            showLoading()
             mediationServiceFacade.reportToMediator(trade)
-            _showLoadingDialog.value = false
+            hideLoading()
         }
     }
 
