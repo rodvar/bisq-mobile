@@ -45,6 +45,7 @@ class NodeMainApplication : MainApplication() {
         }
 
         maybeRestoreDataDirectory()
+        maybeCleanupCorruptedChatData()
 
         // We start here the initialisation (non blocking) of the core services and tor.
         // The lifecycle of those is tied to the lifecycle of the Application/Process not to the lifecycle of the MainActivity.
@@ -54,6 +55,77 @@ class NodeMainApplication : MainApplication() {
         nodeApplicationLifecycleService.initialize()
 
         log.i { "Bisq Easy Node Application Created" }
+    }
+
+    /**
+     * Cleans up corrupted chat data from old bisq2 versions.
+     *
+     * This fixes crashes caused by deprecated SubDomain enum values (e.g., EVENTS_*)
+     * that were removed in bisq2 2.1.7 but may still exist in persisted data.
+     *
+     * The crash occurs during ChatService initialization when it tries to deserialize
+     * old CommonPublicChatChannel data containing deprecated enum values.
+     *
+     * Only deletes files that actually contain the problematic enum values to minimize data loss.
+     */
+    private fun maybeCleanupCorruptedChatData() {
+        try {
+            val dbDir = File(filesDir, "Bisq2_mobile/db")
+            val cacheDir = File(dbDir, "cache")
+
+            if (!cacheDir.exists()) {
+                log.i { "Cache directory does not exist, skipping chat data cleanup" }
+                return
+            }
+
+            // Deprecated SubDomain enum values that cause crashes
+            val deprecatedEnumValues = listOf(
+                "EVENTS_CONFERENCES",
+                "EVENTS_MEETUPS",
+                "EVENTS_PODCASTS",
+                "EVENTS_TRADE_EVENTS",
+                "ChatChannelDomain.EVENTS"  // The domain itself
+            )
+
+            // Only check public chat channel files (not private trade chats)
+            val publicChatFiles = listOf(
+                "CommonPublicChatChannelStore",
+                "DiscussionChannelStore",
+                "EventsChannelStore",
+                "SupportChannelStore"
+            )
+
+            publicChatFiles.forEach { fileName ->
+                val file = File(cacheDir, fileName)
+                if (file.exists() && file.isFile) {
+                    try {
+                        // Check if file contains any deprecated enum values
+                        val containsDeprecatedValue = file.readText(Charsets.UTF_8).let { content ->
+                            deprecatedEnumValues.any { deprecated -> content.contains(deprecated) }
+                        }
+
+                        if (containsDeprecatedValue) {
+                            val deleted = file.delete()
+                            if (deleted) {
+                                log.i { "Deleted corrupted chat data file: $fileName (contained deprecated SubDomain values)" }
+                            } else {
+                                log.w { "Failed to delete corrupted chat data file: $fileName" }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        log.w(e) { "Error checking file $fileName, deleting it to be safe" }
+                        val deleted = file.delete()
+                        if (deleted) {
+                            log.i { "Deleted unreadable chat data file: $fileName" }
+                        } else {
+                            log.w { "Failed to delete unreadable chat data file: $fileName" }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            log.w(e) { "Error during chat data cleanup - will attempt to continue" }
+        }
     }
 
     private fun maybeRestoreDataDirectory() {
