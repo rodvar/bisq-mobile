@@ -94,7 +94,57 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
         topBar = if (!isWorkflow) {
             { TopBar(title = "mobile.trustedNodeSetup.title".i18n()) }
         } else null,
-        snackbarHostState = presenter.getSnackState()
+        snackbarHostState = presenter.getSnackState(),
+        bottomBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = BisqUIConstants.ScreenPadding, horizontal = BisqUIConstants.ScreenPadding)
+            ) {
+                // Status and countdown (kept visible outside scroll)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    BisqText.largeRegular(
+                        status,
+                        color = if (isLoading) BisqTheme.colors.warning
+                        else if (connectionState is ConnectionState.Connected) BisqTheme.colors.primary
+                        else BisqTheme.colors.danger,
+                    )
+                    if (connectionState is ConnectionState.Connecting) {
+                        BisqText.largeRegular(
+                            timeoutCounter.toString(),
+                            color = BisqTheme.colors.warning
+                        )
+                    }
+                }
+
+                BisqGap.V1()
+
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    BisqButton(
+                        text = if (isLoading) "mobile.trustedNodeSetup.cancel".i18n() else "mobile.trustedNodeSetup.testAndSave".i18n(),
+                        color = if (!isLoading && (!isApiUrlValid || !isProxyUrlValid)) BisqTheme.colors.mid_grey10 else BisqTheme.colors.light_grey10,
+                        disabled = if (isLoading) false else (!isWorkflow || !isApiUrlValid || !isProxyUrlValid),
+                        onClick = {
+                            if (isLoading) {
+                                presenter.onCancelPressed()
+                            } else if (isNewApiUrl) {
+                                showConfirmDialog = true
+                            } else {
+                                presenter.onTestAndSavePressed(isWorkflow)
+                            }
+                        },
+                        padding = PaddingValues(horizontal = 32.dp, vertical = 12.dp),
+                    )
+                }
+            }
+        }
     ) {
         Column(
             verticalArrangement = Arrangement.SpaceBetween,
@@ -200,28 +250,6 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
                     )
                 }
             }
-            BisqGap.V2()
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
-            ) {
-                BisqText.largeRegular(
-                    status,
-                    color =
-                        if (isLoading)
-                            BisqTheme.colors.warning
-                        else if (connectionState is ConnectionState.Connected)
-                            BisqTheme.colors.primary
-                        else
-                            BisqTheme.colors.danger,
-                )
-                if (connectionState is ConnectionState.Connecting) {
-                    BisqText.largeRegular(
-                        timeoutCounter.toString(),
-                        color = BisqTheme.colors.warning
-                    )
-                }
-            }
 
             val error = (connectionState as? ConnectionState.Disconnected)?.error
             if (error is IncompatibleHttpApiVersionException) {
@@ -244,25 +272,7 @@ fun TrustedNodeSetupScreen(isWorkflow: Boolean = true) {
 
         BisqGap.V2()
 
-        Row(
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            BisqButton(
-                text = "mobile.trustedNodeSetup.testAndSave".i18n(),
-                color = if (!isApiUrlValid || !isProxyUrlValid) BisqTheme.colors.mid_grey10 else BisqTheme.colors.light_grey10,
-                disabled = !isWorkflow || isLoading || !isApiUrlValid || !isProxyUrlValid,
-                onClick = {
-                    if (isNewApiUrl) {
-                        showConfirmDialog = true
-                    } else {
-                        presenter.onTestAndSavePressed(isWorkflow)
-                    }
-                },
-                padding = PaddingValues(horizontal = 32.dp, vertical = 12.dp),
-            )
-        }
 
-        BisqGap.V1()
     }
 
     // Add dialog component
