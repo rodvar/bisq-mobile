@@ -3,38 +3,38 @@ package network.bisq.mobile.presentation.ui.uicases.startup
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.CoroutineScope
+import io.mockk.mockkObject
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import network.bisq.mobile.client.httpclient.BisqProxyOption
 import network.bisq.mobile.client.websocket.ConnectionState
+import network.bisq.mobile.client.websocket.WebSocketClient
 import network.bisq.mobile.client.websocket.WebSocketClientService
 import network.bisq.mobile.domain.data.model.SensitiveSettings
 import network.bisq.mobile.domain.data.model.User
 import network.bisq.mobile.domain.data.repository.SensitiveSettingsRepository
 import network.bisq.mobile.domain.data.repository.UserRepository
 import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
+import network.bisq.mobile.presentation.testutils.TestDoubles
+
 import network.bisq.mobile.domain.service.network.KmpTorService
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.di.presentationTestModule
-import network.bisq.mobile.i18n.i18n
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import org.junit.Test
 import org.junit.Ignore
+import org.junit.Test
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
@@ -79,9 +79,12 @@ class TrustedNodeSetupPresenterTimeoutTest {
             override suspend fun clear() { _data.value = User() }
         }
 
+        // IMPORTANT: mock object before stubbing to avoid global leakage across tests
+        mockkObject(WebSocketClient)
+
         // Mock timeout behavior
         every { wsClientService.connectionState } returns MutableStateFlow<ConnectionState>(ConnectionState.Disconnected())
-        every { wsClientService.determineTimeout(any()) } returns 3_000L
+        every { WebSocketClient.determineTimeout(any()) } returns 3_000L
         coEvery { wsClientService.testConnection(any(), any(), any(), any(), any()) } coAnswers {
             // Simulate a timeout that returns the TimeoutCancellationException as a result
             val e = runCatching { withTimeout(1) { delay(50) } }.exceptionOrNull()
@@ -104,6 +107,8 @@ class TrustedNodeSetupPresenterTimeoutTest {
     fun tearDown() {
         Dispatchers.resetMain()
         stopKoin()
+        // Cleanup global mock to avoid leakage across tests
+        TestDoubles.cleanupWebSocketClientMock()
     }
 
     @Ignore("Flaky under current test jobs manager; will enable after injecting test jobs manager here")
