@@ -111,6 +111,9 @@ class WebSocketClientService(
             httpClientService.disposeClient()
             currentClient.value?.dispose()
             currentClient.value = null
+            requestedSubscriptions.value.forEach { entry ->
+                entry.value.resetSequence()
+            }
         }
     }
 
@@ -144,6 +147,9 @@ class WebSocketClientService(
                         subscriptionMutex.withLock {
                             // connection is lost, we need to apply subscriptions again
                             subscriptionsAreApplied = false
+                            requestedSubscriptions.value.forEach { entry ->
+                                entry.value.resetSequence()
+                            }
                         }
                         if (state.error != null) {
                             if (shouldAttemptReconnect(state.error)) {
@@ -220,22 +226,21 @@ class WebSocketClientService(
 
     private suspend fun applySubscriptions(client: WebSocketClient) {
         subscriptionMutex.withLock {
-            requestedSubscriptions.value.let { subs ->
-                if (subscriptionsAreApplied) {
-                    log.d { "skipping applySubscriptions as we already have subscribed our list" }
-                } else {
-                    log.d { "applying subscriptions on WS client, entry count: ${subs.size}" }
-                }
-                subs.forEach { entry ->
-                    entry.value.resetSequence()
-                    client.subscribe(
-                        entry.key.topic,
-                        entry.key.parameter,
-                        entry.value,
-                    )
-                }
-                subscriptionsAreApplied = true
+            if (subscriptionsAreApplied) {
+                log.d { "skipping applySubscriptions as we already have subscribed our list" }
+                return@withLock
             }
+            val subs = requestedSubscriptions.value
+            log.d { "applying subscriptions on WS client, entry count: ${subs.size}" }
+            subs.forEach { entry ->
+                entry.value.resetSequence()
+                client.subscribe(
+                    entry.key.topic,
+                    entry.key.parameter,
+                    entry.value,
+                )
+            }
+            subscriptionsAreApplied = true
         }
     }
 
