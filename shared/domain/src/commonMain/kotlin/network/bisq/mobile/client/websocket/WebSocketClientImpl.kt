@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
@@ -87,7 +88,7 @@ class WebSocketClientImpl(
     private val connectionMutex = Mutex()
     private val requestResponseHandlersMutex = Mutex()
 
-    private val ioScope = CoroutineScope(Dispatchers.IO)
+    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _webSocketClientStatus =
         MutableStateFlow<ConnectionState>(ConnectionState.Disconnected())
@@ -106,7 +107,7 @@ class WebSocketClientImpl(
                     return null
                 }
                 doDisconnect() // clean up state
-                log.d { "WS connecting.." }
+                log.d { "WS connecting to $apiUrl ..." }
                 _webSocketClientStatus.value = ConnectionState.Connecting
                 val startTime = DateUtils.now()
                 val newSession = withContext(Dispatchers.IO) {
@@ -207,7 +208,8 @@ class WebSocketClientImpl(
             log.d { "Waiting ${delayMillis}ms before reconnect attempt" }
             delay(delayMillis)
             reconnectAttempts++
-            val error = connect()
+            val timeout = WebSocketClient.determineTimeout(apiUrl.host)
+            val error = connect(timeout)
             return@async error
         }
         reconnectJob = newReconnectJob
