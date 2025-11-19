@@ -6,10 +6,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.client.httpclient.HttpClientService
@@ -43,6 +48,12 @@ class WebSocketClientService(
     companion object {
         const val CLEARNET_CONNECT_TIMEOUT = 15_000L
         const val TOR_CONNECT_TIMEOUT = 60_000L
+        // Initial subscriptions tracked for network banner:
+        private val initialSubscriptionTypes = setOf(
+            SubscriptionType(Topic.MARKET_PRICE, null),
+            SubscriptionType(Topic.NUM_USER_PROFILES, null),
+            SubscriptionType(Topic.NUM_OFFERS, null),
+        )
     }
 
     private val clientUpdateMutex = Mutex()
@@ -53,10 +64,27 @@ class WebSocketClientService(
 
     private var currentClient = MutableStateFlow<WebSocketClient?>(null)
     private val subscriptionMutex = Mutex()
-    private val requestedSubscriptions = mutableMapOf<SubscriptionType, WebSocketEventObserver>()
+    private val requestedSubscriptions = MutableStateFlow<Map<SubscriptionType, WebSocketEventObserver>>(
+        LinkedHashMap()
+    )
     private var subscriptionsAreApplied = false
 
     private val stopFlow = MutableSharedFlow<Unit>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST) // signal to cancel waiters
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val initialSubscriptionsReceivedData: Flow<Boolean> =
+        requestedSubscriptions.flatMapLatest { subsMap ->
+            // Only the first seven subscriptions contribute to the initial data banner
+            val trackedObservers = initialSubscriptionTypes.mapNotNull { subsMap[it] }
+            if (trackedObservers.size < initialSubscriptionTypes.size) {
+                flowOf(false)
+            } else {
+                val hasReceivedDataFlows = trackedObservers.map { it.hasReceivedData }
+                combine(hasReceivedDataFlows) { hasReceivedDataArray ->
+                    hasReceivedDataArray.all { hasReceivedData -> hasReceivedData }
+                }
+            }
+        }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun activate() {
@@ -138,7 +166,8 @@ class WebSocketClientService(
             is MaximumRetryReachedException,
             is CancellationException,
             is WebSocketIsReconnecting -> false
-            else ->  {
+
+            else -> {
                 // we dont want to retry if message contains "refused"
                 error.message?.contains("refused", ignoreCase = true) != true
             }
@@ -171,7 +200,13 @@ class WebSocketClientService(
         // Connected status, otherwise it will be immediately subscribed
         val (socketObserver, applyNow) = subscriptionMutex.withLock {
             val type = SubscriptionType(topic, parameter)
-            val observer = requestedSubscriptions.getOrPut(type) { WebSocketEventObserver() }
+            var observer = requestedSubscriptions.value[type]
+            if (observer == null) {
+                observer = WebSocketEventObserver()
+                requestedSubscriptions.update { current ->
+                    LinkedHashMap(current).apply { put(type, observer) }
+                }
+            }
             observer to subscriptionsAreApplied
         }
         if (applyNow) {
@@ -185,20 +220,22 @@ class WebSocketClientService(
 
     private suspend fun applySubscriptions(client: WebSocketClient) {
         subscriptionMutex.withLock {
-            if (subscriptionsAreApplied) {
-                log.d { "skipping applySubscriptions as we already have subscribed our list" }
-            } else {
-                log.d { "applying subscriptions on WS client, entry count: ${requestedSubscriptions.size}" }
+            requestedSubscriptions.value.let { subs ->
+                if (subscriptionsAreApplied) {
+                    log.d { "skipping applySubscriptions as we already have subscribed our list" }
+                } else {
+                    log.d { "applying subscriptions on WS client, entry count: ${subs.size}" }
+                }
+                subs.forEach { entry ->
+                    entry.value.resetSequence()
+                    client.subscribe(
+                        entry.key.topic,
+                        entry.key.parameter,
+                        entry.value,
+                    )
+                }
+                subscriptionsAreApplied = true
             }
-            requestedSubscriptions.forEach { entry ->
-                entry.value.resetSequence()
-                client.subscribe(
-                    entry.key.topic,
-                    entry.key.parameter,
-                    entry.value,
-                )
-            }
-            subscriptionsAreApplied = true
         }
     }
 
