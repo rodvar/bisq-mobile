@@ -133,7 +133,7 @@ val androidNodeModule = module {
 
     single<UrlLauncher> { AndroidUrlLauncher(androidContext()) }
 
-    single<ApplicationLifecycleService> {
+    single<NodeApplicationLifecycleService> {
         NodeApplicationLifecycleService(
             get(),
             get(),
@@ -156,7 +156,7 @@ val androidNodeModule = module {
             get(),
             get()
         )
-    }
+    } bind ApplicationLifecycleService::class
 
     single<MainPresenter> {
         NodeMainPresenter(
