@@ -3,7 +3,6 @@ package network.bisq.mobile.presentation.ui.uicases.open_trades.selected
 import androidx.compose.foundation.ScrollState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -96,10 +95,6 @@ class OpenTradePresenter(
 
     private var _coroutineScope: CoroutineScope? = null
 
-    private var languageJob: Job? = null
-    private var tradeStateJob: Job? = null
-    private var mediationJob: Job? = null
-
     fun initialize(tradeId: String, scrollState: ScrollState, uiScope: CoroutineScope) {
         tradesServiceFacade.selectOpenTrade(tradeId)
         _selectedTrade.value = tradesServiceFacade.selectedTrade.value
@@ -113,11 +108,11 @@ class OpenTradePresenter(
             return
         }
 
-        collectUI(currentTrade.bisqEasyTradeModel.tradeState) { tradeState ->
-            tradeStateChanged(tradeState)
+        presenterScope.launch {
+            currentTrade.bisqEasyTradeModel.tradeState.collect(::tradeStateChanged)
         }
 
-        collectUI(
+        presenterScope.launch {
             isUserIgnored.combine(currentTrade.bisqEasyOpenTradeChannelModel.chatMessages) { isIgnored, messages ->
                 if (isIgnored) {
                     messages.filter {
@@ -129,14 +124,16 @@ class OpenTradePresenter(
                 } else {
                     messages
                 }
+            }.collect {
+                msgCount.update { _ -> it.size }
+                _lastChatMsg.update { _ -> it.maxByOrNull { msg -> msg.date } }
             }
-        ) {
-            msgCount.update { _ -> it.size }
-            _lastChatMsg.update { _ -> it.maxByOrNull { msg -> msg.date } }
         }
 
-        collectUI(currentTrade.bisqEasyOpenTradeChannelModel.isInMediation) {
-            _isInMediation.value = it
+        presenterScope.launch {
+            currentTrade.bisqEasyOpenTradeChannelModel.isInMediation.collect {
+                _isInMediation.value = it
+            }
         }
     }
 
@@ -144,13 +141,6 @@ class OpenTradePresenter(
         _tradeAbortedBoxVisible.value = false
         _tradeProcessBoxVisible.value = false
         _isInMediation.value = false
-
-        languageJob?.cancel()
-        tradeStateJob?.cancel()
-        mediationJob?.cancel()
-        languageJob = null
-        tradeStateJob = null
-        mediationJob = null
 
         super.onViewUnattaching()
     }
@@ -251,12 +241,13 @@ class OpenTradePresenter(
 
     fun onConfirmedUndoIgnoreUser() {
         val id = selectedTrade.value?.peersUserProfile?.id
-        launchIO {
+        if (id == null) {
+            log.e { "Expected user profile id to not be null when undoing ignore, but was null" }
+            return
+        }
+        presenterScope.launch {
             disableInteractive()
             try {
-                if (id == null) {
-                    throw IllegalStateException("expected user profile id to not be null, but was null")
-                }
                 userProfileServiceFacade.undoIgnoreUserProfile(id)
                 hideUndoIgnoreDialog()
             } catch (e: Exception) {
