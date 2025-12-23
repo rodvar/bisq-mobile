@@ -1,10 +1,8 @@
 package network.bisq.mobile.presentation.offerbook
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -14,21 +12,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.layout.fillMaxSize
-
-import androidx.compose.foundation.layout.heightIn
-
-
-import network.bisq.mobile.presentation.common.ui.platform.platformTextStyleNoFontPadding
-
 import androidx.compose.foundation.layout.width
-
-
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxColors
@@ -38,56 +28,32 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
-
-import androidx.compose.ui.semantics.selected
-
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import org.jetbrains.compose.ui.tooling.preview.Preview
-
-import androidx.compose.ui.unit.dp
-
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import network.bisq.mobile.i18n.i18n
-import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
-
-import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ExpandAllIcon
-import network.bisq.mobile.presentation.common.ui.components.atoms.DynamicImage
-import network.bisq.mobile.presentation.common.ui.components.molecules.bottom_sheet.BisqBottomSheet
-import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
-import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.dp
+import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
+import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ExpandAllIcon
+import network.bisq.mobile.presentation.common.ui.components.molecules.PaymentMethodIcon
+import network.bisq.mobile.presentation.common.ui.components.molecules.bottom_sheet.BisqBottomSheet
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.BisqSearchField
-import network.bisq.mobile.presentation.common.ui.utils.customPaymentIconIndex
-import network.bisq.mobile.presentation.common.ui.utils.i18NPaymentMethod
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.InternalResourceApi
-import org.jetbrains.compose.resources.ResourceItem
-import org.jetbrains.compose.resources.painterResource
+import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.min
 
-
-private val CUSTOM_PAYMENT_IDS = listOf(
-    "custom_payment_1",
-    "custom_payment_2",
-    "custom_payment_3",
-    "custom_payment_4",
-    "custom_payment_5",
-    "custom_payment_6",
-)
 
 /** UI model for a toggleable method icon (payment or settlement). */
 data class MethodIconState(
@@ -522,61 +488,26 @@ private fun FilterIcon(
 ) {
     val alpha = if (item.selected) 1f else 0.35f
 
-    // For unknown payment methods, mirror the fallback used in PaymentMethods:
-    // - Use one of the custom_payment_* icons deterministically
-    // - Overlay the first letter as a label
-    val (isMissingPayment, fallbackPath, overlayLetter) = if (isPayment) {
-        val (_, missing) = i18NPaymentMethod(item.id)
-        if (missing) {
-            val idx = customPaymentIconIndex(item.id, CUSTOM_PAYMENT_IDS.size)
-            Triple(true, "drawable/payment/fiat/${CUSTOM_PAYMENT_IDS[idx]}.png", item.id.firstOrNull()?.uppercase() ?: "?")
-        } else Triple(false, null, null)
-    } else Triple(false, null, null)
-
-    val inPreview = LocalInspectionMode.current
-    var imageModifier = Modifier
+    var boxModifier = Modifier
         .size(size)
-        .alpha(alpha)
         .semantics { contentDescription = "filter_icon_${item.id}" }
     if (!compact) {
-        imageModifier = imageModifier.clickable(
+        boxModifier = boxModifier.clickable(
             indication = null,
             interactionSource = remember { MutableInteractionSource() }
         ) { onToggle(item.id) }
     }
 
-    Box(modifier = imageModifier, contentAlignment = Alignment.Center) {
-        if (inPreview) {
-            val previewPath = fallbackPath ?: item.iconPath
-            Image(
-                painter = painterResource(previewDrawableFromPath(previewPath)),
-
-
-                contentDescription = item.label,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            DynamicImage(
-                path = item.iconPath,
-                fallbackPath = fallbackPath,
-                contentDescription = item.label,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        if (isMissingPayment && overlayLetter != null) {
-            val letterSizeSp = if (size < 16.dp) 11f else 12f
-            // Use tighter lineHeight and no font padding to keep the letter visually centered in small boxes
-            BisqText.styledText(
-                text = overlayLetter,
-                style = BisqTheme.typography.baseBold.copy(
-                    fontSize = TextUnit(letterSizeSp, TextUnitType.Sp),
-                    lineHeight = TextUnit(letterSizeSp, TextUnitType.Sp),
-                    platformStyle = platformTextStyleNoFontPadding()
-                ),
-                textAlign = TextAlign.Center,
-                color = BisqTheme.colors.dark_grey20,
-            )
-        }
+    Box(modifier = boxModifier, contentAlignment = Alignment.Center) {
+        PaymentMethodIcon(
+            methodId = item.id,
+            isPaymentMethod = isPayment,
+            size = size,
+            alpha = alpha,
+            contentDescription = item.label,
+            useStyledText = true,
+            iconPathOverride = item.iconPath,
+        )
     }
 }
 
@@ -619,50 +550,18 @@ private fun MethodChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Always provide a fallback custom icon for payment methods; overlay letter only when i18n is missing.
-        val (isMissingPayment, overlayLetter) = if (isPaymentRow) {
-            val (_, missing) = i18NPaymentMethod(item.id)
-            Pair(missing, item.id.firstOrNull()?.uppercase() ?: "?")
-        } else Pair(false, null)
-        val idx = customPaymentIconIndex(item.id, CUSTOM_PAYMENT_IDS.size)
-        val paymentFallbackPath = if (isPaymentRow) "drawable/payment/fiat/${CUSTOM_PAYMENT_IDS[idx]}.png" else null
-
-        Box(modifier = Modifier.size(iconSize), contentAlignment = Alignment.Center) {
-            DynamicImage(
-                path = item.iconPath,
-                fallbackPath = paymentFallbackPath,
-                contentDescription = item.label,
-                modifier = Modifier.size(iconSize)
-            )
-            if (isMissingPayment && overlayLetter != null) {
-                val letterSizeSp = if (iconSize < 16.dp) 11f else 12f
-                // Use tighter lineHeight and no font padding to keep the letter visually centered in small boxes
-                BisqText.styledText(
-                    text = overlayLetter,
-                    style = BisqTheme.typography.baseBold.copy(
-                        fontSize = TextUnit(letterSizeSp, TextUnitType.Sp),
-                        lineHeight = TextUnit(letterSizeSp, TextUnitType.Sp),
-                        platformStyle = platformTextStyleNoFontPadding()
-                    ),
-                    textAlign = TextAlign.Center,
-                    color = BisqTheme.colors.dark_grey20,
-                )
-            }
-        }
+        PaymentMethodIcon(
+            methodId = item.id,
+            isPaymentMethod = isPaymentRow,
+            size = iconSize,
+            cornerRadius = 2.dp,
+            contentDescription = item.label,
+            useStyledText = true,
+            iconPathOverride = item.iconPath,
+        )
 
         BisqText.baseLight(text = item.label, singleLine = true)
     }
-}
-
-
-// Preview-only helper: build a DrawableResource from a path without typed accessors
-@OptIn(InternalResourceApi::class)
-private fun previewDrawableFromPath(path: String): DrawableResource {
-    val full = "composeResources/bisqapps.shared.presentation.generated.resources/" + path
-    return DrawableResource(
-        "drawable:preview_$path",
-        setOf(ResourceItem(emptySet(), full, -1, -1))
-    )
 }
 
 // ----------------------
