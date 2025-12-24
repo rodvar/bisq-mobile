@@ -40,6 +40,7 @@ kotlin {
 
             // Compose
             implementation(compose.foundation)
+            implementation(compose.material3)
 
             // Other libraries
             implementation(libs.navigation.compose)
@@ -320,6 +321,7 @@ dependencies {
     implementation(libs.protoc)
 
     // Dependency injection & logging
+    implementation(libs.koin.compose)
     implementation(libs.koin.android)
     implementation(libs.logging.kermit)
 }
