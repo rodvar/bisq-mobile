@@ -90,31 +90,34 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core)
+            implementation(libs.koin.android)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.kmp.tor.resource.exec)
+            implementation(libs.process.phoenix)
         }
         commonMain.dependencies {
-            //put your multiplatform dependencies here
-            implementation(libs.koin.core)
-            implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.logging.kermit)
-            api(libs.okio) // to allow platform specific path conversion for kmp tor
-            implementation(libs.kotlinx.datetime)
-            implementation(libs.bignum)
-
-            implementation(libs.ktor.client.core)
-            implementation(libs.kotlinx.serialization.core)
-            implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.ktor.network)
-            implementation(libs.ktor.client.content.negotiation)
-            implementation(libs.kotlinx.serialization.json)
-            implementation(libs.ktor.client.websockets)
-
-            implementation(libs.kmp.tor.runtime)
-
-            implementation(libs.atomicfu)
-            implementation(libs.kotlin.reflect)
-
+            // AndroidX
             implementation(libs.androidx.datastore.okio)
+
+            // KotlinX
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.serialization.core)
+            implementation(libs.kotlinx.serialization.json)
+
+            // Koin
+            implementation(libs.koin.core)
+
+            // Ktor - network only, used by KmpTorService for TCP socket verification
+            implementation(libs.ktor.network)
+
+            // Other libraries
+            implementation(libs.atomicfu)
+            implementation(libs.bignum)
+            implementation(libs.kmp.tor.runtime)
+            implementation(libs.logging.kermit)
+            api(libs.okio) // api to allow platform specific path conversion for kmp-tor
 
             configurations.all {
                 exclude(group = "org.slf4j", module = "slf4j-api")
@@ -122,45 +125,55 @@ kotlin {
         }
 
         commonTest.dependencies {
+            // Kotlin
             implementation(libs.kotlin.test)
+
+            // KotlinX
             implementation(libs.kotlinx.coroutines.test)
+
+            // Koin
             implementation(libs.koin.test)
         }
-        androidMain.dependencies {
-            implementation(libs.androidx.core)
 
-            implementation(libs.koin.core)
-            implementation(libs.koin.android)
-            implementation(libs.ktor.client.okhttp)
-            implementation(libs.process.phoenix)
-        }
         androidUnitTest.dependencies {
-            implementation(libs.mockk)
+            // Kotlin
             implementation(libs.kotlin.test.junit)
+
+            // Other libraries
             implementation(libs.junit)
+            implementation(libs.mockk)
             implementation(libs.robolectric)
         }
 
         androidInstrumentedTest.dependencies {
-            implementation(libs.mockk)
-            implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.kotlin.test.junit)
-            implementation(libs.junit)
-            implementation(libs.robolectric)
+            // AndroidX
             implementation(libs.androidx.test.core)
             implementation(libs.androidx.test.espresso.core)
             implementation(libs.androidx.test.junit)
+
+            // Kotlin
+            implementation(libs.kotlin.test.junit)
+
+            // KotlinX
+            implementation(libs.kotlinx.coroutines.test)
+
+            // Other libraries
+            implementation(libs.junit)
         }
 
         iosMain.dependencies {
+            // Koin
             implementation(libs.koin.core)
-            implementation(libs.kmp.tor.resource.noexec)
+
+            // Ktor
             implementation(libs.ktor.client.darwin)
+
+            // Other libraries
+            implementation(libs.kmp.tor.resource.noexec)
         }
 
         iosTest.dependencies {
-            implementation(libs.kotlin.test)
-            implementation(libs.kotlinx.coroutines.test)
+            // add ios specifics
         }
     }
 }
