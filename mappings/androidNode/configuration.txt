@@ -226,6 +226,19 @@
 }
 -keepnames @kotlinx.serialization.Serializable class ** { *; }
 
+# Critical R8 full mode rule for sealed class serialization
+# See: https://github.com/Kotlin/kotlinx.serialization/issues/2050
+# When R8 full mode is enabled, sealed classes need special handling
+-if @kotlinx.serialization.Serializable class **
+-keep, allowshrinking, allowoptimization, allowobfuscation, allowaccessmodification class <1>
+
+# Keep attributes needed for polymorphic serialization
+-keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+
+# Explicitly keep sealed interface implementations for offer specs
+-keep class network.bisq.mobile.domain.data.replicated.offer.amount.spec.** { *; }
+-keep class network.bisq.mobile.domain.data.replicated.offer.price.spec.** { *; }
+
 # Preserve Tor service classes moved to shared/domain
 -keep class network.bisq.mobile.domain.service.network.** { *; }
 
