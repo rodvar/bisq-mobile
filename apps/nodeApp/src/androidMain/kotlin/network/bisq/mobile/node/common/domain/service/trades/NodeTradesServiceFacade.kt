@@ -42,6 +42,7 @@ import network.bisq.mobile.domain.data.replicated.presentation.open_trades.Trade
 import network.bisq.mobile.domain.service.ServiceFacade
 import network.bisq.mobile.domain.service.trades.TakeOfferStatus
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.node.common.domain.mapping.Mappings
 import network.bisq.mobile.node.common.domain.mapping.TradeItemPresentationDtoFactory
 import network.bisq.mobile.node.common.domain.service.AndroidApplicationService
@@ -195,16 +196,18 @@ class NodeTradesServiceFacade(
             return Result.success(tradeId)
         } catch (e: Exception) {
             log.e(e) { "Failed to take offer: ${e.message}" }
-            // Set user-friendly error message
-            val errorMsg = when {
-                e.message?.contains("banned", ignoreCase = true) == true ->
-                    Res.get("mobile.bisqEasy.takeOffer.userBanned")
-                e.message != null ->
-                    Res.get("mobile.bisqEasy.takeOffer.failedWithReason", e.message!!)
-                else ->
-                    Res.get("mobile.takeOffer.unexpectedError")
+            // Set user-friendly error message only if not already set by doTakeOffer
+            if (takeOfferErrorMessage.value == null) {
+                val errorMsg = when {
+                    e.message?.contains("banned", ignoreCase = true) == true ->
+                        "mobile.bisqEasy.takeOffer.userBanned".i18n()
+                    e.message != null ->
+                        "mobile.bisqEasy.takeOffer.failedWithReason".i18n(e.message ?: "Unknown reason")
+                    else ->
+                        "mobile.takeOffer.unexpectedError".i18n()
+                }
+                takeOfferErrorMessage.value = errorMsg
             }
-            takeOfferErrorMessage.value = errorMsg
             return Result.failure(e)
         }
     }
@@ -404,10 +407,16 @@ class NodeTradesServiceFacade(
         var errorMessagePin: Pin? = null
         var peersErrorMessagePin: Pin? = null
         try {
-//            FIXME api doesn't exist anymore with latest bisq2 jars API changes
-//            check(!bannedUserService.isNetworkIdBanned(bisqEasyOffer.makerNetworkId)) { "You cannot take the offer because the maker is banned" }
             val takerIdentity = userIdentityService.selectedUserIdentity
-            check(!bannedUserService.isUserProfileBanned(takerIdentity.userProfile)) // if taker is banned we don't give him hints.
+
+            // Check if taker is banned and provide clear error message
+            if (bannedUserService.isUserProfileBanned(takerIdentity.userProfile)) {
+                val errorMsg = "mobile.bisqEasy.takeOffer.userBanned".i18n()
+                takeOfferErrorMessage.value = errorMsg
+                log.w { "Taker is banned, cannot take offer" }
+                throw IllegalStateException("User profile is banned")
+            }
+
             val mediator = mediationRequestService.selectMediator(bisqEasyOffer.makersUserProfileId, takerIdentity.id, bisqEasyOffer.id)
             val priceSpec = bisqEasyOffer.priceSpec
             val marketPrice: Long = marketPriceService.findMarketPrice(bisqEasyOffer.market).map { it.priceQuote.value }.orElse(0)
