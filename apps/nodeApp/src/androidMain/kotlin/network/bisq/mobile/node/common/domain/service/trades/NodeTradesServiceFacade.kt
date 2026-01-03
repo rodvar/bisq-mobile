@@ -194,6 +194,17 @@ class NodeTradesServiceFacade(
                 }
             return Result.success(tradeId)
         } catch (e: Exception) {
+            log.e(e) { "Failed to take offer: ${e.message}" }
+            // Set user-friendly error message
+            val errorMsg = when {
+                e.message?.contains("banned", ignoreCase = true) == true ->
+                    Res.get("mobile.bisqEasy.takeOffer.userBanned")
+                e.message != null ->
+                    Res.get("mobile.bisqEasy.takeOffer.failedWithReason", e.message!!)
+                else ->
+                    Res.get("mobile.takeOffer.unexpectedError")
+            }
+            takeOfferErrorMessage.value = errorMsg
             return Result.failure(e)
         }
     }
