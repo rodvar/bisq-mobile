@@ -198,14 +198,15 @@ class NodeTradesServiceFacade(
             log.e(e) { "Failed to take offer: ${e.message}" }
             // Set user-friendly error message only if not already set by doTakeOffer
             if (takeOfferErrorMessage.value == null) {
-                val errorMsg = when {
-                    e.message?.contains("banned", ignoreCase = true) == true ->
-                        "mobile.bisqEasy.takeOffer.userBanned".i18n()
-                    e.message != null ->
-                        "mobile.bisqEasy.takeOffer.failedWithReason".i18n(e.message ?: "Unknown reason")
-                    else ->
-                        "mobile.takeOffer.unexpectedError".i18n()
-                }
+                val errorMsg =
+                    when {
+                        e.message?.contains("banned", ignoreCase = true) == true ->
+                            "mobile.bisqEasy.takeOffer.userBanned".i18n()
+                        e.message != null ->
+                            "mobile.bisqEasy.takeOffer.failedWithReason".i18n(e.message ?: "Unknown reason")
+                        else ->
+                            "mobile.takeOffer.unexpectedError".i18n()
+                    }
                 takeOfferErrorMessage.value = errorMsg
             }
             return Result.failure(e)
