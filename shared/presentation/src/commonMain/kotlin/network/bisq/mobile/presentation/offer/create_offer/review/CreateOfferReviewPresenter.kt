@@ -169,10 +169,19 @@ class CreateOfferReviewPresenter(
                     }.onFailure { exception ->
                         if (exception is TimeoutCancellationException) {
                             log.e(exception) { "Create offer timed out: ${exception.message}" }
-                            showSnackbar("mobile.bisqEasy.createOffer.timedOut".i18n())
+                            showSnackbar("mobile.bisqEasy.createOffer.timedOut".i18n(), isError = true)
                         } else {
                             log.e(exception) { "Failed to create offer: ${exception.message}" }
-                            showSnackbar("mobile.bisqEasy.createOffer.failed".i18n())
+                            // Show the actual error message to help users understand what went wrong
+                            val errorMessage = when {
+                                exception.message?.contains("banned", ignoreCase = true) == true ->
+                                    "mobile.bisqEasy.createOffer.userBanned".i18n()
+                                exception.message != null ->
+                                    "mobile.bisqEasy.createOffer.failedWithReason".i18n(exception.message!!)
+                                else ->
+                                    "mobile.bisqEasy.createOffer.failed".i18n()
+                            }
+                            showSnackbar(errorMessage, isError = true)
                         }
                     }
             } finally {
