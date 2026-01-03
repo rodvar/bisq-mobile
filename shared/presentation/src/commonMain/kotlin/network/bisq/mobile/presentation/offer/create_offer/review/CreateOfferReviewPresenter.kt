@@ -173,14 +173,15 @@ class CreateOfferReviewPresenter(
                         } else {
                             log.e(exception) { "Failed to create offer: ${exception.message}" }
                             // Show the actual error message to help users understand what went wrong
-                            val errorMessage = when {
-                                exception.message?.contains("banned", ignoreCase = true) == true ->
-                                    "mobile.bisqEasy.createOffer.userBanned".i18n()
-                                exception.message != null ->
-                                    "mobile.bisqEasy.createOffer.failedWithReason".i18n(exception.message!!)
-                                else ->
-                                    "mobile.bisqEasy.createOffer.failed".i18n()
-                            }
+                            val errorMessage =
+                                when {
+                                    exception.message?.contains("banned", ignoreCase = true) == true ->
+                                        "mobile.bisqEasy.createOffer.userBanned".i18n()
+                                    exception.message != null ->
+                                        "mobile.bisqEasy.createOffer.failedWithReason".i18n(exception.message!!)
+                                    else ->
+                                        "mobile.bisqEasy.createOffer.failed".i18n()
+                                }
                             showSnackbar(errorMessage, isError = true)
                         }
                     }
