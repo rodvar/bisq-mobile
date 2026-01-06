@@ -104,11 +104,11 @@ class TrustedNodeSetupPresenterCancelInternalTorTest {
             object : CoroutineJobsManager {
                 private val scope = CoroutineScope(testDispatcher)
 
+                override var coroutineExceptionHandler: ((Throwable) -> Unit)? = null
+
                 override suspend fun dispose() {}
 
                 override fun getScope() = scope
-
-                override fun setCoroutineExceptionHandler(handler: (Throwable) -> Unit) {}
             }
 
         startKoin {
