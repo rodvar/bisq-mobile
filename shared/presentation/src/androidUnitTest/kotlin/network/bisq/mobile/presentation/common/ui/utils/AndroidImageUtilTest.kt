@@ -3,32 +3,28 @@ package network.bisq.mobile.presentation.common.ui.utils
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import java.io.File
-import kotlin.test.BeforeTest
 
-@RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE, sdk = [31])
+@RunWith(AndroidJUnit4::class)
 class AndroidImageUtilTest {
     private lateinit var context: Context
 
-    @BeforeTest
+    @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
     }
 
     @Test
     fun `test getImageByPath valid path`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val assetPath =
-            "composeResources/bisqapps.shared.presentation.generated.resources/drawable/bisq_logo.png"
+        val assetPath = "bisq_logo.png"
         val bitmap = AndroidImageUtil.getImageByPath(context, AndroidImageUtil.PATH_TO_DRAWABLE, assetPath)
         assertNotNull("Image should be loaded", bitmap)
     }
