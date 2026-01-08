@@ -1,9 +1,12 @@
 package network.bisq.mobile.presentation.trade.trade_detail
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.replicated.contract.RoleEnum
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
@@ -176,13 +179,16 @@ class InterruptedTradePresenter(
                 return@launch
             }
 
-            // On success, clear read state. If this fails, report but still navigate back.
-            runCatching { tradeReadStateRepository.clearId(trade.tradeId) }
-                .onFailure { ex ->
+            withContext(Dispatchers.IO) {
+                // On success, clear read state. If this fails, report but still navigate back.
+                runCatching {
+                    tradeReadStateRepository.clearId(trade.tradeId)
+                }.onFailure { ex ->
                     GenericErrorHandler.handleGenericError(
                         "mobile.bisqEasy.openTrades.clearReadState.failed".i18n(ex.message ?: ""),
                     )
                 }
+            }
 
             hideLoading()
             navigateBack()

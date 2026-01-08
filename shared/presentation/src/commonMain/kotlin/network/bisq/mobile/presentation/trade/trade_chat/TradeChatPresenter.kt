@@ -1,6 +1,8 @@
 package network.bisq.mobile.presentation.trade.trade_chat
 
 import androidx.compose.material3.SnackbarDuration
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -10,6 +12,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.domain.data.replicated.chat.CitationVO
@@ -304,8 +307,11 @@ class TradeChatPresenter(
 
     fun onUpdateReadCount(newValue: Int) {
         val tradeId = selectedTrade.value?.tradeId ?: return
+
         presenterScope.launch {
-            tradeReadStateRepository.setCount(tradeId, newValue)
+            withContext(Dispatchers.IO) {
+                tradeReadStateRepository.setCount(tradeId, newValue)
+            }
         }
     }
 
