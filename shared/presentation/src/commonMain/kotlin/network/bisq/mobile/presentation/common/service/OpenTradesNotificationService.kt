@@ -32,11 +32,16 @@ import network.bisq.mobile.presentation.common.notification.NotificationIds
 import network.bisq.mobile.presentation.common.notification.model.NotificationPressAction
 import network.bisq.mobile.presentation.common.notification.model.android.AndroidNotificationCategory
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
+import kotlin.concurrent.Volatile
 
 /**
  * Service to manage notifications for open trades
  * Will update the user on important trade progress and new trades
  * whilst the bisq notification service is running (e.g. background app)
+ *
+ * The foreground service is started immediately on app initialization (before heavy work)
+ * to avoid Android's ForegroundServiceDidNotStartInTimeException. Observers are
+ * registered/unregistered based on foreground/background state to manage resources.
  */
 class OpenTradesNotificationService(
     private val notificationController: NotificationController,
@@ -57,12 +62,29 @@ class OpenTradesNotificationService(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var lifecycleObserverJob: Job? = null
 
+    @Volatile
+    private var isServiceStarted = false
+
     companion object {
         private const val FOREGROUND_DEBOUNCE_MS = 1000L
     }
 
     init {
         setupLifecycleObserver()
+    }
+
+    /**
+     * Starts the foreground service immediately. Should be called during app initialization
+     * before any heavy work to avoid ForegroundServiceDidNotStartInTimeException.
+     */
+    fun startService() {
+        if (!isServiceStarted) {
+            log.i { "Starting foreground service on app initialization" }
+            foregroundServiceController.startService()
+            isServiceStarted = true
+        } else {
+            log.d { "Foreground service already started" }
+        }
     }
 
     @OptIn(FlowPreview::class)
@@ -78,11 +100,11 @@ class OpenTradesNotificationService(
                 .distinctUntilChanged()
                 .onEach { isForeground ->
                     if (isForeground) {
-                        log.d { "App entered foreground (debounced). Stopping service and observers." }
-                        stopObserversAndService()
+                        log.d { "App entered foreground (debounced). Unregistering observers." }
+                        unregisterObservers()
                     } else {
-                        log.d { "App entered background (debounced). Starting service and observers." }
-                        startServiceAndObservers()
+                        log.d { "App entered background (debounced). Registering observers." }
+                        registerObservers()
                     }
                 }.launchIn(scope)
     }
@@ -93,13 +115,27 @@ class OpenTradesNotificationService(
         log.d { "Permanently stopping OpenTradesNotificationService." }
         lifecycleObserverJob?.cancel()
         lifecycleObserverJob = null
-        stopObserversAndService()
+        unregisterObservers()
+
+        stateMutex.withLock {
+            perTradeFlows.clear()
+            perTradePeerMessageCount.clear()
+            observedTradeIds.clear()
+            notifiedPaymentInfo.clear()
+        }
+
+        foregroundServiceController.stopService()
+        isServiceStarted = false
         foregroundServiceController.dispose()
         scope.cancel()
+
+        log.d { "OpenTradesNotificationService permanently stopped" }
     }
 
-    private fun startServiceAndObservers() {
-        foregroundServiceController.startService()
+    /**
+     * Registers observers for trade updates. Called when app enters background.
+     */
+    private fun registerObservers() {
         runCatching {
             foregroundServiceController.registerObserver(tradesServiceFacade.openTradeItems) { trades ->
                 log.d { "open trades in total: ${trades.size}" }
@@ -113,7 +149,11 @@ class OpenTradesNotificationService(
         }
     }
 
-    private suspend fun stopObserversAndService() {
+    /**
+     * Unregisters all observers. Called when app enters foreground.
+     * The service continues running to maintain process priority.
+     */
+    private suspend fun unregisterObservers() {
         foregroundServiceController.unregisterObservers()
 
         stateMutex.withLock {
@@ -123,9 +163,7 @@ class OpenTradesNotificationService(
             notifiedPaymentInfo.clear()
         }
 
-        foregroundServiceController.stopService()
-
-        log.d { "OpenTradesNotificationService stopped and all tracking sets cleared" }
+        log.d { "All observers unregistered and tracking sets cleared" }
     }
 
     /**
