@@ -20,7 +20,7 @@ import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
 
 class OfferbookMarketPresenter(
-    mainPresenter: MainPresenter,
+    private val mainPresenter: MainPresenter,
     private val offersServiceFacade: OffersServiceFacade,
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
     private val userProfileServiceFacade: UserProfileServiceFacade,
@@ -60,22 +60,8 @@ class OfferbookMarketPresenter(
         _searchText.value = newValue
     }
 
-    val marketListItemWithNumOffers: StateFlow<List<MarketListItem>> =
-        combine(
-            _filter,
-            _searchText,
-            _sortBy,
-            _marketPriceUpdated,
-            mainPresenter.languageCode,
-        ) { filter: MarketFilter, searchText: String, sortBy: MarketSortBy, forceTrigger: Boolean, _ ->
-            Triple(filter, searchText, sortBy)
-        }.combine(offersServiceFacade.offerbookMarketItems) { params, items ->
-            computeMarketList(params.first, params.second, params.third, items)
-        }.stateIn(
-            presenterScope,
-            SharingStarted.Lazily,
-            emptyList(),
-        )
+    private val _marketListItemWithNumOffers = MutableStateFlow<List<MarketListItem>>(emptyList())
+    val marketListItemWithNumOffers: StateFlow<List<MarketListItem>> get() = _marketListItemWithNumOffers.asStateFlow()
 
     private fun computeMarketList(
         filter: MarketFilter,
@@ -147,7 +133,30 @@ class OfferbookMarketPresenter(
 
     override fun onViewAttached() {
         super.onViewAttached()
+        observeMarketListItems()
         observeGlobalMarketPrices()
+    }
+
+    private fun observeMarketListItems() {
+        presenterScope.launch {
+            combine(
+                _filter,
+                _searchText,
+                _sortBy,
+                _marketPriceUpdated,
+                mainPresenter.languageCode,
+                offersServiceFacade.offerbookMarketItems,
+            ) { values: Array<Any?> ->
+                @Suppress("UNCHECKED_CAST")
+                val filter = values[0] as MarketFilter
+                val searchText = values[1] as String
+                val sortBy = values[2] as MarketSortBy
+                val items = values[5] as List<MarketListItem>
+                computeMarketList(filter, searchText, sortBy, items)
+            }.collect { result ->
+                _marketListItemWithNumOffers.value = result
+            }
+        }
     }
 
     private fun observeGlobalMarketPrices() {
