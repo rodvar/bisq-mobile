@@ -1,9 +1,12 @@
 package network.bisq.mobile.presentation.trade.trade_detail.states.common
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
@@ -55,7 +58,9 @@ abstract class State4Presenter(
                 }
 
                 result.isSuccess -> {
-                    tradeReadStateRepository.clearId(tradeId)
+                    withContext(Dispatchers.IO) {
+                        tradeReadStateRepository.clearId(tradeId)
+                    }
                     _showCloseTradeDialog.value = false
                     navigateBack()
                 }
