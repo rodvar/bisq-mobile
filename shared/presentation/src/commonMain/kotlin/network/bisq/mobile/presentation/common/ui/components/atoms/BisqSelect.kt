@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.common.ui.components.atoms
 
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,14 +18,20 @@ import androidx.compose.material3.MenuItemColors
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,8 +43,6 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.bottom_sh
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
-import network.bisq.mobile.presentation.common.ui.utils.rememberBlurTriggerSetup
-import network.bisq.mobile.presentation.common.ui.utils.setBlurTrigger
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -218,28 +223,38 @@ fun <T> BisqSelect(
                 .let { if (it.isNotEmpty()) it.values.first().second else "" }
         }
 
-    val blurTriggerSetup = rememberBlurTriggerSetup()
+    val onTriggerClickState = rememberUpdatedState(onTriggerClick)
+
+    val focusManager = LocalFocusManager.current
+
+    val triggerModifier =
+        Modifier
+            .onFocusChanged { state ->
+                if (state.hasFocus) {
+                    val newExpand = onTriggerClickState.value() ?: true
+                    expanded = newExpand
+                }
+            }
 
     Column(modifier = modifier) {
-        BisqTextField(
+        BisqTextFieldV0(
             label = label,
             readOnly = true,
             value = selectedLabel,
             placeholder = placeholder,
-            helperText = helpText,
-            rightSuffix = {
+            modifier = triggerModifier,
+            bottomMessage =
+                if (!errorText.isNullOrBlank()) {
+                    errorText
+                } else {
+                    helpText
+                },
+            isError = !errorText.isNullOrBlank(),
+            trailingIcon = {
                 ExpandAllIcon()
             },
-            validation = { errorText },
-            disabled = disabled,
-            modifier = Modifier.setBlurTrigger(blurTriggerSetup),
-            onFocus = {
-                val newExpand = onTriggerClick() ?: true
-                expanded = newExpand
-                if (!newExpand) {
-                    blurTriggerSetup.triggerBlur()
-                }
-            },
+            enabled = !disabled,
+            onValueChange = {},
         )
         extraContent(keyLabelOptionEntries)
     }
@@ -247,14 +262,15 @@ fun <T> BisqSelect(
     if (expanded) {
         BisqBottomSheet(
             onDismissRequest = {
+                focusManager.clearFocus()
                 expanded = false
                 searchText = ""
             },
         ) {
             if (searchable) {
-                BisqTextField(
+                BisqTextFieldV0(
                     value = searchText,
-                    onValueChange = { it, _ -> searchText = it },
+                    onValueChange = { searchText = it },
                     placeholder = "mobile.components.dropdown.searchPlaceholder".i18n(),
                     modifier =
                         Modifier
@@ -298,6 +314,7 @@ private fun BisqSelectPreview() {
             optionLabel = { it },
             selectedKey = "English",
             helpText = "random help text",
+            searchable = true,
         )
     }
 }
