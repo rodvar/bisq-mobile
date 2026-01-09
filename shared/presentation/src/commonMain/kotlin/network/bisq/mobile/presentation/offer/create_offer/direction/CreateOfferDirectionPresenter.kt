@@ -1,12 +1,16 @@
 package network.bisq.mobile.presentation.offer.create_offer.direction
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.stateIn
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExtension.id
-import network.bisq.mobile.domain.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.domain.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.utils.CurrencyUtils
@@ -45,7 +49,29 @@ class CreateOfferDirectionPresenter(
                 "mobile.bisqEasy.tradeWizard.directionAndMarket.headlineNoMarket".i18n()
             }
         }
-    private val _reputation = MutableStateFlow<ReputationScoreVO?>(null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val reputationTotalScore =
+        userProfileServiceFacade.selectedUserProfile
+            .mapLatest { profile ->
+                profile
+                    ?.let {
+                        reputationServiceFacade.getReputation(it.id).also { result ->
+                            result.onFailure { throwable ->
+                                log.w(
+                                    throwable,
+                                    "CreateOfferDirectionPresenter",
+                                ) { "Exception at reputationServiceFacade.getReputation" }
+                            }
+                        }
+                    }?.let { it.getOrNull()?.totalScore } ?: 0L
+            }.stateIn(
+                presenterScope,
+                SharingStarted.WhileSubscribed(5000),
+                0L,
+            )
+
+    private var reputationCollectorJob: Job? = null
 
     private val _showSellerReputationWarning = MutableStateFlow(false)
     val showSellerReputationWarning: StateFlow<Boolean> get() = _showSellerReputationWarning.asStateFlow()
@@ -56,11 +82,14 @@ class CreateOfferDirectionPresenter(
 
     override fun onViewAttached() {
         super.onViewAttached()
-        presenterScope.launch {
-            val profile = userProfileServiceFacade.getSelectedUserProfile() ?: return@launch
-            val reputation = reputationServiceFacade.getReputation(profile.id).getOrNull()
-            _reputation.value = reputation
-        }
+        reputationCollectorJob?.cancel()
+        reputationCollectorJob = reputationTotalScore.launchIn(presenterScope)
+    }
+
+    override fun onViewUnattaching() {
+        super.onViewUnattaching()
+        reputationCollectorJob?.cancel()
+        reputationCollectorJob = null
     }
 
     fun onBuySelected() {
@@ -69,7 +98,7 @@ class CreateOfferDirectionPresenter(
     }
 
     fun onSellSelected() {
-        val userReputation = _reputation.value?.totalScore ?: 0L
+        val userReputation = reputationTotalScore.value
         if (userReputation == 0L) {
             setShowSellerReputationWarning(true)
         } else {
