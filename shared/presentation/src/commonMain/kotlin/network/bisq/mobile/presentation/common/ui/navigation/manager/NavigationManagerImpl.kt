@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.Clock
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -25,6 +26,10 @@ class NavigationManagerImpl(
     val coroutineJobsManager: CoroutineJobsManager,
 ) : NavigationManager,
     Logging {
+    companion object {
+        const val NAVIGATE_THROTTLE_MS = 300L // Minimum time between navigation calls based on human eye reaction
+    }
+
     private var rootNavControllerFlow = MutableStateFlow<NavHostController?>(null)
     private var tabNavControllerFlow = MutableStateFlow<NavHostController?>(null)
 
@@ -35,8 +40,27 @@ class NavigationManagerImpl(
     // Single mutex to serialize all calls that touch NavController.
     private val navMutex = Mutex()
 
+    // Track last navigation time to prevent rapid navigation calls that can cause ANRs
+    private var lastNavigationTime = 0L
+
     // External scope, but we always dispatch to Main when touching NavController.
     private val scope get() = coroutineJobsManager.getScope()
+
+    /**
+     * Check if enough time has passed since the last navigation to allow a new one.
+     * This prevents rapid navigation calls that can cause ANRs on slower devices.
+     * @return true if navigation should proceed, false if it should be throttled
+     */
+    private fun shouldAllowNavigation(): Boolean {
+        val currentTime = Clock.System.now().toEpochMilliseconds()
+        val timeSinceLastNav = currentTime - lastNavigationTime
+        if (timeSinceLastNav < NAVIGATE_THROTTLE_MS) {
+            log.d { "Navigation throttled: ${timeSinceLastNav}ms since last navigation (min: ${NAVIGATE_THROTTLE_MS}ms)" }
+            return false
+        }
+        lastNavigationTime = currentTime
+        return true
+    }
 
     // Suspend until the root controller is available *and* its navigation graph is ready,
     // always collecting and checking on the Main dispatcher.
@@ -129,8 +153,15 @@ class NavigationManagerImpl(
         onCompleted: (() -> Unit)?,
     ) {
         scope.launch {
+            var completedInvoked = false
             navMutex.withLock {
                 try {
+                    if (!shouldAllowNavigation()) {
+                        onCompleted?.invoke()
+                        completedInvoked = true
+                        return@withLock
+                    }
+
                     val rootNav = getRootNavController()
                     runCatching {
                         rootNav.navigate(destination) {
@@ -142,7 +173,9 @@ class NavigationManagerImpl(
                 } catch (t: Throwable) {
                     log.e(t) { "Failed to navigate to $destination (exception)" }
                 } finally {
-                    onCompleted?.invoke()
+                    if (!completedInvoked) {
+                        onCompleted?.invoke()
+                    }
                 }
             }
         }
@@ -157,6 +190,10 @@ class NavigationManagerImpl(
         scope.launch {
             navMutex.withLock {
                 try {
+                    if (!shouldAllowNavigation()) {
+                        return@withLock
+                    }
+
                     val rootNav = getRootNavController()
                     runCatching {
                         if (!isAtMainScreen()) {
