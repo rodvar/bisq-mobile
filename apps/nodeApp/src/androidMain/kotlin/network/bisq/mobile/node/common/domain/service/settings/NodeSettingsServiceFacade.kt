@@ -22,18 +22,52 @@ class NodeSettingsServiceFacade(
 ) : ServiceFacade(),
     SettingsServiceFacade,
     Logging {
-    private val languageToLocaleMap =
-        mapOf(
-            "af-ZA" to Locale("af", "ZA"),
-            "cs" to Locale("cs", "CZ"),
-            "de" to Locale("de", "DE"),
-            "en" to Locale("en", "US"),
-            "es" to Locale("es", "ES"),
-            "it" to Locale("it", "IT"),
-            "pcm" to Locale("pcm", "NG"),
-            "pt-BR" to Locale("pt", "BR"),
-            "ru" to Locale("ru", "RU"),
-        )
+    companion object {
+        private fun normalizeLanguageCode(languageCode: String): String {
+            if (languageCode.isBlank()) {
+                return "en"
+            }
+
+            return when {
+                // Handle underscore variants (e.g., "pt_BR" -> "pt-BR", "af_ZA" -> "af-ZA")
+                languageCode.contains("_") -> languageCode.replace("_", "-")
+                // Handle legacy "pcm" -> "pcm-NG"
+                languageCode == "pcm" -> "pcm-NG"
+                // Handle legacy "en_US" or similar -> just "en"
+                languageCode.startsWith("en") && languageCode.length > 2 -> "en"
+                else -> languageCode
+            }.let { normalized ->
+                // Verify the normalized code is supported, otherwise fall back to "en"
+                if (I18nSupport.LANGUAGE_CODE_TO_BUNDLE_MAP.containsKey(normalized)) {
+                    normalized
+                } else {
+                    "en"
+                }
+            }
+        }
+
+        private fun languageCodeToLocale(languageCode: String): Locale {
+            val normalizedCode = normalizeLanguageCode(languageCode)
+
+            return when (normalizedCode) {
+                "af-ZA" -> Locale("af", "ZA")
+                "cs" -> Locale("cs", "CZ")
+                "de" -> Locale("de", "DE")
+                "en" -> Locale("en", "US")
+                "es" -> Locale("es", "ES")
+                "fr" -> Locale("fr", "FR")
+                "hi" -> Locale("hi", "IN")
+                "id" -> Locale("id", "ID")
+                "it" -> Locale("it", "IT")
+                "pcm-NG" -> Locale("pcm", "NG")
+                "pt-BR" -> Locale("pt", "BR")
+                "ru" -> Locale("ru", "RU")
+                "tr" -> Locale("tr", "TR")
+                "vi" -> Locale("vi", "VN")
+                else -> Locale("en", "US")
+            }
+        }
+    }
 
     // Dependencies
     private val settingsService: SettingsService by lazy { applicationService.settingsService.get() }
@@ -177,11 +211,14 @@ class NodeSettingsServiceFacade(
     }
 
     private fun updateLanguage(code: String) {
-        if (I18nSupport.currentLanguage != code || _languageCode.value != code) {
-            val locale = languageToLocaleMap[code] ?: Locale("en", "US")
+        // Normalize the language code to ensure consistency across all systems
+        val normalizedCode = Companion.normalizeLanguageCode(code)
+
+        if (I18nSupport.currentLanguage != normalizedCode || _languageCode.value != normalizedCode) {
+            val locale = languageCodeToLocale(normalizedCode)
             LocaleRepository.setDefaultLocale(locale)
-            I18nSupport.setLanguage(code)
-            _languageCode.value = code
+            I18nSupport.setLanguage(normalizedCode)
+            _languageCode.value = normalizedCode
         }
     }
 

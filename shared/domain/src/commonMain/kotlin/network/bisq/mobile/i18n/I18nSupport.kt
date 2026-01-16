@@ -10,6 +10,24 @@ var bundles: List<ResourceBundle> = GeneratedResourceBundles_en.bundles.values.m
 
 class I18nSupport {
     companion object {
+        val LANGUAGE_CODE_TO_BUNDLE_MAP =
+            mapOf(
+                "en" to GeneratedResourceBundles_en.bundles,
+                "af-ZA" to GeneratedResourceBundles_af_ZA.bundles,
+                "cs" to GeneratedResourceBundles_cs.bundles,
+                "de" to GeneratedResourceBundles_de.bundles,
+                "es" to GeneratedResourceBundles_es.bundles,
+                "fr" to GeneratedResourceBundles_fr.bundles,
+                "hi" to GeneratedResourceBundles_hi.bundles,
+                "id" to GeneratedResourceBundles_id.bundles,
+                "it" to GeneratedResourceBundles_it.bundles,
+                "pcm-NG" to GeneratedResourceBundles_pcm.bundles,
+                "pt-BR" to GeneratedResourceBundles_pt_BR.bundles,
+                "ru" to GeneratedResourceBundles_ru.bundles,
+                "tr" to GeneratedResourceBundles_tr.bundles,
+                "vi" to GeneratedResourceBundles_vi.bundles,
+            )
+
         var isReady: Boolean = false
             private set
 
@@ -22,22 +40,11 @@ class I18nSupport {
         }
 
         fun setLanguage(languageCode: String = "en") {
-            currentLanguage = languageCode
-            // bundles = BUNDLE_NAMES.map { ResourceBundle.getBundle(it, languageCode) }
-            val bundleMapsByName: Map<String, Map<String, String>> =
-                when (languageCode) {
-                    "en" -> GeneratedResourceBundles_en.bundles
-                    "af-ZA" -> GeneratedResourceBundles_af_ZA.bundles
-                    "cs" -> GeneratedResourceBundles_cs.bundles
-                    "de" -> GeneratedResourceBundles_de.bundles
-                    "es" -> GeneratedResourceBundles_es.bundles
-                    "it" -> GeneratedResourceBundles_it.bundles
-                    "pcm" -> GeneratedResourceBundles_pcm.bundles
-                    "pt-BR" -> GeneratedResourceBundles_pt_BR.bundles
-                    "ru" -> GeneratedResourceBundles_ru.bundles
-                    else -> GeneratedResourceBundles_en.bundles
-                }
-            bundles = bundleMapsByName.values.map { ResourceBundle(it) }
+            val bundleMapsByName = LANGUAGE_CODE_TO_BUNDLE_MAP[languageCode]
+            val resolvedLanguageCode = if (bundleMapsByName == null) "en" else languageCode
+            currentLanguage = resolvedLanguageCode
+            val resolvedBundles = bundleMapsByName ?: GeneratedResourceBundles_en.bundles
+            bundles = resolvedBundles.values.map { ResourceBundle(it) }
         }
 
         fun has(key: String): Boolean = bundles.any { it.containsKey(key) }
