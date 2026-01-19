@@ -14,6 +14,7 @@ plugins {
     alias(libs.plugins.buildconfig).apply(false)
     alias(libs.plugins.protobuf).apply(false)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.kover) // Apply kover in root for aggregated reports
 
     // For Java & KotlinMultiplatform/Jvm this is for stripping out unused compilations
     // of tor to reduce application binary size by keeping only the host/architecture
@@ -25,6 +26,15 @@ plugins {
     // that is expected to be present at runtime.
     // See: https://github.com/05nelsonm/kmp-tor-resource/blob/master/library/resource-frameworks-gradle-plugin/README.md
     alias(libs.plugins.kmp.tor.resource.frameworks).apply(false)
+}
+
+// Kover dependencies for aggregated coverage reports
+dependencies {
+    kover(project(":shared:domain"))
+    kover(project(":shared:presentation"))
+    kover(project(":apps:nodeApp"))
+    kover(project(":apps:clientApp"))
+    // Note: shared:kscan is excluded as it's a third-party library wrapper with no tests
 }
 
 // Configure all subprojects to run generateResourceBundles before compilation
@@ -59,6 +69,29 @@ subprojects {
         // Add Compose Rules as a custom ktlint ruleset
         dependencies {
             add("ktlintRuleset", rootProject.libs.compose.rules.ktlint)
+        }
+    }
+
+    // Apply kover configuration to all subprojects with the kover plugin
+    plugins.withId(
+        rootProject.libs.plugins.kover
+            .get()
+            .pluginId,
+    ) {
+        configure<kotlinx.kover.gradle.plugin.dsl.KoverProjectExtension> {
+            reports {
+                filters {
+                    excludes {
+                        // Exclude Preview annotations from coverage reports
+                        annotatedBy("androidx.compose.ui.tooling.preview.Preview")
+                        annotatedBy("org.jetbrains.compose.ui.tooling.preview.Preview")
+                        annotatedBy("network.bisq.mobile.presentation.common.ui.utils.PreviewHelper")
+                        // Exclude custom coverage exclusion annotation
+                        annotatedBy("network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage")
+                        classes("*ComposableSingletons*")
+                    }
+                }
+            }
         }
     }
 
@@ -231,4 +264,36 @@ tasks.register<Exec>("ktlintFormatAndCheck") {
 // Run both installGitHooks and verifyKtlintIdePlugin automatically when project is evaluated
 rootProject.tasks.named("prepareKotlinBuildScriptModel").configure {
     dependsOn("installGitHooks", "verifyKtlintIdePlugin")
+}
+
+// Configure aggregated Kover reports for the entire repository
+kover {
+    reports {
+        total {
+            filters {
+                excludes {
+                    // Exclude Compose Preview functions from coverage
+                    annotatedBy("androidx.compose.ui.tooling.preview.Preview")
+                    annotatedBy("org.jetbrains.compose.ui.tooling.preview.Preview")
+                    annotatedBy("network.bisq.mobile.presentation.common.ui.utils.PreviewHelper")
+                    // Exclude custom coverage exclusion annotation
+                    annotatedBy("network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage")
+                    // Exclude generated Compose code
+                    classes("*ComposableSingletons*")
+                    // Exclude auto-generated Compose Multiplatform resources
+                    classes("bisqapps.*.generated.resources.*")
+                }
+            }
+
+            html {
+                title = "Bisq Mobile - Code Coverage Report"
+                onCheck = false
+            }
+
+            xml {
+                title = "Bisq Mobile - Code Coverage Report"
+                onCheck = false
+            }
+        }
+    }
 }
