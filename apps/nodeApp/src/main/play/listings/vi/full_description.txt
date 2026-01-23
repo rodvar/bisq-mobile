@@ -1,0 +1,17 @@
+Bisq dành cho Android là một công cụ giao tiếp ngang hàng (P2P) phi tập trung được thiết kế để tạo điều kiện kết nối an toàn giữa người dùng, cho phép họ trao đổi thông tin trực tiếp mà không cần dựa vào máy chủ tập trung. Ứng dụng này đóng vai trò là cầu nối cho các cá nhân muốn tương tác qua mạng Bisq, đảm bảo quyền riêng tư và tự chủ trong giao tiếp của họ.
+
+<b>Các tính năng chính:</b>
+
+• <b>Giao tiếp phi tập trung:</b> Hoạt động trong một mạng lưới hoàn toàn phi tập trung, loại bỏ nhu cầu về các cơ quan trung ương và giảm thiểu các điểm lỗi đơn lẻ.
+
+• <b>Tập trung vào quyền riêng tư:</b> Dữ liệu của bạn vẫn nằm trên thiết bị của bạn; Bisq dành cho Android không lưu trữ hoặc theo dõi bất kỳ thông tin người dùng nào, đảm bảo quyền riêng tư hoàn toàn.
+
+• <b>Kết nối ngang hàng an toàn:</b> Sử dụng các giao thức mã hóa mạnh mẽ để thiết lập các kênh an toàn giữa các thiết bị, bảo vệ các tương tác của bạn.
+
+• <b>Hỗ trợ trao đổi thông tin:</b> Mặc dù ứng dụng không xử lý các giao dịch tài chính hoặc lưu trữ tài sản, nhưng nó cho phép người dùng phối hợp và giao tiếp hiệu quả cho các hoạt động như sắp xếp giao dịch hoặc chia sẻ dữ liệu.
+
+• <b>Giao diện thân thiện với người dùng:</b> Được thiết kế đơn giản, cho phép cả người dùng mới và người dùng có kinh nghiệm dễ dàng điều hướng và sử dụng ứng dụng.
+
+Bisq dành cho Android là một công cụ thiết yếu cho những người đang tìm kiếm một nền tảng phi tập trung để quản lý các giao tiếp ngang hàng của họ một cách an toàn. Bằng cách ưu tiên quyền riêng tư của người dùng và loại bỏ nhu cầu về các trung gian tập trung, nó trao quyền cho các cá nhân duy trì quyền kiểm soát các tương tác của họ trong thế giới kỹ thuật số.
+
+<b>Lưu ý:</b> Ứng dụng này không bao gồm các chức năng ví cho tiền điện tử hoặc tiền tệ pháp định và không hỗ trợ giao dịch trực tiếp hoặc giao dịch tài chính. Nó chỉ đóng vai trò là công cụ hỗ trợ giao tiếp trong mạng lưới Bisq.

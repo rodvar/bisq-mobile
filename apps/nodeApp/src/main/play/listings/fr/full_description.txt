@@ -1,0 +1,17 @@
+Bisq pour Android est un outil de communication pair-à-pair (P2P) décentralisé conçu pour faciliter les connexions sécurisées entre utilisateurs, leur permettant d'échanger des informations directement sans dépendre de serveurs centralisés. Cette application sert de passerelle pour les personnes souhaitant interagir sur le réseau Bisq, garantissant la confidentialité et l'autonomie de leurs communications.
+
+Fonctionnalités clés :
+
+• Communication décentralisée : Fonctionnez au sein d'un réseau entièrement décentralisé, éliminant ainsi le besoin d'autorités centrales et réduisant les risques de défaillance.
+
+• Protection de la vie privée : Vos données restent sur votre appareil ; Bisq pour Android ne stocke ni ne suit aucune information utilisateur, garantissant une confidentialité totale.
+
+• Connexions P2P sécurisées : Utilisez des protocoles de chiffrement robustes pour établir des canaux sécurisés entre les utilisateurs, protégeant ainsi vos interactions.
+
+• <b>Facilite l'échange d'informations :</b> Bien que l'application ne gère pas les transactions financières ni ne stocke d'actifs, elle permet aux utilisateurs de se coordonner et de communiquer efficacement pour des activités telles que l'organisation d'échanges ou le partage de données.
+
+• <b>Interface conviviale :</b> Conçue pour être simple d'utilisation, elle permet aux utilisateurs, novices comme expérimentés, de naviguer et d'utiliser l'application facilement.
+
+Bisq pour Android est un outil essentiel pour ceux qui recherchent une plateforme décentralisée pour gérer leurs communications pair-à-pair en toute sécurité. En privilégiant la confidentialité des utilisateurs et en éliminant le besoin d'intermédiaires centraux, elle permet à chacun de garder le contrôle de ses interactions dans le monde numérique.
+
+<b>Remarque :</b> Cette application ne propose pas de fonctionnalités de portefeuille pour les cryptomonnaies ou les monnaies fiduciaires et ne facilite pas les échanges directs ni les transactions financières. Elle sert uniquement de facilitateur de communication au sein du réseau Bisq.

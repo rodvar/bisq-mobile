@@ -1,0 +1,17 @@
+Bisq untuk Android adalah alat komunikasi peer-to-peer (P2P) terdesentralisasi yang dirancang untuk memfasilitasi koneksi aman antar pengguna, memungkinkan mereka untuk bertukar informasi secara langsung tanpa bergantung pada server terpusat. Aplikasi ini berfungsi sebagai jembatan bagi individu yang ingin berinteraksi melalui jaringan Bisq, memastikan privasi dan otonomi dalam komunikasi mereka.
+
+<b>Fitur Utama:</b>
+
+• <b>Komunikasi Terdesentralisasi:</b> Beroperasi dalam jaringan yang sepenuhnya terdesentralisasi, menghilangkan kebutuhan akan otoritas pusat dan mengurangi titik kegagalan tunggal.
+
+• <b>Berfokus pada Privasi:</b> Data Anda tetap berada di perangkat Anda; Bisq untuk Android tidak menyimpan atau melacak informasi pengguna apa pun, memastikan privasi sepenuhnya.
+
+• <b>Koneksi Peer yang Aman:</b> Menggunakan protokol enkripsi yang kuat untuk membangun saluran aman antar peer, melindungi interaksi Anda.
+
+• <b>Memfasilitasi Pertukaran Informasi:</b> Meskipun aplikasi ini tidak menangani transaksi keuangan atau menyimpan aset, aplikasi ini memungkinkan pengguna untuk berkoordinasi dan berkomunikasi secara efektif untuk aktivitas seperti mengatur perdagangan atau berbagi data.
+
+• <b>Antarmuka Ramah Pengguna:</b> Dirancang dengan mempertimbangkan kesederhanaan, memungkinkan pengguna pemula dan berpengalaman untuk menavigasi dan menggunakan aplikasi dengan mudah.
+
+Bisq untuk Android adalah alat penting bagi mereka yang mencari platform terdesentralisasi untuk mengelola komunikasi antar pengguna mereka dengan aman. Dengan memprioritaskan privasi pengguna dan menghilangkan kebutuhan akan perantara pusat, aplikasi ini memberdayakan individu untuk mempertahankan kendali atas interaksi mereka di dunia digital.
+
+<b>Catatan:</b> Aplikasi ini tidak menyertakan fungsi dompet untuk mata uang kripto atau mata uang fiat dan tidak memfasilitasi perdagangan langsung atau transaksi keuangan. Aplikasi ini hanya berfungsi sebagai fasilitator komunikasi dalam jaringan Bisq.
