@@ -1,0 +1,17 @@
+Bisq for Android, kullanıcılar arasında güvenli bağlantılar kurmayı kolaylaştırmak ve merkezi sunuculara bağlı kalmadan doğrudan bilgi alışverişi yapmalarını sağlamak için tasarlanmış, merkezi olmayan eşler arası (P2P) bir iletişim aracıdır. Bu uygulama, Bisq ağı üzerinden etkileşim kurmak isteyen bireyler için bir köprü görevi görerek iletişimlerinde gizlilik ve özerklik sağlar.
+
+<b>Temel Özellikler:</b>
+
+• <b>Merkezi Olmayan İletişim:</b> Tamamen merkezi olmayan bir ağ içinde çalışarak merkezi otoritelere olan ihtiyacı ortadan kaldırır ve tek hata noktalarını azaltır.
+
+• <b>Gizlilik Odaklı:</b> Verileriniz cihazınızda kalır; Bisq for Android, hiçbir kullanıcı bilgisini saklamaz veya izlemez, böylece tam gizlilik sağlar.
+
+• <b>Güvenli Eş Bağlantıları:</b> Eşler arasında güvenli kanallar oluşturmak için güçlü şifreleme protokolleri kullanarak etkileşimlerinizi korur.
+
+• <b>Bilgi Alışverişini Kolaylaştırır:</b> Uygulama finansal işlemleri yönetmese veya varlıkları saklamasa da, kullanıcıların ticaret düzenleme veya veri paylaşımı gibi faaliyetler için etkili bir şekilde koordinasyon ve iletişim kurmalarını sağlar.
+
+• <b>Kullanıcı Dostu Arayüz:</b> Basitlik göz önünde bulundurularak tasarlanmıştır; hem acemi hem de deneyimli kullanıcıların uygulamada kolayca gezinmesini ve kullanmasını sağlar.
+
+Bisq for Android, eşler arası iletişimlerini güvenli bir şekilde yönetmek için merkezi olmayan bir platform arayanlar için önemli bir araçtır. Kullanıcı gizliliğine öncelik vererek ve merkezi aracıların gerekliliğini ortadan kaldırarak, bireylerin dijital alandaki etkileşimleri üzerinde kontrol sahibi olmalarını sağlar.
+
+<b>Not:</b> Bu uygulama, kripto para birimleri veya itibari para birimleri için cüzdan işlevleri içermez ve doğrudan ticaret veya finansal işlemleri kolaylaştırmaz. Sadece Bisq ağı içinde bir iletişim kolaylaştırıcısı olarak hizmet vermektedir.
