@@ -9,6 +9,7 @@ import kotlinx.serialization.modules.subclass
 import network.bisq.mobile.client.common.domain.access.ApiAccessService
 import network.bisq.mobile.client.common.domain.access.pairing.PairingApiGateway
 import network.bisq.mobile.client.common.domain.access.pairing.PairingService
+import network.bisq.mobile.client.common.domain.access.pairing.qr.PairingQrCodeDecoder
 import network.bisq.mobile.client.common.domain.access.session.SessionApiGateway
 import network.bisq.mobile.client.common.domain.access.session.SessionService
 import network.bisq.mobile.client.common.domain.httpclient.HttpClientService
@@ -50,6 +51,7 @@ import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEven
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketMessage
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiRequest
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiResponse
+import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeSetupUseCase
 import network.bisq.mobile.domain.data.EnvironmentController
 import network.bisq.mobile.domain.data.datastore.createDataStore
 import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
@@ -211,6 +213,7 @@ val clientDomainModule =
 
         single { PairingApiGateway(get()) }
         single { PairingService(get()) }
+        single { PairingQrCodeDecoder(get()) }
         single { SessionApiGateway(get()) }
         single { SessionService(get()) }
         single { ApiAccessService(get(), get(), get()) }
@@ -326,4 +329,6 @@ val clientDomainModule =
                 ReplaceFileCorruptionHandler { SensitiveSettings() },
             )
         }
+
+        factory { TrustedNodeSetupUseCase(get(), get(), get(), get(), get(), get()) }
     }

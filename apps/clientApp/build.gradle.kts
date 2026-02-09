@@ -27,6 +27,10 @@ val sharedKScanModule = ":shared:kscan"
 
 dependencies {
     debugImplementation(compose.uiTooling)
+    // IMPORTANT: This is needed for Robolectric tests to work in both variants
+    // The fact that its needed to be included in the build might be a compose issue
+    // We accept that for now as the lib size is minimal and won't impact the prod code.
+    implementation(libs.androidx.test.compose.manifest)
 }
 
 // -------------------- Kotlin Multiplatform Configuration --------------------
@@ -165,11 +169,22 @@ kotlin {
         }
 
         androidUnitTest.dependencies {
+            // AndroidX
+            implementation(libs.androidx.test.compose.junit4)
+            implementation(libs.androidx.test.core)
+            implementation(libs.androidx.test.espresso.core)
+            implementation(libs.androidx.test.junit)
+
             // Kotlin
-            implementation(libs.kotlin.test)
+            implementation(libs.kotlin.test.junit)
+
+            // KotlinX
+            implementation(libs.kotlinx.coroutines.test)
 
             // Other libraries
+            implementation(libs.junit)
             implementation(libs.mockk)
+            implementation(libs.robolectric)
         }
     }
 }
@@ -212,6 +227,14 @@ android {
 
         buildConfigField("String", "APP_VERSION", "\"${version}\"")
         buildConfigField("String", "SHARED_VERSION", "\"${sharedVersion}\"")
+    }
+
+    // Enable resources for Robolectric unit tests
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
     }
 
     packaging {
