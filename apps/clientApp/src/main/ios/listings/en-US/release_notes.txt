@@ -1,0 +1,6 @@
+• First App Store release
+• Built-in Tor support for enhanced privacy
+• Secure WebSocket connection to trusted nodes
+• Demo mode for testing without a live node
+• Improved connection stability
+• Enhanced UI/UX
