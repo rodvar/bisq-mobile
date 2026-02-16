@@ -35,7 +35,7 @@ import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.domain.utils.awaitOrCancel
 
-private data class SubscriptionType(
+internal data class SubscriptionType(
     val topic: Topic,
     val parameter: String?,
 )
@@ -149,6 +149,15 @@ class WebSocketClientService(
                     it.dispose()
                     null
                 }
+
+            // Don't create the WebSocket client until we have valid session credentials.
+            // During the pairing flow, settings are first updated with URL/TLS (credentials null),
+            // then again with credentials after the pairing HTTP POST succeeds.
+            // Connecting without credentials causes 401 on servers with password auth enabled.
+            if (httpClientSettings.sessionId.isNullOrBlank() || httpClientSettings.clientId.isNullOrBlank()) {
+                log.d { "Skipping WebSocket client creation — session credentials not yet available" }
+                return@withLock
+            }
 
             val newClient =
                 webSocketClientFactory.createNewClient(
