@@ -1,7 +1,8 @@
 package network.bisq.mobile.presentation.startup.splash
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -74,31 +75,41 @@ abstract class SplashPresenter(
     protected open suspend fun navigateToNextScreen() {
         log.d { "Navigating to next screen" }
 
-        runCatching {
-            val profileSettings: SettingsVO = settingsServiceFacade.getSettings().getOrThrow()
-            val deviceSettings: Settings = settingsRepository.fetch()
-
-            if (!profileSettings.isTacAccepted) {
-                navigateToAgreement()
-            } else {
-                // only fetch profile with connectivity
-                val hasProfile: Boolean = userProfileService.hasUserProfile()
-
-                if (hasProfile) {
-                    // Scenario 1: All good and setup for both androidNode and xClients
-                    navigateToHome()
-                } else if (deviceSettings.firstLaunch) {
-                    // Scenario 2: Loading up for first time for both androidNode and xClients
-                    navigateToOnboarding()
+        val result =
+            runCatching {
+                val profileSettings: SettingsVO = settingsServiceFacade.getSettings().getOrThrow()
+                val deviceSettings: Settings = settingsRepository.fetch()
+                if (!profileSettings.isTacAccepted) {
+                    navigateToAgreement()
                 } else {
-                    // Scenario 3: Create profile
-                    navigateToCreateProfile()
+                    // only fetch profile with connectivity
+                    val hasProfile: Boolean = userProfileService.hasUserProfile()
+                    if (hasProfile) {
+                        // Scenario 1: All good and setup for both androidNode and xClients
+                        navigateToHome()
+                    } else if (deviceSettings.firstLaunch) {
+                        // Scenario 2: Loading up
+                        // for first time for both androidNode and xClients
+                        navigateToOnboarding()
+                    } else {
+                        // Scenario 3: Create profile
+                        navigateToCreateProfile()
+                    }
                 }
             }
-        }.onFailure {
-            if (it is CancellationException) return
-            log.e(it) { "Failed to navigate out of splash" }
+
+        if (result.isSuccess) return
+
+        val error = result.exceptionOrNull()!!
+
+        // If our own scope is cancelled (view detached), bail immediately.
+        if (error is CancellationException) {
+            currentCoroutineContext().ensureActive()
         }
+
+        // Navigation failed — fall back to onboarding to unblock the user
+        log.e(error) { "Navigation failed, falling back to onboarding" }
+        navigateToOnboarding()
     }
 
     private fun navigateToOnboarding() {
