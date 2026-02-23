@@ -1,7 +1,6 @@
 package network.bisq.mobile.presentation.common.ui.components.molecules
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -32,6 +31,7 @@ import network.bisq.mobile.domain.service.network.ConnectivityService
 import network.bisq.mobile.presentation.common.ui.base.ViewPresenter
 import network.bisq.mobile.presentation.common.ui.components.BackHandler
 import network.bisq.mobile.presentation.common.ui.components.atoms.AutoResizeText
+import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.BisqLogoSmall
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.MyUserProfileIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
@@ -163,7 +163,7 @@ fun TopBarContent(
                     val userIconModifier =
                         Modifier
                             .size(BisqUIConstants.topBarAvatarSize)
-                            .clickable(enabled = avatarEnabled) {
+                            .debouncedClickable(enabled = avatarEnabled) {
                                 onAvatarClick()
                             }.semantics { contentDescription = "top_bar_avatar" }
 

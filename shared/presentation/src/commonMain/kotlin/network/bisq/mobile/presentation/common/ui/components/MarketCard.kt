@@ -1,7 +1,6 @@
 package network.bisq.mobile.presentation.common.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,7 @@ import network.bisq.mobile.domain.data.model.offerbook.MarketListItem
 import network.bisq.mobile.i18n.i18nPlural
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.DynamicImage
+import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
@@ -67,7 +67,7 @@ fun MarketCard(
                         Modifier.background(Color.Transparent)
                     },
                 ).padding(vertical = BisqUIConstants.ScreenPadding)
-                .clickable(
+                .debouncedClickable(
                     interactionSource = interactionSource,
                     indication = null,
                     onClick = onClick,

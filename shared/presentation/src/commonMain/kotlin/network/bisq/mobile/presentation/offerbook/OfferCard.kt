@@ -1,7 +1,6 @@
 package network.bisq.mobile.presentation.offerbook
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,6 +30,7 @@ import network.bisq.mobile.domain.utils.StringUtils.truncate
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.AutoResizeText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
+import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.RemoveOfferIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqVDivider
@@ -90,7 +90,7 @@ fun OfferCard(
                 .background(color = backgroundColor)
                 .height(height)
                 .padding(BisqUIConstants.ScreenPadding)
-                .clickable(
+                .debouncedClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onSelectOffer,
