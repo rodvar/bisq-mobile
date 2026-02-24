@@ -13,8 +13,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,7 +20,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.datetime.Clock
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -38,8 +35,6 @@ enum class BisqButtonType {
     Clear,
     Underline,
 }
-
-private const val DEFAULT_CLICK_DEBOUNCE_MS = 300L
 
 /**
  * Either pass
@@ -77,7 +72,11 @@ fun BisqButton(
     val enabled = !disabled && !isLoading
     val grey2 = BisqTheme.colors.mid_grey20
 
-    val lastClickTime = remember { mutableLongStateOf(0L) }
+    val debouncedOnClick =
+        rememberDebouncedClick(debounceMs) {
+            focusManager.clearFocus()
+            onClick?.invoke()
+        }
 
     val finalBackgroundColor =
         when (type) {
@@ -121,14 +120,7 @@ fun BisqButton(
         }
 
     Button(
-        onClick = {
-            val currentTime = Clock.System.now().toEpochMilliseconds()
-            if (currentTime - lastClickTime.longValue >= debounceMs) {
-                lastClickTime.longValue = currentTime
-                focusManager.clearFocus()
-                onClick?.invoke()
-            }
-        },
+        onClick = debouncedOnClick,
         contentPadding = if (iconOnly != null) PaddingValues(horizontal = 0.dp, vertical = 0.dp) else padding,
         colors =
             ButtonColors(

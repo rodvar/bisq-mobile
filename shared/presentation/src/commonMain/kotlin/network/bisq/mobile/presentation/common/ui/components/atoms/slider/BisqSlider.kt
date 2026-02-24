@@ -15,12 +15,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalMaterial3Api::class)
+@ExcludeFromCoverage
 @Composable
 fun BisqSlider(
     value: Float,
@@ -30,11 +33,15 @@ fun BisqSlider(
     onValueChangeFinished: (() -> Unit)? = null,
     enabled: Boolean = true,
 ) {
+    val focusManager = LocalFocusManager.current
     val thumbColor = if (enabled) BisqTheme.colors.primary else BisqTheme.colors.mid_grey20
 
     Slider(
         value = value,
-        onValueChange = onValueChange,
+        onValueChange = { newValue ->
+            focusManager.clearFocus()
+            onValueChange(newValue)
+        },
         modifier = modifier,
         valueRange = valueRange,
         onValueChangeFinished = onValueChangeFinished,
