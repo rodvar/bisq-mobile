@@ -20,6 +20,7 @@ import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferIt
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.trades.TakeOfferStatus
 import network.bisq.mobile.domain.service.trades.TradesServiceFacade
+import network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.main.MainPresenter
 
@@ -57,8 +58,6 @@ class TakeOfferPresenter(
         takeOfferModel.hasMultipleBaseSidePaymentMethods = bisqEasyOffer.baseSidePaymentMethodSpecs.size > 1
 
         val amountSpec = bisqEasyOffer.amountSpec
-        takeOfferModel.hasAmountRange =
-            amountSpec is RangeAmountSpecVO
 
         val marketVO = takeOfferModel.offerItemPresentationVO.bisqEasyOffer.market
         val marketPriceItem: MarketPriceItem? = marketPriceServiceFacade.findMarketPriceItem(marketVO)
@@ -71,7 +70,40 @@ class TakeOfferPresenter(
         val baseCurrencyCode = bisqEasyOffer.market.baseCurrencyCode
         var quoteAmount = FiatVOFactory.from(0, quoteCurrencyCode)
         var baseAmount = CoinVOFactory.from(0, baseCurrencyCode)
-        if (!takeOfferModel.hasAmountRange) {
+
+        // Determine if the offer truly has a selectable range after clamping with trade limits.
+        // A RangeAmountSpec may collapse to a single value when the offer's range is narrower
+        // than or equal to the trade amount limits. We compare after rounding to the slider step
+        // (10,000 minor units) because the slider can only produce step-rounded values.
+        var hasEffectiveRange = false
+        if (amountSpec is RangeAmountSpecVO) {
+            val sliderStep = 10_000L
+            val tradeLimitMin = BisqEasyTradeAmountLimits.getMinAmountValue(marketPriceServiceFacade, quoteCurrencyCode)
+            val tradeLimitMax = BisqEasyTradeAmountLimits.getMaxAmountValue(marketPriceServiceFacade, quoteCurrencyCode)
+
+            // If market price data is unavailable, getMin/MaxAmountValue return 0.
+            // In that case, fall back to showing the amount screen and let
+            // TakeOfferAmountPresenter handle the degraded state via its runCatching.
+            if (tradeLimitMin > 0 && tradeLimitMax > 0) {
+                val effectiveMin = maxOf(tradeLimitMin, amountSpec.minAmount)
+                val effectiveMax = minOf(tradeLimitMax, amountSpec.maxAmount)
+                hasEffectiveRange = effectiveMax > effectiveMin && (effectiveMax - effectiveMin) >= sliderStep
+                if (!hasEffectiveRange && effectiveMin <= effectiveMax) {
+                    // Range collapsed — treat as fixed amount using the midpoint
+                    val fixedAmount = ((effectiveMin + effectiveMax) / 2).coerceIn(effectiveMin, effectiveMax)
+                    quoteAmount = FiatVOFactory.from(fixedAmount, quoteCurrencyCode)
+                    baseAmount = priceQuote.toBaseSideMonetary(quoteAmount) as CoinVO
+                } else if (!hasEffectiveRange) {
+                    // effectiveMin > effectiveMax: inverted range from bad data, show amount screen
+                    hasEffectiveRange = true
+                }
+            } else {
+                hasEffectiveRange = true
+            }
+        }
+        takeOfferModel.hasAmountRange = hasEffectiveRange
+
+        if (!takeOfferModel.hasAmountRange && amountSpec !is RangeAmountSpecVO) {
             if (amountSpec is QuoteSideFixedAmountSpecVO) {
                 quoteAmount = FiatVOFactory.from(amountSpec.amount, quoteCurrencyCode)
                 baseAmount = priceQuote.toBaseSideMonetary(quoteAmount) as CoinVO
@@ -79,7 +111,8 @@ class TakeOfferPresenter(
                 baseAmount = CoinVOFactory.from(amountSpec.amount, baseCurrencyCode)
                 quoteAmount = priceQuote.toQuoteSideMonetary(baseAmount) as FiatVO
             }
-        } else {
+        }
+        if (takeOfferModel.hasAmountRange) {
             totalSteps = totalSteps + 1
         }
         takeOfferModel.quoteAmount = quoteAmount

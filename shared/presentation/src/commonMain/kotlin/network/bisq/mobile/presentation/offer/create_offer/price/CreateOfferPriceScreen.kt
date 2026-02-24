@@ -25,10 +25,15 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.ToggleTab
 import network.bisq.mobile.presentation.common.ui.components.organisms.create_offer.WhyHighPricePopup
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.offer.create_offer.CreateOfferPresenter
 import org.koin.compose.koinInject
 
+private const val MIN_ALLOWED_PERCENTAGE_FRACTION = -10f
+private const val MAX_ALLOWED_PERCENTAGE_FRACTION = 50f
+
+@ExcludeFromCoverage
 @Composable
 fun CreateOfferPriceScreen() {
     val presenter: CreateOfferPricePresenter = koinInject()
@@ -43,8 +48,8 @@ fun CreateOfferPriceScreen() {
     val showWhyPopup by presenter.showWhyPopup.collectAsState()
     val hintText by presenter.hintText.collectAsState()
 
-    val min = -10f
-    val max = 50f
+    val min = MIN_ALLOWED_PERCENTAGE_FRACTION
+    val max = MAX_ALLOWED_PERCENTAGE_FRACTION
 
     val percentagePrice = formattedPercentagePrice.toDoubleOrNullLocaleAware()?.toFloat() ?: 0f
     val sliderPosition = ((percentagePrice - min) / (max - min)).coerceIn(0f, 1f)
@@ -123,10 +128,12 @@ fun CreateOfferPriceScreen() {
                         validation = {
                             it.toDoubleOrNullLocaleAware()
                                 ?: return@BisqTextField "mobile.bisqEasy.tradeWizard.price.tradePrice.type.fixed.validation.cannotBeEmpty".i18n()
-                            val parsedPercent = presenter.calculatePercentageForFixedValue(it)
-                            if (parsedPercent < -10) {
+                            // calculatePercentageForFixedValue returns a fraction (e.g. 0.1 for 10%),
+                            // convert to display percentage to match the constants used by the slider/percentage tab.
+                            val parsedPercent = presenter.calculatePercentageForFixedValue(it) * 100
+                            if (parsedPercent < MIN_ALLOWED_PERCENTAGE_FRACTION) {
                                 return@BisqTextField "mobile.bisqEasy.tradeWizard.price.tradePrice.type.fixed.validation.shouldBeGreaterThanMarketPrice".i18n()
-                            } else if (parsedPercent > 50) {
+                            } else if (parsedPercent > MAX_ALLOWED_PERCENTAGE_FRACTION) {
                                 return@BisqTextField "mobile.bisqEasy.tradeWizard.price.tradePrice.type.fixed.validation.shouldBeLessThanMarketPrice".i18n()
                             }
                             return@BisqTextField null

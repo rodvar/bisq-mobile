@@ -1,6 +1,5 @@
 package network.bisq.mobile.presentation.tabs.open_trades
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,11 +17,14 @@ import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BtcSatsText
+import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.molecules.PaymentMethods
 import network.bisq.mobile.presentation.common.ui.components.molecules.UserProfileRow
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
+@ExcludeFromCoverage
 @Composable
 fun OpenTradeListItem(
     item: TradeItemPresentationModel,
@@ -41,7 +43,7 @@ fun OpenTradeListItem(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clickable(
+                    .debouncedClickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onSelect,

@@ -49,6 +49,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGa
 import network.bisq.mobile.presentation.common.ui.components.context.LocalAnimationsEnabled
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 enum class BisqTextFieldType {
@@ -81,6 +82,7 @@ enum class BisqTextFieldType {
             "Manual migration is required. See KDoc for details.",
     level = DeprecationLevel.WARNING,
 )
+@ExcludeFromCoverage
 @Composable
 fun BisqTextField(
     modifier: Modifier = Modifier,
@@ -221,10 +223,11 @@ fun BisqTextField(
         }
     }
 
-    // Re-validate, whenever validation function itself changes
-    // Applicable in cases, where the validation() changes based on
-    // change in other parameters like BitcoinLnAddressField::type
-    LaunchedEffect(validation) {
+    // Re-validate whenever the validation function changes or the value changes externally
+    // (e.g., slider updates the price while on the Fixed tab).
+    // Keying on `value` ensures we clear stale validation errors when
+    // the value prop changes from outside (not via user typing).
+    LaunchedEffect(validation, value) {
         if (value.isNotEmpty()) {
             hasInteracted = true
         }

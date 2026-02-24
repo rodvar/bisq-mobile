@@ -2,7 +2,6 @@ package network.bisq.mobile.presentation.trade.trade_detail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,11 +24,14 @@ import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVOExte
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.animations.AnimatedBadge
+import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ChatIcon
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+@ExcludeFromCoverage
 @Composable
 fun TradeChatRow(
     selectedTrade: TradeItemPresentationModel?,
@@ -71,7 +73,7 @@ fun TradeChatRow(
             .background(
                 color = BisqTheme.colors.dark_grey40,
                 shape = RoundedCornerShape(BisqUIConstants.BorderRadius),
-            ).clickable(enabled = enabled, onClick = onOpenChat),
+            ).debouncedClickable(enabled = enabled, onClick = onOpenChat),
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalfQuarter),
