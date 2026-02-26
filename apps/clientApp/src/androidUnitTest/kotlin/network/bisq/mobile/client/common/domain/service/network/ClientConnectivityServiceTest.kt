@@ -263,6 +263,67 @@ class ClientConnectivityServiceTest {
         }
 
     @Test
+    fun `deactivate resets status to BOOTSTRAPPING`() =
+        runBlocking {
+            every { webSocketClientService.isConnected() } returns true
+
+            clientConnectivityService.activate()
+            clientConnectivityService.startMonitoring(period = 100, startDelay = 0)
+            delay(300)
+
+            // Verify we're connected
+            assertEquals(
+                ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED,
+                clientConnectivityService.status.value,
+            )
+
+            // Deactivate should reset status
+            clientConnectivityService.deactivate()
+
+            assertEquals(
+                ConnectivityService.ConnectivityStatus.BOOTSTRAPPING,
+                clientConnectivityService.status.value,
+                "Status should be reset to BOOTSTRAPPING after deactivate",
+            )
+        }
+
+    @Test
+    fun `deactivate then activate resets status and restarts monitoring`() =
+        runBlocking {
+            every { webSocketClientService.isConnected() } returns true
+
+            clientConnectivityService.activate()
+            clientConnectivityService.startMonitoring(period = 100, startDelay = 0)
+            delay(300)
+
+            // Verify connected
+            assertEquals(
+                ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED,
+                clientConnectivityService.status.value,
+            )
+
+            // Full lifecycle restart (activate internally calls startMonitoring with default delays)
+            clientConnectivityService.deactivate()
+            clientConnectivityService.activate()
+
+            // Immediately after reactivation, status should be BOOTSTRAPPING
+            assertEquals(
+                ConnectivityService.ConnectivityStatus.BOOTSTRAPPING,
+                clientConnectivityService.status.value,
+                "Status should be BOOTSTRAPPING after deactivate/activate cycle",
+            )
+
+            // Override the default monitoring with short delays to verify it recovers
+            clientConnectivityService.startMonitoring(period = 100, startDelay = 0)
+            delay(300)
+            assertEquals(
+                ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED,
+                clientConnectivityService.status.value,
+                "Monitoring should detect connectivity after activate",
+            )
+        }
+
+    @Test
     fun `recovery after health check failure when server comes back`() =
         runBlocking {
             var healthCheckPasses = false
