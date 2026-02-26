@@ -13,6 +13,7 @@ import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSett
 import network.bisq.mobile.client.common.presentation.navigation.TrustedNodeSetup
 import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeConnectionStatus
 import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeSetupUseCase
+import network.bisq.mobile.domain.service.bootstrap.ApplicationLifecycleService
 import network.bisq.mobile.domain.service.network.KmpTorService
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -29,6 +30,7 @@ class TrustedNodeSetupPresenter(
     private val trustedNodeSetupUseCase: TrustedNodeSetupUseCase,
     private val apiAccessService: ApiAccessService,
     private val sensitiveSettingsRepository: SensitiveSettingsRepository,
+    private val applicationLifecycleService: ApplicationLifecycleService,
 ) : BasePresenter(mainPresenter) {
     private val _uiState = MutableStateFlow(TrustedNodeSetupUiState())
     val uiState: StateFlow<TrustedNodeSetupUiState> = _uiState.asStateFlow()
@@ -45,7 +47,10 @@ class TrustedNodeSetupPresenter(
         observeFlows()
     }
 
-    suspend fun initialize(isWorkflow: Boolean) {
+    suspend fun initialize(
+        isWorkflow: Boolean,
+        showConnectionFailed: Boolean = false,
+    ) {
         this.isWorkflow = isWorkflow
         if (!isWorkflow) {
             val settings = sensitiveSettingsRepository.fetch()
@@ -54,6 +59,10 @@ class TrustedNodeSetupPresenter(
                     apiUrl = settings.bisqApiUrl,
                     status = TrustedNodeConnectionStatus.Connected,
                 )
+            }
+        } else if (showConnectionFailed) {
+            _uiState.update {
+                it.copy(showConnectionFailedWarning = true)
             }
         }
     }
@@ -124,6 +133,14 @@ class TrustedNodeSetupPresenter(
 
             TrustedNodeSetupUiAction.OnChangeNodeWarningCancel -> {
                 _uiState.update { it.copy(showChangeNodeWarning = false) }
+            }
+
+            TrustedNodeSetupUiAction.OnConnectionFailedRetryPress -> {
+                onConnectionFailedRetry()
+            }
+
+            TrustedNodeSetupUiAction.OnConnectionFailedPairWithNewNodePress -> {
+                _uiState.update { it.copy(showConnectionFailedWarning = false) }
             }
         }
     }
@@ -238,8 +255,41 @@ class TrustedNodeSetupPresenter(
         presenterScope.launch {
             sensitiveSettingsRepository.clear()
             _uiState.update { it.copy(showChangeNodeWarning = false) }
-            navigateTo(TrustedNodeSetup) {
+            navigateTo(TrustedNodeSetup()) {
                 it.popUpTo(NavRoute.TabContainer) { inclusive = true }
+            }
+        }
+    }
+
+    private fun onConnectionFailedRetry() {
+        presenterScope.launch {
+            _uiState.update { it.copy(showConnectionFailedWarning = false) }
+            showLoading()
+
+            // TODO this client networking reset is a good candidate for the new UseCase component if we were to
+            //      reuse this
+            val restartSucceeded =
+                try {
+                    // Full lifecycle restart: deactivate then reactivate all services
+                    // This ensures fresh coroutine scopes for the retry attempt
+                    applicationLifecycleService.deactivate()
+                    applicationLifecycleService.activate()
+                    true
+                } catch (e: Exception) {
+                    log.e(e) { "Lifecycle restart failed during retry" }
+                    false
+                } finally {
+                    hideLoading()
+                }
+
+            if (restartSucceeded) {
+                // Navigate to Splash to trigger fresh bootstrap attempt
+                navigateTo(NavRoute.Splash) {
+                    it.popUpTo<TrustedNodeSetup> { inclusive = true }
+                }
+            } else {
+                // Re-show the connection failed dialog so the user can retry
+                _uiState.update { it.copy(showConnectionFailedWarning = true) }
             }
         }
     }
