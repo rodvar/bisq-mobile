@@ -16,17 +16,14 @@ import io.mockk.mockkStatic
 import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
+import network.bisq.mobile.presentation.common.test_utils.TestCoroutineJobsManager
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.common.ui.navigation.TabNavRoute
 import org.junit.After
@@ -701,19 +698,5 @@ class NavigationManagerImplTest {
         every { spy.log } returns testLogger
         every { spy.isAtMainScreen() } returns true
         return spy
-    }
-
-    @Suppress("CanBeParameter")
-    private class TestCoroutineJobsManager(
-        private val dispatcher: CoroutineDispatcher,
-        override var coroutineExceptionHandler: ((Throwable) -> Unit)? = null,
-    ) : CoroutineJobsManager {
-        private val scope = CoroutineScope(dispatcher + SupervisorJob())
-
-        override suspend fun dispose() {
-            scope.cancel()
-        }
-
-        override fun getScope(): CoroutineScope = scope
     }
 }
