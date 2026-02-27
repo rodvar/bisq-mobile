@@ -16,9 +16,7 @@ import network.bisq.mobile.domain.PlatformImage
 import network.bisq.mobile.domain.UrlLauncher
 import network.bisq.mobile.domain.createEmptyImage
 import network.bisq.mobile.domain.data.model.BatteryOptimizationState
-import network.bisq.mobile.domain.data.model.MarketFilter
 import network.bisq.mobile.domain.data.model.MarketPriceItem
-import network.bisq.mobile.domain.data.model.MarketSortBy
 import network.bisq.mobile.domain.data.model.PermissionState
 import network.bisq.mobile.domain.data.model.Settings
 import network.bisq.mobile.domain.data.model.TradeReadStateMap
@@ -26,25 +24,17 @@ import network.bisq.mobile.domain.data.model.offerbook.MarketListItem
 import network.bisq.mobile.domain.data.replicated.chat.notifications.ChatChannelNotificationTypeEnum
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.domain.data.replicated.common.currency.MarketVOFactory
-import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVOFactory
-import network.bisq.mobile.domain.data.replicated.common.monetary.CoinVOFactory.fromFaceValue
-import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory
-import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory.fromFaceValue
 import network.bisq.mobile.domain.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVO
 import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOFactory
-import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOFactory.fromPrice
 import network.bisq.mobile.domain.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.domain.data.replicated.offer.bisq_easy.BisqEasyOfferVO
-import network.bisq.mobile.domain.data.replicated.offer.price.spec.MarketPriceSpecVO
-import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVOExtensions.getPriceQuoteVO
 import network.bisq.mobile.domain.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.data.replicated.settings.settingsVODemoObj
 import network.bisq.mobile.domain.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.domain.data.replicated.user.profile.createMockUserProfile
-import network.bisq.mobile.domain.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.domain.data.repository.SettingsRepository
 import network.bisq.mobile.domain.data.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
@@ -128,10 +118,6 @@ class CreateOfferReviewPresenterTest {
         override suspend fun clear() {
             _data.value = Settings()
         }
-
-        override suspend fun setMarketSortBy(value: MarketSortBy) {}
-
-        override suspend fun setMarketFilter(value: MarketFilter) {}
     }
 
     private class FakeMarketPriceServiceFacade(
