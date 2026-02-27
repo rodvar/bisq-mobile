@@ -449,6 +449,30 @@ class CreateOfferReviewPresenterTest {
             m.selectedBaseSidePaymentMethods = setOf("MAIN_CHAIN")
         }
 
+    private fun buildModelWithRangeAmountPercentagePricing(
+        market: MarketVO,
+        staleMarketPrice: PriceQuoteVO,
+        percentage: Double,
+    ): CreateOfferPresenter.CreateOfferModel {
+        val staleOfferPrice = PriceUtil.fromMarketPriceMarkup(staleMarketPrice, percentage)
+        return CreateOfferPresenter.CreateOfferModel().also { m ->
+            m.market = market
+            m.direction = DirectionEnum.BUY
+            m.amountType = CreateOfferPresenter.AmountType.RANGE_AMOUNT
+            m.quoteSideMinRangeAmount = with(FiatVOFactory) { fromFaceValue(1000.0, "USD") }
+            m.quoteSideMaxRangeAmount = with(FiatVOFactory) { fromFaceValue(5000.0, "USD") }
+            m.baseSideMinRangeAmount = with(CoinVOFactory) { fromFaceValue(0.01, "BTC") }
+            m.baseSideMaxRangeAmount = with(CoinVOFactory) { fromFaceValue(0.05, "BTC") }
+            m.priceType = CreateOfferPresenter.PriceType.PERCENTAGE
+            m.percentagePriceValue = percentage
+            m.originalPriceQuote = staleMarketPrice
+            m.priceQuote = staleOfferPrice
+            m.availableQuoteSidePaymentMethods = listOf("REVOLUT")
+            m.selectedQuoteSidePaymentMethods = setOf("REVOLUT")
+            m.selectedBaseSidePaymentMethods = setOf("MAIN_CHAIN")
+        }
+    }
+
     // --- Tests ---
 
     /**
@@ -610,6 +634,219 @@ class CreateOfferReviewPresenterTest {
         }
         assert(!reviewPresenter.priceDetails.contains(staleMarketFormatted)) {
             "priceDetails should NOT contain stale market price '$staleMarketFormatted' " +
+                "but was: '${reviewPresenter.priceDetails}'"
+        }
+    }
+
+    /**
+     * When percentage pricing with a negative percentage (below market),
+     * the priceDetails should contain "below".
+     */
+    @Test
+    fun `when percentage pricing below market then priceDetails contains below`() {
+        val marketUSD = MarketVOFactory.USD
+        val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
+        val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
+        val prices = mutableMapOf(marketUSD to currentMarketItem)
+        val settingsRepo = FakeSettingsRepository()
+        val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
+
+        mockkStatic(
+            "network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt",
+        )
+        every { getScreenWidthDp() } returns 480
+
+        val mainPresenter = makeMainPresenter()
+        val createOfferPresenter = makeCreateOfferPresenter(mainPresenter, marketPriceServiceFacade)
+
+        // Negative percentage = below market price
+        createOfferPresenter.createOfferModel =
+            buildModelWithPercentagePricing(marketUSD, staleMarketPrice, -0.05)
+
+        val reviewPresenter = CreateOfferReviewPresenter(mainPresenter, createOfferPresenter)
+        reviewPresenter.onViewAttached()
+
+        // priceDetails should mention "below"
+        assert(reviewPresenter.priceDetails.contains("below", ignoreCase = true)) {
+            "priceDetails should contain 'below' for negative percentage but was: '${reviewPresenter.priceDetails}'"
+        }
+    }
+
+    /**
+     * When using range amount with percentage pricing, the presenter should
+     * populate formattedBaseRangeMinAmount and formattedBaseRangeMaxAmount.
+     */
+    @Test
+    fun `when range amount with percentage pricing then range amounts are populated`() {
+        val marketUSD = MarketVOFactory.USD
+        val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
+        val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
+        val prices = mutableMapOf(marketUSD to currentMarketItem)
+        val settingsRepo = FakeSettingsRepository()
+        val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
+
+        mockkStatic(
+            "network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt",
+        )
+        every { getScreenWidthDp() } returns 480
+
+        val mainPresenter = makeMainPresenter()
+        val createOfferPresenter = makeCreateOfferPresenter(mainPresenter, marketPriceServiceFacade)
+
+        createOfferPresenter.createOfferModel =
+            buildModelWithRangeAmountPercentagePricing(marketUSD, staleMarketPrice, 0.10)
+
+        val reviewPresenter = CreateOfferReviewPresenter(mainPresenter, createOfferPresenter)
+        reviewPresenter.onViewAttached()
+
+        assert(reviewPresenter.isRangeOffer) { "isRangeOffer should be true for RANGE_AMOUNT" }
+        assert(reviewPresenter.formattedBaseRangeMinAmount.isNotEmpty()) {
+            "formattedBaseRangeMinAmount should not be empty"
+        }
+        assert(reviewPresenter.formattedBaseRangeMaxAmount.isNotEmpty()) {
+            "formattedBaseRangeMaxAmount should not be empty"
+        }
+    }
+
+    /**
+     * When fixed pricing equals the current market price (0% delta),
+     * the priceDetails should contain "atMarket"-style text.
+     */
+    @Test
+    fun `when fixed pricing at market price then priceDetails shows at market`() {
+        val marketUSD = MarketVOFactory.USD
+        val currentPrice = 105000.0
+        val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
+        val fixedPrice = with(PriceQuoteVOFactory) { fromPrice(currentPrice, marketUSD) }
+        val currentMarketItem = makeMarketPriceItem(marketUSD, currentPrice)
+        val prices = mutableMapOf(marketUSD to currentMarketItem)
+        val settingsRepo = FakeSettingsRepository()
+        val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
+
+        mockkStatic(
+            "network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt",
+        )
+        every { getScreenWidthDp() } returns 480
+
+        val mainPresenter = makeMainPresenter()
+        val createOfferPresenter = makeCreateOfferPresenter(mainPresenter, marketPriceServiceFacade)
+
+        // Fixed price equals current market → percentage delta is 0
+        createOfferPresenter.createOfferModel =
+            buildModelWithFixedPricing(marketUSD, staleMarketPrice, fixedPrice, 0.0)
+
+        val reviewPresenter = CreateOfferReviewPresenter(mainPresenter, createOfferPresenter)
+        reviewPresenter.onViewAttached()
+
+        // Should use the "atMarket" i18n key path (line 215-216)
+        val currentMarketFormatted =
+            PriceQuoteFormatter.format(currentMarketItem.priceQuote, true, true)
+        assert(reviewPresenter.priceDetails.contains(currentMarketFormatted)) {
+            "priceDetails for fixed-at-market should reference market price '$currentMarketFormatted' " +
+                "but was: '${reviewPresenter.priceDetails}'"
+        }
+    }
+
+    /**
+     * When fixed pricing is below the current market price,
+     * the priceDetails should contain "below".
+     */
+    @Test
+    fun `when fixed pricing below market then priceDetails contains below`() {
+        val marketUSD = MarketVOFactory.USD
+        val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
+        // Fixed price at $100,000 but market has moved to $105,000 → below market
+        val fixedPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
+        val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
+        val prices = mutableMapOf(marketUSD to currentMarketItem)
+        val settingsRepo = FakeSettingsRepository()
+        val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
+
+        mockkStatic(
+            "network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt",
+        )
+        every { getScreenWidthDp() } returns 480
+
+        val mainPresenter = makeMainPresenter()
+        val createOfferPresenter = makeCreateOfferPresenter(mainPresenter, marketPriceServiceFacade)
+
+        createOfferPresenter.createOfferModel =
+            buildModelWithFixedPricing(marketUSD, staleMarketPrice, fixedPrice, -0.05)
+
+        val reviewPresenter = CreateOfferReviewPresenter(mainPresenter, createOfferPresenter)
+        reviewPresenter.onViewAttached()
+
+        assert(reviewPresenter.priceDetails.contains("below", ignoreCase = true)) {
+            "priceDetails should contain 'below' for fixed price below market but was: '${reviewPresenter.priceDetails}'"
+        }
+    }
+
+    /**
+     * When market price is unavailable, the presenter should fall back to
+     * stored model values without crashing.
+     */
+    @Test
+    fun `when market price unavailable then falls back to stored values`() {
+        val marketUSD = MarketVOFactory.USD
+        val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
+        // Empty prices map → findMarketPriceItem returns null → getMostRecentPriceQuote throws
+        val prices = mutableMapOf<MarketVO, MarketPriceItem>()
+        val settingsRepo = FakeSettingsRepository()
+        val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
+
+        mockkStatic(
+            "network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt",
+        )
+        every { getScreenWidthDp() } returns 480
+
+        val mainPresenter = makeMainPresenter()
+        val createOfferPresenter = makeCreateOfferPresenter(mainPresenter, marketPriceServiceFacade)
+
+        val percentage = 0.10
+        createOfferPresenter.createOfferModel =
+            buildModelWithPercentagePricing(marketUSD, staleMarketPrice, percentage)
+
+        val reviewPresenter = CreateOfferReviewPresenter(mainPresenter, createOfferPresenter)
+        // Should not throw even with no market price available
+        reviewPresenter.onViewAttached()
+
+        // Falls back to stored priceQuote
+        val expectedFallbackPrice = createOfferPresenter.createOfferModel.priceQuote
+        val expectedFormatted = PriceQuoteFormatter.format(expectedFallbackPrice, true, false)
+        assertEquals(expectedFormatted, reviewPresenter.formattedPrice)
+    }
+
+    /**
+     * When fixed pricing and market price is unavailable, the priceDetails
+     * should fall back to the stored percentage value.
+     */
+    @Test
+    fun `when fixed pricing and no market price then uses stored percentage`() {
+        val marketUSD = MarketVOFactory.USD
+        val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
+        val fixedPrice = with(PriceQuoteVOFactory) { fromPrice(110000.0, marketUSD) }
+        val prices = mutableMapOf<MarketVO, MarketPriceItem>()
+        val settingsRepo = FakeSettingsRepository()
+        val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
+
+        mockkStatic(
+            "network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt",
+        )
+        every { getScreenWidthDp() } returns 480
+
+        val mainPresenter = makeMainPresenter()
+        val createOfferPresenter = makeCreateOfferPresenter(mainPresenter, marketPriceServiceFacade)
+
+        createOfferPresenter.createOfferModel =
+            buildModelWithFixedPricing(marketUSD, staleMarketPrice, fixedPrice, 0.10)
+
+        val reviewPresenter = CreateOfferReviewPresenter(mainPresenter, createOfferPresenter)
+        reviewPresenter.onViewAttached()
+
+        // Should use stale originalPriceQuote for display since currentMarketPrice is null
+        val staleMarketFormatted = PriceQuoteFormatter.format(staleMarketPrice, true, true)
+        assert(reviewPresenter.priceDetails.contains(staleMarketFormatted)) {
+            "priceDetails should fall back to stored market price '$staleMarketFormatted' " +
                 "but was: '${reviewPresenter.priceDetails}'"
         }
     }
