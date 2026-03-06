@@ -38,6 +38,8 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.access.utils.Headers
 import network.bisq.mobile.client.common.domain.httpclient.exception.UnauthorizedApiAccessException
@@ -67,6 +69,8 @@ class HttpClientService(
 ) : ServiceFacade() {
     val apiPath = "/api/v1/"
 
+    private val httpClientMutex = Mutex()
+
     @Volatile
     private var lastConfig: HttpClientSettings? = null
 
@@ -89,15 +93,17 @@ class HttpClientService(
 
         serviceScope.launch(Dispatchers.Default) {
             getHttpClientSettingsFlow().collect { newConfig ->
-                if (lastConfig != newConfig) {
-                    lastConfig = newConfig
-                    val oldClient = _httpClient.value
-                    // Clear before closing so getClient() waits for the new client
-                    // instead of returning the stale closed client
-                    _httpClient.value = null
-                    oldClient?.close()
-                    _httpClient.value = createNewInstance(newConfig)
-                    _httpClientChangedFlow.emit(newConfig)
+                httpClientMutex.withLock {
+                    if (lastConfig != newConfig) {
+                        lastConfig = newConfig
+                        val oldClient = _httpClient.value
+                        // Clear before closing so getClient() waits for the new client
+                        // instead of returning the stale closed client
+                        _httpClient.value = null
+                        oldClient?.close()
+                        _httpClient.value = createNewInstance(newConfig)
+                        _httpClientChangedFlow.emit(newConfig)
+                    }
                 }
             }
         }
@@ -158,15 +164,17 @@ class HttpClientService(
      * settings change so [WebSocketClientService] picks it up reactively.
      */
     suspend fun recreateClient() {
-        val config = lastConfig ?: return
-        val oldClient = _httpClient.value
-        _httpClient.value = null
-        oldClient?.close()
-        lastConfig = null
-        // Treat as new config by resetting lastConfig first
-        lastConfig = config
-        _httpClient.value = createNewInstance(config)
-        _httpClientChangedFlow.emit(config)
+        httpClientMutex.withLock {
+            val config = lastConfig ?: return
+            val oldClient = _httpClient.value
+            _httpClient.value = null
+            oldClient?.close()
+            lastConfig = null
+            // Treat as new config by resetting lastConfig first
+            lastConfig = config
+            _httpClient.value = createNewInstance(config)
+            _httpClientChangedFlow.emit(config)
+        }
     }
 
     /**
