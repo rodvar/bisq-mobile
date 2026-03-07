@@ -83,6 +83,8 @@ class NodeOffersServiceFacade(
     private var chatMessagesPin: Pin? = null
     private var selectedChannelPin: Pin? = null
     private var marketPricePin: Pin? = null
+    private var userProfilesPin: Pin? = null
+    private var userProfileRefreshJob: Job? = null
 
     // Job for processing offers asynchronously - cancelled when switching markets
     private var offerProcessingJob: Job? = null
@@ -93,6 +95,9 @@ class NodeOffersServiceFacade(
 
         // React to ignore/unignore to update both lists and counts immediately
         observeIgnoredProfiles()
+
+        // Re-process offers when new user profiles arrive from P2P network
+        observeUserProfiles()
 
         // Restore the previously selected market from settings (if any) and select its channel
         // This avoids loading ALL offers at startup (memory/CPU optimization)
@@ -157,20 +162,44 @@ class NodeOffersServiceFacade(
         ignoredIdsJob =
             serviceScope.launch {
                 userProfileServiceFacade.ignoredProfileIds.collectLatest {
-                    // Re-filter current selected channel's list items
-                    selectedChannel?.let { ch ->
-                        val listItems =
-                            ch.chatMessages
-                                .filter { it.hasBisqEasyOffer() }
-                                .filter { isValidOfferbookMessage(it) }
-                                .map { createOfferItemPresentationModel(it) }
-                                .distinctBy { it.bisqEasyOffer.id }
-                        _offerbookListItems.value = listItems
-                    }
-                    // Refresh counts for all markets
-                    numOffersObservers.forEach { it.refresh() }
+                    refreshCurrentChannelOffersAndCounts()
                 }
             }
+    }
+
+    private suspend fun refreshCurrentChannelOffersAndCounts() {
+        selectedChannel?.let { ch ->
+            val listItems =
+                withContext(Dispatchers.Default) {
+                    ch.chatMessages
+                        .filter { it.hasBisqEasyOffer() }
+                        .filter { isValidOfferbookMessage(it) }
+                        .mapNotNull { createOfferItemPresentationModel(it) }
+                        .distinctBy { it.bisqEasyOffer.id }
+                }
+            withContext(Dispatchers.Main) {
+                _offerbookListItems.value = listItems
+            }
+        }
+        withContext(Dispatchers.Main) {
+            numOffersObservers.forEach { it.refresh() }
+        }
+    }
+
+    private fun observeUserProfiles() {
+        userProfilesPin?.unbind()
+        userProfilesPin =
+            userProfileService.userProfileById.addObserver(
+                Runnable {
+                    // Debounce: during initial P2P sync, hundreds of profiles arrive rapidly
+                    userProfileRefreshJob?.cancel()
+                    userProfileRefreshJob =
+                        serviceScope.launch {
+                            delay(500)
+                            refreshCurrentChannelOffersAndCounts()
+                        }
+                },
+            )
     }
 
     override suspend fun deactivate() {
@@ -186,6 +215,10 @@ class NodeOffersServiceFacade(
         ignoredIdsJob = null
         offerProcessingJob?.cancel()
         offerProcessingJob = null
+        userProfilesPin?.unbind()
+        userProfilesPin = null
+        userProfileRefreshJob?.cancel()
+        userProfileRefreshJob = null
         numOffersObservers.forEach { it.dispose() }
         numOffersObservers.clear()
 
@@ -366,7 +399,7 @@ class NodeOffersServiceFacade(
             chatMessages.addObserver(
                 object : CollectionObserver<BisqEasyOfferbookMessage> {
                     // We get all already existing offers applied at channel selection
-                    override fun addAll(values: Collection<BisqEasyOfferbookMessage>) {
+                    override fun onAllAdded(values: Collection<out BisqEasyOfferbookMessage>) {
                         val currentChannel = channel
                         // Process offers asynchronously to avoid blocking the main thread
                         // This prevents ANRs when selecting markets with many offers
@@ -378,7 +411,7 @@ class NodeOffersServiceFacade(
                                         values
                                             .filter { it.hasBisqEasyOffer() }
                                             .filter { isValidOfferbookMessage(it) }
-                                            .map { createOfferItemPresentationModel(it) }
+                                            .mapNotNull { createOfferItemPresentationModel(it) }
 
                                     // Update UI state on main thread
                                     withContext(Dispatchers.Main) {
@@ -400,7 +433,7 @@ class NodeOffersServiceFacade(
                     }
 
                     // Newly added messages
-                    override fun add(message: BisqEasyOfferbookMessage) {
+                    override fun onAdded(message: BisqEasyOfferbookMessage) {
                         if (!message.hasBisqEasyOffer() || !isValidOfferbookMessage(message)) {
                             return
                         }
@@ -408,7 +441,7 @@ class NodeOffersServiceFacade(
                         // Process single offer asynchronously to avoid blocking main thread
                         // Using Default dispatcher for CPU-intensive work (formatting, reputation calculations)
                         serviceScope.launch(Dispatchers.Default) {
-                            val listItem = createOfferItemPresentationModel(message)
+                            val listItem = createOfferItemPresentationModel(message) ?: return@launch
                             withContext(Dispatchers.Main) {
                                 // Only update if we're still on the same channel
                                 if (selectedChannel == currentChannel) {
@@ -420,7 +453,7 @@ class NodeOffersServiceFacade(
                         }
                     }
 
-                    override fun remove(message: Any) {
+                    override fun onRemoved(message: Any) {
                         if (message is BisqEasyOfferbookMessage && message.bisqEasyOffer.isPresent) {
                             val offerId = message.bisqEasyOffer.get().id
                             _offerbookListItems.update { current ->
@@ -435,14 +468,14 @@ class NodeOffersServiceFacade(
                         }
                     }
 
-                    override fun clear() {
+                    override fun onCleared() {
                         _offerbookListItems.update { emptyList() }
                     }
                 },
             )
     }
 
-    private fun createOfferItemPresentationModel(bisqEasyOfferbookMessage: BisqEasyOfferbookMessage): OfferItemPresentationModel {
+    private fun createOfferItemPresentationModel(bisqEasyOfferbookMessage: BisqEasyOfferbookMessage): OfferItemPresentationModel? {
         val offerItemPresentationDto =
             OfferItemPresentationVOFactory.create(
                 userProfileService,
@@ -450,13 +483,14 @@ class NodeOffersServiceFacade(
                 marketPriceService,
                 reputationService,
                 bisqEasyOfferbookMessage,
-            )
+            ) ?: return null
         return OfferItemPresentationModel(offerItemPresentationDto)
     }
 
     private fun isValidOfferbookMessage(message: BisqEasyOfferbookMessage): Boolean {
         // Mirrors Bisq main: see bisqEasyOfferbookMessageService.isValid(message)
-        return isNotBanned(message) &&
+        return isAuthorProfileAvailable(message) &&
+            isNotBanned(message) &&
             isNotIgnored(message) &&
             (
                 isTextMessage(message) || isBuyOffer(message) ||
@@ -465,6 +499,8 @@ class NodeOffersServiceFacade(
                     )
             )
     }
+
+    private fun isAuthorProfileAvailable(message: BisqEasyOfferbookMessage): Boolean = userProfileService.findUserProfile(message.authorUserProfileId).isPresent
 
     private fun isNotBanned(message: BisqEasyOfferbookMessage): Boolean {
         val authorUserProfileId = message.authorUserProfileId
