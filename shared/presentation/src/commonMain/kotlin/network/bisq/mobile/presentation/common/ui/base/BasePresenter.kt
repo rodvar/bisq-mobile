@@ -6,6 +6,7 @@ import androidx.navigation.NavOptionsBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,7 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import network.bisq.mobile.domain.PlatformType
 import network.bisq.mobile.domain.data.model.BaseModel
 import network.bisq.mobile.domain.getPlatformInfo
@@ -418,9 +418,10 @@ abstract class BasePresenter(
 
     private fun cleanup() {
         try {
-            runBlocking {
-                jobsManager.dispose()
-            }
+            // Cancel scope synchronously. scope.cancel() is non-blocking so this
+            // doesn't cause the iOS CA Fence hangs that runBlocking did.
+            // No scope recreation needed — presenter is being destroyed.
+            runCatching { presenterScope.cancel() }
             // copy to avoid concurrency exception - no problem with multiple on destroy calls
             dependants?.toList()?.forEach { it.onDestroy() }
         } catch (e: Exception) {

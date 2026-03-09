@@ -42,5 +42,9 @@ class NodeMainPresenter(
         }
     }
 
+    override fun cleanupNotificationService() {
+        cleanupNotificationServiceSync()
+    }
+
     override fun isDevMode(): Boolean = isDemo() || BuildNodeConfig.IS_DEBUG
 }
