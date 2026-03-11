@@ -134,7 +134,9 @@ fun DashboardScreen() {
                 if (notifPermissionState == PermissionState.DENIED && isPermissionRequestDialogVisible) {
                     isPermissionRequestDialogVisible = false
                 } else {
-                    isPermissionRequestDialogVisible = true
+                    // Only show push notification permission dialog on iOS.
+                    // Android uses its own WebSocket-based notification system.
+                    isPermissionRequestDialogVisible = getPlatformInfo().type != PlatformType.ANDROID
                 }
             }
 
