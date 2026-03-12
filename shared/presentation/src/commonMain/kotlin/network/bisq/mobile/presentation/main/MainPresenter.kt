@@ -65,8 +65,23 @@ open class MainPresenter(
 
     final override val languageCode: StateFlow<String> get() = settingsService.languageCode
 
+    override val showAnimation: StateFlow<Boolean> get() = settingsService.useAnimations
+
     var view: Any? = null
         private set
+
+    init {
+        val localeCode = getDeviceLanguageCode()
+        val screenWidth = getScreenWidthDp()
+        _isSmallScreen.value = screenWidth < 480
+        log.i { "Shared Version: ${BuildConfig.SHARED_LIBS_VERSION}" }
+        log.i { "iOS Client Version: ${BuildConfig.IOS_APP_VERSION}" }
+        log.i { "Android Client Version: ${BuildConfig.ANDROID_APP_VERSION}" }
+        log.i { "Android Node Version: ${BuildNodeConfig.APP_VERSION}" }
+        log.i { "Device language code: $localeCode" }
+        log.i { "Screen width: $screenWidth" }
+        log.i { "Small screen: ${_isSmallScreen.value}" }
+    }
 
     // TODO: refactor when TradeItemPresentationModel is completely immutable
     override val tradesWithUnreadMessages: StateFlow<Map<String, Int>> =
@@ -109,21 +124,6 @@ open class MainPresenter(
                 SharingStarted.Lazily,
                 emptyMap(),
             )
-
-    override val showAnimation: StateFlow<Boolean> get() = settingsService.useAnimations
-
-    init {
-        val localeCode = getDeviceLanguageCode()
-        val screenWidth = getScreenWidthDp()
-        _isSmallScreen.value = screenWidth < 480
-        log.i { "Shared Version: ${BuildConfig.SHARED_LIBS_VERSION}" }
-        log.i { "iOS Client Version: ${BuildConfig.IOS_APP_VERSION}" }
-        log.i { "Android Client Version: ${BuildConfig.ANDROID_APP_VERSION}" }
-        log.i { "Android Node Version: ${BuildNodeConfig.APP_VERSION}" }
-        log.i { "Device language code: $localeCode" }
-        log.i { "Screen width: $screenWidth" }
-        log.i { "Small screen: ${_isSmallScreen.value}" }
-    }
 
     fun attachView(view: Any) {
         // at the moment the attach view is with the activity/ main view in ios

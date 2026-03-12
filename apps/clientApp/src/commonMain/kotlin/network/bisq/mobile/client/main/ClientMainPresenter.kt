@@ -39,8 +39,6 @@ open class ClientMainPresenter(
     ) {
     override fun onViewAttached() {
         super.onViewAttached()
-//        activateServices()
-//        validateVersion()
         listenForConnectivity()
     }
 
@@ -68,8 +66,4 @@ open class ClientMainPresenter(
     override fun isDevMode(): Boolean = isDemo() || BuildConfig.IS_DEBUG
 
     override fun isDemo(): Boolean = ApplicationBootstrapFacade.isDemo
-
-    fun navigateToTrustedNode() {
-        navigateTo(TrustedNodeSetupSettings)
-    }
 }

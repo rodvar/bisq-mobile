@@ -128,12 +128,16 @@ open class DashboardPresenter(
         presenterScope.launch {
             settingsRepository.setNotificationPermissionState(state)
 
-            if (state == PermissionState.GRANTED) {
-                registerForPushNotifications()
-            } else if (state == PermissionState.NOT_GRANTED || state == PermissionState.DENIED) {
-                // User revoked notification permission (e.g. from iOS Settings).
-                // Reset registration state so re-enabling triggers re-registration.
-                pushNotificationServiceFacade.unregisterFromPushNotifications()
+            // Push notification registration is iOS-only.
+            // Android uses WebSocket-based notifications instead of APNs.
+            if (isIOS()) {
+                if (state == PermissionState.GRANTED) {
+                    registerForPushNotifications()
+                } else if (state == PermissionState.NOT_GRANTED || state == PermissionState.DENIED) {
+                    // User revoked notification permission (e.g. from iOS Settings).
+                    // Reset registration state so re-enabling triggers re-registration.
+                    pushNotificationServiceFacade.unregisterFromPushNotifications()
+                }
             }
         }
     }
