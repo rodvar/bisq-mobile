@@ -189,6 +189,7 @@ fun OfferCard(
                 maxLines = 1,
             )
 
+            BisqGap.VHalf()
             Spacer(modifier = Modifier.weight(1f))
 
             Row(
