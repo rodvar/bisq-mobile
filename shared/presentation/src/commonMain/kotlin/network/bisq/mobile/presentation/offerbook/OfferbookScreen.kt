@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -126,11 +127,12 @@ fun OfferbookScreen() {
             }
         }
 
-        Box {
+        Box(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                contentPadding = PaddingValues(bottom = BisqUIConstants.ScreenPadding5X),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 items(items = sortedFilteredOffers, key = { it.offerId }) { item ->
