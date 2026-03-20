@@ -28,7 +28,7 @@ class BisqEasyOpenTradeChannelModel(
     private val _isInMediation: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isInMediation: StateFlow<Boolean> get() = _isInMediation.asStateFlow()
     private val _chatMessages: MutableStateFlow<Set<BisqEasyOpenTradeMessageModel>> = MutableStateFlow(emptySet())
-    val chatMessages: StateFlow<Set<BisqEasyOpenTradeMessageModel>> get() = _chatMessages.asStateFlow()
+    val chatMessages: StateFlow<Set<BisqEasyOpenTradeMessageModel>> = _chatMessages.asStateFlow()
     val chatChannelNotificationType: MutableStateFlow<ChatChannelNotificationTypeEnum> =
         MutableStateFlow(ChatChannelNotificationTypeEnum.ALL)
     val userProfileIdsOfActiveParticipants: MutableSet<String> = mutableSetOf()
@@ -68,10 +68,17 @@ class BisqEasyOpenTradeChannelModel(
     }
 
     fun addChatMessages(message: BisqEasyOpenTradeMessageModel) {
-        _chatMessages.update { it + message }
+        // last write wins
+        // relying on equals and hashcode is not enough for us
+        // because while the message id can stay the same, reactions and messageDeliveryStatus can be updated
+        _chatMessages.update { current ->
+            current
+                .filterNot { it.id == message.id }
+                .toSet() + message
+        }
     }
 
     fun setAllChatMessages(messages: Set<BisqEasyOpenTradeMessageModel>) {
-        _chatMessages.value = messages
+        _chatMessages.value = messages.associateBy { it.id }.values.toSet()
     }
 }
