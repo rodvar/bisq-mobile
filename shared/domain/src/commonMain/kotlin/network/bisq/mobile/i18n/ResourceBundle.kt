@@ -1,8 +1,8 @@
 package network.bisq.mobile.i18n
 
-import kotlinx.datetime.Clock
 import network.bisq.mobile.data.utils.loadProperties
 import network.bisq.mobile.domain.utils.getLogger
+import kotlin.time.Clock
 
 class ResourceBundle(
     val map: Map<String, String>,
@@ -37,8 +37,9 @@ class ResourceBundle(
             // We must use a sub directory as otherwise it would get shadowed with the resources from bisq 2 i18n jar in node
             val fileName = "mobile/$bundleName$code.properties"
             val ts = Clock.System.now()
+            val properties = loadProperties(fileName)
             getLogger("ResourceBundle").i("Loading $bundleName took ${Clock.System.now() - ts}")
-            return loadProperties(fileName)
+            return properties
         }
     }
 
