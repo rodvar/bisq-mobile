@@ -3,12 +3,12 @@
 # -------------------- Project Specific --------------------
 bisq-core = "2.1.10"
 # Update this commit hash when bisq2 JARs are regenerated (even with same version) to bust CI cache
-bisq-core-commit = "ddb0446366c5346faa9593a040d7fc60e6c4c720"
+bisq-core-commit = "32517a84a5acf80da129f25b7ffa9a1f48ab1fc8"
 # Desktop pairing version: the minimum Bisq2 Desktop version that supports mobile pairing
 bisq-desktop-pairing = "2.1.10"
 # API version is usually same as bisq-core but for more control we keep it separated
 # Retrieved in shared/domain/build.gradle.kts: val bisqApiVersion by extra { findTomlVersion("bisq-api") }
-bisq-api = "2.1.8"
+bisq-api = "2.1.10"
 
 # -------------------- Kotlin & JetBrains --------------------
 kotlin = "2.3.20"
