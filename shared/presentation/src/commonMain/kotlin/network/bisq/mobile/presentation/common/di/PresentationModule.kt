@@ -113,7 +113,7 @@ val presentationModule =
             )
         }
 
-        single {
+        factory {
             CreateProfilePresenter(
                 get(),
                 get(),
