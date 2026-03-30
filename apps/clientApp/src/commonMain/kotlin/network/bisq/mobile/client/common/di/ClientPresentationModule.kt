@@ -69,7 +69,7 @@ val clientPresentationModule =
             )
         }
 
-        single<TopBarPresenter> {
+        factory<TopBarPresenter> {
             ClientTopBarPresenter(
                 get(),
                 get(),
@@ -80,7 +80,7 @@ val clientPresentationModule =
 
         factory<MiscItemsPresenter> { ClientMiscItemsPresenter(get(), get()) }
 
-        single<ClientSupportPresenter> {
+        factory<ClientSupportPresenter> {
             ClientSupportPresenter(
                 get(),
                 get(),
