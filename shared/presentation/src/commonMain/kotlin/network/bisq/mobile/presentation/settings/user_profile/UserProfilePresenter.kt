@@ -1,6 +1,5 @@
 package network.bisq.mobile.presentation.settings.user_profile
 
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -19,7 +18,6 @@ import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute.CreateProfile
 import network.bisq.mobile.presentation.main.MainPresenter
-import kotlin.concurrent.Volatile
 
 class UserProfilePresenter(
     private val userProfileServiceFacade: UserProfileServiceFacade,
@@ -37,18 +35,6 @@ class UserProfilePresenter(
         fun getLocalizedNA(): String = "data.na".i18n()
     }
 
-    @Volatile
-    private var profileIdCollectJob: Job? = null
-
-    @Volatile
-    private var profileCollectJob: Job? = null
-
-    @Volatile
-    private var profilesCollectJob: Job? = null
-
-    @Volatile
-    private var tickerJob: Job? = null
-
     private val _uiState = MutableStateFlow(UserProfileUiState())
     override val uiState = _uiState.asStateFlow()
 
@@ -56,11 +42,6 @@ class UserProfilePresenter(
         super.onViewAttached()
         _uiState.update { it.copy(isLoadingData = true) }
         launchJobs()
-    }
-
-    override fun onViewUnattaching() {
-        super.onViewUnattaching()
-        cancelJobs()
     }
 
     override suspend fun getUserProfileIcon(userProfile: UserProfileVO): PlatformImage = userProfileServiceFacade.getUserProfileIcon(userProfile, ICON_SIZE)
@@ -187,75 +168,60 @@ class UserProfilePresenter(
     }
 
     private fun launchJobs() {
-        profileIdCollectJob?.cancel()
-        profileIdCollectJob =
-            presenterScope.launch {
-                userProfileServiceFacade.selectedUserProfile.distinctUntilChangedBy { it?.id }.collect { profile ->
-                    profile?.let { profile ->
-                        val profileAge =
-                            reputationServiceFacade
-                                .getProfileAge(profile.id)
-                                .getOrNull()
-                                ?.let { age -> DateUtils.formatProfileAge(age) } ?: getLocalizedNA()
-                        val reputation =
-                            reputationServiceFacade
-                                .getReputation(profile.id)
-                                .getOrNull()
-                                ?.totalScore
-                                ?.toString()
-                                ?: getLocalizedNA()
-                        _uiState.update { current ->
-                            current.copy(
-                                selectedUserProfile = profile,
-                                profileAge = profileAge,
-                                reputation = reputation,
-                                statementDraft = profile.statement,
-                                termsDraft = profile.terms,
-                                isLoadingData = false,
-                            )
-                        }
-                    }
-                }
-            }
-        profileCollectJob?.cancel()
-        profileCollectJob =
-            presenterScope.launch {
-                // this job's difference from previous one is that this one is
-                // to reflect the changes in other fields of userProfile
-                userProfileServiceFacade.selectedUserProfile.collect { profile ->
-                    _uiState.update {
-                        it.copy(selectedUserProfile = profile)
-                    }
-                }
-            }
-        tickerJob?.cancel()
-        tickerJob =
-            presenterScope.launch {
-                TimeUtils.tickerFlow(1_000L).onStart { emit(Unit) }.collect {
-                    _uiState.update {
-                        it.copy(
-                            lastUserActivity =
-                                it.selectedUserProfile?.publishDate?.let { ts -> DateUtils.lastSeen(ts) }
-                                    ?: getLocalizedNA(),
+        presenterScope.launch {
+            userProfileServiceFacade.selectedUserProfile.distinctUntilChangedBy { it?.id }.collect { profile ->
+                profile?.let { profile ->
+                    val profileAge =
+                        reputationServiceFacade
+                            .getProfileAge(profile.id)
+                            .getOrNull()
+                            ?.let { age -> DateUtils.formatProfileAge(age) } ?: getLocalizedNA()
+                    val reputation =
+                        reputationServiceFacade
+                            .getReputation(profile.id)
+                            .getOrNull()
+                            ?.totalScore
+                            ?.toString()
+                            ?: getLocalizedNA()
+                    _uiState.update { current ->
+                        current.copy(
+                            selectedUserProfile = profile,
+                            profileAge = profileAge,
+                            reputation = reputation,
+                            statementDraft = profile.statement,
+                            termsDraft = profile.terms,
+                            isLoadingData = false,
                         )
                     }
                 }
             }
-        profilesCollectJob?.cancel()
-        profilesCollectJob =
-            presenterScope.launch {
-                userProfileServiceFacade.userProfiles.collect { profiles ->
-                    _uiState.update {
-                        it.copy(userProfiles = profiles)
-                    }
+        }
+        presenterScope.launch {
+            // this job's difference from previous one is that this one is
+            // to reflect the changes in other fields of userProfile
+            userProfileServiceFacade.selectedUserProfile.collect { profile ->
+                _uiState.update {
+                    it.copy(selectedUserProfile = profile)
                 }
             }
-    }
-
-    private fun cancelJobs() {
-        profileIdCollectJob?.cancel()
-        profileCollectJob?.cancel()
-        profilesCollectJob?.cancel()
-        tickerJob?.cancel()
+        }
+        presenterScope.launch {
+            TimeUtils.tickerFlow(1_000L).onStart { emit(Unit) }.collect {
+                _uiState.update {
+                    it.copy(
+                        lastUserActivity =
+                            it.selectedUserProfile?.publishDate?.let { ts -> DateUtils.lastSeen(ts) }
+                                ?: getLocalizedNA(),
+                    )
+                }
+            }
+        }
+        presenterScope.launch {
+            userProfileServiceFacade.userProfiles.collect { profiles ->
+                _uiState.update {
+                    it.copy(userProfiles = profiles)
+                }
+            }
+        }
     }
 }

@@ -47,7 +47,7 @@ val androidNodePresentationModule =
             )
         }
 
-        single<TopBarPresenter> { TopBarPresenter(get(), get(), get(), get()) } bind ITopBarPresenter::class
+        factory<TopBarPresenter> { TopBarPresenter(get(), get(), get(), get()) } bind ITopBarPresenter::class
 
         factory<MiscItemsPresenter> { NodeMiscItemsPresenter(get(), get()) }
 

@@ -53,11 +53,6 @@ class SellerState3aPresenter(
         updateButtonEnableState()
     }
 
-    override fun onViewUnattaching() {
-        _paymentProof.value = null
-        super.onViewUnattaching()
-    }
-
     fun onPaymentProofInput(
         value: String,
         isValid: Boolean,

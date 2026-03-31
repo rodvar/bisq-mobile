@@ -72,7 +72,7 @@ val presentationModule =
         // Global UI state manager - uses its own scope for UI operations
         single<GlobalUiManager> { GlobalUiManager() }
 
-        single<NetworkStatusBannerPresenter> { NetworkStatusBannerPresenter(get(), get()) }
+        factory<NetworkStatusBannerPresenter> { NetworkStatusBannerPresenter(get(), get()) }
 
         factory<UserAgreementPresenter> {
             UserAgreementPresenter(
@@ -81,15 +81,15 @@ val presentationModule =
             )
         } bind IAgreementPresenter::class
 
-        single { TabContainerPresenter(get(), get(), get()) } bind ITabContainerPresenter::class
+        factory { TabContainerPresenter(get(), get(), get()) } bind ITabContainerPresenter::class
 
         factory<ReputationPresenter> { ReputationPresenter(get(), get()) }
 
-        single<SupportPresenter> { SupportPresenter(get(), get(), get()) }
+        factory<SupportPresenter> { SupportPresenter(get(), get(), get()) }
 
         factory<ResourcesPresenter> { ResourcesPresenter(get(), get(), get()) }
 
-        single<UserProfilePresenter> {
+        factory<UserProfilePresenter> {
             UserProfilePresenter(
                 get(),
                 get(),
@@ -97,7 +97,7 @@ val presentationModule =
             )
         } bind IUserProfilePresenter::class
 
-        single<DashboardPresenter> {
+        factory<DashboardPresenter> {
             DashboardPresenter(
                 get(),
                 get(),
@@ -113,7 +113,7 @@ val presentationModule =
             )
         }
 
-        single {
+        factory {
             CreateProfilePresenter(
                 get(),
                 get(),
@@ -150,20 +150,20 @@ val presentationModule =
         factory { SellerState1Presenter(get(), get(), get()) }
         factory { SellerState2aPresenter(get(), get()) }
         factory { SellerState2bPresenter(get(), get()) }
-        single { SellerState3aPresenter(get(), get()) }
+        factory { SellerState3aPresenter(get(), get()) }
         factory { SellerStateMainChain3bPresenter(get(), get(), get()) }
         factory { SellerStateLightning3bPresenter(get(), get()) }
-        single { SellerState4Presenter(get(), get(), get()) }
+        factory { SellerState4Presenter(get(), get(), get()) }
 
         // Trade Buyer
-        single { BuyerState1aPresenter(get(), get()) }
+        factory { BuyerState1aPresenter(get(), get()) }
         // BuyerState1bPresenter does not exist as it a static UI
         factory { BuyerState2aPresenter(get(), get()) }
         factory { BuyerState2bPresenter(get(), get()) }
         factory { BuyerState3aPresenter(get(), get()) }
         factory { BuyerStateMainChain3bPresenter(get(), get(), get()) }
         factory { BuyerStateLightning3bPresenter(get(), get()) }
-        single { BuyerState4Presenter(get(), get(), get()) }
+        factory { BuyerState4Presenter(get(), get(), get()) }
 
         // Trade General process
         factory {
@@ -192,14 +192,14 @@ val presentationModule =
 
         factory { TradeChatPresenter(get(), get(), get(), get(), get(), get(), get(), get()) }
 
-        single { TradeGuideOverviewPresenter(get()) } bind TradeGuideOverviewPresenter::class
-        single { TradeGuideSecurityPresenter(get()) } bind TradeGuideSecurityPresenter::class
-        single { TradeGuideProcessPresenter(get()) } bind TradeGuideProcessPresenter::class
-        single { TradeGuideTradeRulesPresenter(get(), get()) } bind TradeGuideTradeRulesPresenter::class
-        single { WalletGuideIntroPresenter(get()) } bind WalletGuideIntroPresenter::class
-        single { WalletGuideDownloadPresenter(get()) } bind WalletGuideDownloadPresenter::class
-        single { WalletGuideNewPresenter(get()) } bind WalletGuideNewPresenter::class
-        single { WalletGuideReceivingPresenter(get()) } bind WalletGuideReceivingPresenter::class
+        factory { TradeGuideOverviewPresenter(get()) } bind TradeGuideOverviewPresenter::class
+        factory { TradeGuideSecurityPresenter(get()) } bind TradeGuideSecurityPresenter::class
+        factory { TradeGuideProcessPresenter(get()) } bind TradeGuideProcessPresenter::class
+        factory { TradeGuideTradeRulesPresenter(get(), get()) } bind TradeGuideTradeRulesPresenter::class
+        factory { WalletGuideIntroPresenter(get()) } bind WalletGuideIntroPresenter::class
+        factory { WalletGuideDownloadPresenter(get()) } bind WalletGuideDownloadPresenter::class
+        factory { WalletGuideNewPresenter(get()) } bind WalletGuideNewPresenter::class
+        factory { WalletGuideReceivingPresenter(get()) } bind WalletGuideReceivingPresenter::class
 
         factory<TimeProvider> { getPlatformCurrentTimeProvider() }
 
