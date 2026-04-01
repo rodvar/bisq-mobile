@@ -128,6 +128,21 @@ abstract class BasePresenter(
      */
     protected open val blockInteractivityOnAttached = false
 
+    /**
+     * Controls whether the global snackbar is dismissed when this presenter's view detaches.
+     *
+     * Default is false: snackbars are app-level (managed by [GlobalUiManager]) and have their
+     * own auto-dismiss duration via [SnackbarDuration], so they don't need manual cleanup on
+     * navigation. Dismissing on every screen transition caused snackbars to disappear before
+     * the user could read them — e.g., a "copied" snackbar shown by a dialog presenter would
+     * be immediately killed when the dialog's [onViewUnattaching] fired.
+     *
+     * Override to true in presenters that show screen-contextual snackbars that should not
+     * survive navigation to a different screen.
+     * TODO probably want to remove it altogether (global dismissal on every presenter interaction..?)
+     */
+    protected open val dismissSnackbarOnDetach = false
+
     // Presenter is interactive by default
     private val _isInteractive = MutableStateFlow(true)
     override val isInteractive: StateFlow<Boolean> = _isInteractive.asStateFlow()
@@ -161,7 +176,9 @@ abstract class BasePresenter(
         // Cancel any pending global loading dialog to prevent stuck overlays
         hideLoading()
         // Dismiss any active snackbar when view detaches (e.g., navigation)
-        globalUiManager.dismissSnackbar()
+        if (dismissSnackbarOnDetach) {
+            globalUiManager.dismissSnackbar()
+        }
         // Dispose presenterScope via a separate unmanaged scope. We intentionally do NOT use
         // presenterScope here because we are cancelling it — launching on a scope being cancelled
         // would be a no-op. The fire-and-forget CoroutineScope(Main) avoids iOS CA Fence hangs
