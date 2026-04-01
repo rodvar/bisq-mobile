@@ -1,10 +1,12 @@
 package network.bisq.mobile.presentation.offer.create_offer
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
@@ -14,7 +16,14 @@ import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.data.model.market.MarketPriceItem
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
+import network.bisq.mobile.data.replicated.common.monetary.FiatVOFactory
+import network.bisq.mobile.data.replicated.common.monetary.FiatVOFactory.faceValueToLong
+import network.bisq.mobile.data.replicated.common.monetary.FiatVOFactory.fromFaceValue
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
+import network.bisq.mobile.data.replicated.offer.DirectionEnum
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
+import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
+import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.data.service.offers.OffersServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
@@ -220,5 +229,88 @@ class CreateOfferAmountPresenterTest {
             runCurrent()
             assertEquals(midMinSlider, amountPresenter.minRangeSliderValue.value)
             assertEquals(midMaxSlider, amountPresenter.maxRangeSliderValue.value)
+        }
+
+    @Test
+    fun seller_with_saved_range_amount_does_not_reset_min_amount_on_recreate() =
+        runTest(testDispatcher) {
+            val marketUSD = MarketVOFactory.USD
+            val marketUSDItem =
+                MarketPriceItem(
+                    marketUSD,
+                    with(PriceQuoteVOFactory) { fromPrice(100_00L, marketUSD) },
+                    formattedPrice = "100 USD",
+                )
+            val prices = mapOf(marketUSD to marketUSDItem)
+
+            val marketPriceServiceFacade =
+                mockk<MarketPriceServiceFacade>(relaxed = true).apply {
+                    every { findMarketPriceItem(any()) } answers {
+                        val arg = firstArg<MarketVO>()
+                        prices.values.firstOrNull { it.market.baseCurrencyCode == arg.baseCurrencyCode && it.market.quoteCurrencyCode == arg.quoteCurrencyCode }
+                    }
+                    every { findUSDMarketPriceItem() } returns prices[marketUSD]
+                    every { refreshSelectedFormattedMarketPrice() } returns Unit
+                    every { selectMarket(any()) } returns Result.success(Unit)
+                }
+
+            mockkStatic("network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt")
+            every { getScreenWidthDp() } returns 480
+
+            val mainPresenter =
+                MainPresenterTestFactory.create(applicationLifecycleService = TestApplicationLifecycleService())
+            val offersServiceFacade = mockk<OffersServiceFacade>(relaxed = true)
+            val createOfferCoordinator =
+                CreateOfferCoordinator(
+                    marketPriceServiceFacade,
+                    offersServiceFacade,
+                    mockk<SettingsServiceFacade>(relaxed = true),
+                )
+
+            val savedMin = FiatVOFactory.fromFaceValue(120.0, "USD")
+            val savedMax = FiatVOFactory.fromFaceValue(240.0, "USD")
+            createOfferCoordinator.createOfferModel =
+                CreateOfferCoordinator.CreateOfferModel().also { m ->
+                    m.market = marketUSD
+                    m.direction = DirectionEnum.SELL
+                    m.amountType = CreateOfferCoordinator.AmountType.RANGE_AMOUNT
+                    m.quoteSideMinRangeAmount = savedMin
+                    m.quoteSideMaxRangeAmount = savedMax
+                }
+
+            val userProfile = createMockUserProfile("seller-profile")
+            val userProfileServiceFacade =
+                mockk<UserProfileServiceFacade>(relaxed = true).apply {
+                    every { selectedUserProfile } returns MutableStateFlow(userProfile)
+                }
+            val reputationServiceFacade =
+                mockk<ReputationServiceFacade>(relaxed = true).apply {
+                    coEvery { getReputation(userProfile.id) } returns Result.success(ReputationScoreVO(totalScore = 30_000L, fiveSystemScore = 5.0, ranking = 1))
+                }
+
+            val firstPresenter =
+                CreateOfferAmountPresenter(
+                    mainPresenter,
+                    marketPriceServiceFacade,
+                    createOfferCoordinator,
+                    userProfileServiceFacade,
+                    reputationServiceFacade,
+                )
+            runCurrent()
+
+            val savedMinText = firstPresenter.formattedQuoteSideMinRangeAmount.value
+            assertEquals(savedMin.value, FiatVOFactory.faceValueToLong(savedMinText.toDouble()))
+
+            val recreatedPresenter =
+                CreateOfferAmountPresenter(
+                    mainPresenter,
+                    marketPriceServiceFacade,
+                    createOfferCoordinator,
+                    userProfileServiceFacade,
+                    reputationServiceFacade,
+                )
+            runCurrent()
+
+            assertEquals(savedMinText, recreatedPresenter.formattedQuoteSideMinRangeAmount.value)
         }
 }

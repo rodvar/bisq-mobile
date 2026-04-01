@@ -203,7 +203,11 @@ class CreateOfferAmountPresenter(
 
         _isBuy.value = createOfferModel.direction.isBuy
 
-        updateAmountLimitInfo(true)
+        val hasSavedAmountState =
+            createOfferModel.quoteSideFixedAmount != null ||
+                (createOfferModel.quoteSideMinRangeAmount != null && createOfferModel.quoteSideMaxRangeAmount != null)
+        val shouldInitializeSellerDefaults = !_isBuy.value && !hasSavedAmountState
+        updateAmountLimitInfo(firstLoad = shouldInitializeSellerDefaults)
     }
 
     // Handlers
