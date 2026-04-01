@@ -198,12 +198,65 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             advanceUntilIdle()
             assertEquals(afterStarted, facade.state.value)
         }
+    @Test
+    fun `tor failure within grace period does not show failure dialog`() =
+        runTest(testDispatcher) {
+            val kmpTorService = mockk<KmpTorService>(relaxed = true)
+            val stateFlow = MutableStateFlow<KmpTorService.TorState>(KmpTorService.TorState.Stopped())
+            val progressFlow = MutableStateFlow(0)
+            every { kmpTorService.state } returns stateFlow
+            every { kmpTorService.bootstrapProgress } returns progressFlow
+            val facade = TestFacade(kmpTorService)
+
+            facade.fakeTimeMillis = 1_000_000L
+            facade.observeTorStatePublic()
+
+            // Tor starts
+            stateFlow.emit(KmpTorService.TorState.Starting)
+            advanceUntilIdle()
+
+            // Tor fails after 10 seconds (within 60s grace period)
+            facade.fakeTimeMillis = 1_010_000L
+            stateFlow.emit(KmpTorService.TorState.Stopped(RuntimeException("Circuit build timeout")))
+            advanceUntilIdle()
+
+            assertFalse(facade.torBootstrapFailed.value, "Tor failure within grace period should not show dialog")
+        }
+
+    @Test
+    fun `tor failure after grace period shows failure dialog`() =
+        runTest(testDispatcher) {
+            val kmpTorService = mockk<KmpTorService>(relaxed = true)
+            val stateFlow = MutableStateFlow<KmpTorService.TorState>(KmpTorService.TorState.Stopped())
+            val progressFlow = MutableStateFlow(0)
+            every { kmpTorService.state } returns stateFlow
+            every { kmpTorService.bootstrapProgress } returns progressFlow
+            val facade = TestFacade(kmpTorService)
+
+            facade.fakeTimeMillis = 1_000_000L
+            facade.observeTorStatePublic()
+
+            // Tor starts
+            stateFlow.emit(KmpTorService.TorState.Starting)
+            advanceUntilIdle()
+
+            // Tor fails after 65 seconds (past 60s grace period)
+            facade.fakeTimeMillis = 1_065_000L
+            stateFlow.emit(KmpTorService.TorState.Stopped(RuntimeException("Tor failed permanently")))
+            advanceUntilIdle()
+
+            assertTrue(facade.torBootstrapFailed.value, "Tor failure after grace period should show dialog")
+        }
 }
 
 // Test subclass to expose protected functionality for unit testing only
 private class TestFacade(
     kmpTorService: KmpTorService,
 ) : ApplicationBootstrapFacade(kmpTorService) {
+    var fakeTimeMillis: Long = 0L
+
+    override fun currentTimeMillis(): Long = fakeTimeMillis
+
     fun startTimeoutForStagePublic(
         stageName: String = state.value,
         extendedTimeout: Boolean = false,

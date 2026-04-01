@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.network.KmpTorService
+import network.bisq.mobile.domain.utils.DateUtils
 import network.bisq.mobile.data.service.network.KmpTorService.TorState
 import network.bisq.mobile.i18n.i18n
 import kotlin.concurrent.Volatile
@@ -21,6 +22,12 @@ abstract class ApplicationBootstrapFacade(
         var isDemo = false
         private const val BOOTSTRAP_STAGE_TIMEOUT_MS =
             90_000L // 90 seconds per stage
+
+        // Grace period before showing the Tor bootstrap failed dialog.
+        // On iOS, kmp-tor can emit transient Stopped(error) events during initial
+        // circuit establishment (especially over slow networks or onion addresses).
+        // We suppress the failure dialog during this window and let Tor retry.
+        internal const val TOR_FAILURE_GRACE_PERIOD_MS = 60_000L
     }
 
     @Volatile
@@ -31,6 +38,12 @@ abstract class ApplicationBootstrapFacade(
 
     @Volatile
     private var torProgressCollectJob: Job? = null
+
+    @Volatile
+    private var torStartingTimestamp: Long = 0L
+
+    // Overridable for testing — allows tests to control time without platform-specific calls
+    protected open fun currentTimeMillis(): Long = DateUtils.now()
 
     private val _state = MutableStateFlow("")
     val state: StateFlow<String> get() = _state.asStateFlow()
@@ -96,6 +109,7 @@ abstract class ApplicationBootstrapFacade(
         currentTimeoutJob = null
         torProgressCollectJob?.cancel()
         torProgressCollectJob = null
+        torStartingTimestamp = 0L
 
         super.activate()
     }
@@ -115,6 +129,7 @@ abstract class ApplicationBootstrapFacade(
             kmpTorService.state.collect { newState ->
                 when (newState) {
                     is TorState.Starting -> {
+                        torStartingTimestamp = currentTimeMillis()
                         setState("mobile.bootstrap.tor.starting".i18n(0))
                         setProgress(0.1f)
                         startTimeoutForStage()
@@ -145,10 +160,20 @@ abstract class ApplicationBootstrapFacade(
                                     newState.error.cause?.message,
                                 ).firstOrNull()
                                     ?: "Unknown Tor error"
-                            setState("mobile.bootstrap.tor.failed".i18n() + ": $errorMessage")
-                            cancelTimeout(showProgressToast = false) // Don't show progress toast on failure
-                            setTorBootstrapFailed(true)
-                            log.e { "Bootstrap: Tor initialization failed - $errorMessage" }
+
+                            val elapsed = currentTimeMillis() - torStartingTimestamp
+                            if (torStartingTimestamp > 0 && elapsed < TOR_FAILURE_GRACE_PERIOD_MS) {
+                                // Within grace period — Tor may still recover. Log but don't
+                                // show the failure dialog yet. The general stage timeout
+                                // (90s) will catch genuinely stuck connections.
+                                log.w { "Bootstrap: Tor error within grace period (${elapsed / 1000}s): $errorMessage — suppressing failure dialog" }
+                                setState("mobile.bootstrap.tor.starting".i18n(0))
+                            } else {
+                                setState("mobile.bootstrap.tor.failed".i18n() + ": $errorMessage")
+                                cancelTimeout(showProgressToast = false)
+                                setTorBootstrapFailed(true)
+                                log.e { "Bootstrap: Tor initialization failed - $errorMessage" }
+                            }
                         }
                     }
                 }
