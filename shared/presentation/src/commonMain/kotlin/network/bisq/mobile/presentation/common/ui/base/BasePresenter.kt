@@ -9,13 +9,9 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import network.bisq.mobile.data.model.BaseModel
 import network.bisq.mobile.data.utils.getPlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
@@ -110,7 +106,6 @@ abstract class BasePresenter(
     companion object {
         const val EXIT_WARNING_TIMEOUT = 3000L
         const val SMALLEST_PERCEPTIVE_DELAY = 250L
-        var isDemo = false // todo: needs to be reactive to be reliable
     }
 
     protected val navigationManager: NavigationManager by inject()
@@ -127,21 +122,6 @@ abstract class BasePresenter(
      * override in your presenter if you want to block interactivity on view attached
      */
     protected open val blockInteractivityOnAttached = false
-
-    /**
-     * Controls whether the global snackbar is dismissed when this presenter's view detaches.
-     *
-     * Default is false: snackbars are app-level (managed by [GlobalUiManager]) and have their
-     * own auto-dismiss duration via [SnackbarDuration], so they don't need manual cleanup on
-     * navigation. Dismissing on every screen transition caused snackbars to disappear before
-     * the user could read them — e.g., a "copied" snackbar shown by a dialog presenter would
-     * be immediately killed when the dialog's [onViewUnattaching] fired.
-     *
-     * Override to true in presenters that show screen-contextual snackbars that should not
-     * survive navigation to a different screen.
-     * TODO probably want to remove it altogether (global dismissal on every presenter interaction..?)
-     */
-    protected open val dismissSnackbarOnDetach = false
 
     // Presenter is interactive by default
     private val _isInteractive = MutableStateFlow(true)
@@ -175,10 +155,6 @@ abstract class BasePresenter(
     override fun onViewUnattaching() {
         // Cancel any pending global loading dialog to prevent stuck overlays
         hideLoading()
-        // Dismiss any active snackbar when view detaches (e.g., navigation)
-        if (dismissSnackbarOnDetach) {
-            globalUiManager.dismissSnackbar()
-        }
         // Dispose presenterScope via a separate unmanaged scope. We intentionally do NOT use
         // presenterScope here because we are cancelling it — launching on a scope being cancelled
         // would be a no-op. The fire-and-forget CoroutineScope(Main) avoids iOS CA Fence hangs
@@ -295,9 +271,10 @@ abstract class BasePresenter(
     }
 
     open fun navigateToUrl(url: String) {
+        if (!_isInteractive.value) return
         disableInteractive()
         rootPresenter?.navigateToUrl(url)
-        enableInteractive()
+        enableInteractive() // re-enables after 250ms delay — prevents rapid double-taps
     }
 
     override fun onCloseGenericErrorPanel() {
@@ -347,13 +324,6 @@ abstract class BasePresenter(
             shouldInclusive,
             shouldSaveState,
         )
-    }
-
-    // TODO: Move to an OfferFlowPresenter base class — this is domain-specific to offer flows,
-    //  not a base presenter concern. Kept here temporarily to avoid touching 10 callers.
-    protected fun navigateToOfferbookTab() {
-        navigateBackTo(NavRoute.TabContainer)
-        navigateToTab(NavRoute.TabOfferbookMarket)
     }
 
     override fun onMainBackNavigation() {
