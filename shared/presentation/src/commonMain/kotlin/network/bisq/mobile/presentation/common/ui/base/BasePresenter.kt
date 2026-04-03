@@ -25,6 +25,7 @@ import network.bisq.mobile.presentation.common.ui.navigation.TabNavRoute
 import network.bisq.mobile.presentation.common.ui.navigation.manager.NavigationManager
 import network.bisq.mobile.presentation.common.ui.platform.moveAppToBackground
 import network.bisq.mobile.presentation.common.ui.utils.BisqLinks
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.main.AppPresenter
 import network.bisq.mobile.presentation.main.MainPresenter
 import org.koin.core.component.KoinComponent
@@ -75,6 +76,14 @@ interface ViewPresenter {
 
     /**
      * This can be used as initialization method AFTER view gets attached (so view is available)
+     *
+     * When combined with [network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycleBackStackAware]
+     * this method  will only be called only once whilst the associated view remains in the stack (on first composition).
+     * Coroutines launched there survive across back-stack navigation.
+     * Override [ViewPresenter.onViewRevealed] if you need to refresh data when the screen returns.
+     *
+     * Otherwise (using [network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle]), this
+     * method is called on every render of the associated view.
      */
     fun onViewAttached()
 
@@ -82,6 +91,23 @@ interface ViewPresenter {
      * This can be used as cleanup BEFORE unattaching a view
      */
     fun onViewUnattaching()
+
+    /**
+     * Called when the view is no longer visible but is still on the navigation back stack.
+     * The presenter's scope stays alive — coroutines continue running.
+     * Only called when using [RememberPresenterLifecycleBackStackAware].
+     * With [RememberPresenterLifecycle], this is never called — [onViewUnattaching] fires instead.
+     */
+    @ExcludeFromCoverage
+    fun onViewHidden() {}
+
+    /**
+     * Called when the view becomes visible again after being on the back stack.
+     * The presenter's scope is still alive from the original [onViewAttached] — no re-subscription needed.
+     * Only called when using [RememberPresenterLifecycleBackStackAware].
+     */
+    @ExcludeFromCoverage
+    fun onViewRevealed() {}
 
     /**
      * This can be used to do cleanup when the view is getting destroyed
@@ -162,6 +188,26 @@ abstract class BasePresenter(
         CoroutineScope(Dispatchers.Main).launch { jobsManager.dispose() }
         // Unregister from parent to prevent memory leak with factory presenters
         rootPresenter?.unregisterChild(this)
+    }
+
+    @CallSuper
+    override fun onViewHidden() {
+        // View is no longer visible but still on the back stack.
+        // Cancel loading overlays but keep the scope alive.
+        hideLoading()
+        log.d { "onViewHidden — scope alive, coroutines continue" }
+    }
+
+    @CallSuper
+    override fun onViewRevealed() {
+        // View is visible again after being on the back stack.
+        // Scope is still alive — just re-enable interactivity.
+        if (blockInteractivityOnAttached) {
+            blockInteractivityForBriefMoment()
+        } else {
+            enableInteractive()
+        }
+        log.d { "onViewRevealed — scope still alive" }
     }
 
     @CallSuper

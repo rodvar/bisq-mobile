@@ -50,17 +50,15 @@ import network.bisq.mobile.presentation.common.ui.components.organisms.dialogs.B
 import network.bisq.mobile.presentation.common.ui.components.organisms.dialogs.NotificationPermissionDialog
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
-import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
+import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycleBackStackAware
 import network.bisq.mobile.presentation.common.ui.utils.rememberNotificationPermissionLauncher
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import org.koin.compose.koinInject
 
 @Composable
 fun DashboardScreen() {
-    val presenter: DashboardPresenter = koinInject()
-    RememberPresenterLifecycle(presenter)
+    val presenter = RememberPresenterLifecycleBackStackAware<DashboardPresenter>()
 
     val offersOnline: Number by presenter.offersOnline.collectAsState()
     val publishedProfiles: Number by presenter.publishedProfiles.collectAsState()
