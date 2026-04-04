@@ -1,5 +1,6 @@
 package network.bisq.mobile.client.common.domain.websocket
 
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.parseUrl
 import kotlinx.coroutines.CancellationException
@@ -10,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
@@ -29,6 +31,7 @@ import network.bisq.mobile.client.common.domain.websocket.exception.WebSocketIsR
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRequest
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketResponse
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiRequest
+import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiResponse
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventObserver
 import network.bisq.mobile.data.service.ServiceFacade
@@ -39,6 +42,7 @@ import network.bisq.mobile.domain.utils.DateUtils
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.domain.utils.awaitOrCancel
 import network.bisq.mobile.domain.utils.createUuid
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import kotlin.concurrent.Volatile
 
 internal data class SubscriptionType(
@@ -74,6 +78,17 @@ class WebSocketClientService(
 
     @Volatile
     private var lastSessionRenewalAttemptMs = 0L
+
+    private val _clientRevoked = MutableStateFlow(false)
+
+    /** Emits true when session renewal fails due to revoked credentials (401/403 from server).
+     *  Observers should clear stored credentials and navigate the user to the pairing screen. */
+    val clientRevoked: StateFlow<Boolean> = _clientRevoked.asStateFlow()
+
+    /** Resets the revocation flag after handling, allowing re-pairing in the same session. */
+    fun acknowledgeRevocation() {
+        _clientRevoked.value = false
+    }
 
     private val clientUpdateMutex = Mutex()
     private val _connectionState =
@@ -417,6 +432,7 @@ class WebSocketClientService(
      *
      * @return true if a response was received, false otherwise.
      */
+    @ExcludeFromCoverage
     internal suspend fun sendHealthCheck(): Boolean {
         val client = currentClient.value ?: return false
         val request =
@@ -428,15 +444,29 @@ class WebSocketClientService(
             )
         return try {
             val response = client.sendRequestAndAwaitResponse(request, awaitConnection = false)
+            // Detect expired/revoked session: the server responds with 401 (session expired)
+            // or 403 (client revoked) inside the WebSocket response. Without this check, the
+            // health check reports "alive" even though all API calls will fail.
+            if (response is WebSocketRestApiResponse &&
+                (
+                    response.httpStatusCode == HttpStatusCode.Unauthorized ||
+                        response.httpStatusCode == HttpStatusCode.Forbidden
+                )
+            ) {
+                throw UnauthorizedApiAccessException()
+            }
             response != null
         } catch (e: CancellationException) {
             throw e
+        } catch (e: UnauthorizedApiAccessException) {
+            throw e // Propagate so the connection state handler triggers session renewal
         } catch (e: Exception) {
             false
         }
     }
 
-    private suspend fun attemptSessionRenewal() {
+    @ExcludeFromCoverage
+    internal suspend fun attemptSessionRenewal() {
         val sessionSvc = sessionService ?: return
         val settingsRepo = sensitiveSettingsRepository ?: return
 
@@ -466,10 +496,33 @@ class WebSocketClientService(
                 // which creates a new WS client with fresh credentials and connects automatically.
                 // No explicit connect() call needed here - it's handled reactively.
             } else {
-                log.w { "Session renewal failed: ${result.exceptionOrNull()?.message}" }
+                val error = result.exceptionOrNull()
+                if (error is UnauthorizedApiAccessException) {
+                    // Server rejected our credentials — client profile was revoked.
+                    // Clear stored credentials, dispose stale HTTP/WS clients, and
+                    // signal the UI to navigate to re-pairing.
+                    log.e { "Client credentials revoked — clearing stored pairing data" }
+                    settingsRepo.update {
+                        it.copy(clientId = null, clientSecret = null, sessionId = null)
+                    }
+                    // Dispose the HTTP client so re-pairing creates a fresh one
+                    // (the old client has stale TLS settings that cause connection reset)
+                    httpClientService.disposeClient()
+                    _clientRevoked.value = true
+                } else {
+                    log.w { "Session renewal failed: ${error?.message}" }
+                }
             }
         } catch (e: CancellationException) {
             throw e
+        } catch (e: UnauthorizedApiAccessException) {
+            // HTTP client validator threw 401 directly (before result wrapping)
+            log.e { "Client credentials revoked (exception) — clearing stored pairing data" }
+            settingsRepo.update {
+                it.copy(clientId = null, clientSecret = null, sessionId = null)
+            }
+            httpClientService.disposeClient()
+            _clientRevoked.value = true
         } catch (e: Exception) {
             log.e(e) { "Session renewal failed with exception" }
         }

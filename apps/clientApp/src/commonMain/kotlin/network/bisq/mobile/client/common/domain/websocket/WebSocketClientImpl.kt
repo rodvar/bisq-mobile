@@ -66,6 +66,7 @@ import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.domain.utils.SemanticVersion
 import network.bisq.mobile.domain.utils.awaitOrCancel
 import network.bisq.mobile.domain.utils.createUuid
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import kotlin.concurrent.Volatile
 
 class WebSocketClientImpl(
@@ -485,6 +486,7 @@ class WebSocketClientImpl(
         }
     }
 
+    @ExcludeFromCoverage
     private suspend fun getApiVersion(): ApiVersionSettingsVO {
         val requestId = createUuid()
         val webSocketRestApiRequest =
@@ -497,12 +499,21 @@ class WebSocketClientImpl(
         val response =
             sendRequestAndAwaitResponse(webSocketRestApiRequest, false)
         require(response is WebSocketRestApiResponse) { "Response not of expected type. response=$response" }
-        if (response.httpStatusCode == HttpStatusCode.Unauthorized) {
+        if (response.httpStatusCode == HttpStatusCode.Unauthorized ||
+            response.httpStatusCode == HttpStatusCode.Forbidden
+        ) {
+            // 401: session expired. 403: client revoked (profile deleted, permissions gone).
+            // Both mean credentials are no longer valid — stop retrying and trigger session renewal.
             throw UnauthorizedApiAccessException()
         }
+        if (!response.isSuccess()) {
+            throw IllegalStateException("API version check failed with status ${response.httpStatusCode}")
+        }
         val body = response.body
-        val decodeFromString = json.decodeFromString<ApiVersionSettingsVO>(body)
-        return decodeFromString
+        if (body.isBlank()) {
+            throw IllegalStateException("API version response body is empty")
+        }
+        return json.decodeFromString<ApiVersionSettingsVO>(body)
     }
 
     private fun isApiCompatible(apiVersion: ApiVersionSettingsVO): Boolean {
