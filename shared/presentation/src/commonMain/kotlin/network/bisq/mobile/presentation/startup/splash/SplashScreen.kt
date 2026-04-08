@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -20,13 +21,15 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.BisqLogoGrey
 import network.bisq.mobile.presentation.common.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WarningConfirmationDialog
+import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 import org.koin.compose.koinInject
 
 @Composable
-fun SplashScreen() {
+fun SplashScreen(route: NavRoute.Splash = NavRoute.Splash()) {
     val presenter: SplashPresenter = koinInject()
+    remember(route) { presenter.applyRoute(route) } // skips recomposition, guaranteed to complete before DisposableEffect fires onViewAttached
     RememberPresenterLifecycle(presenter)
 
     val uiState by presenter.uiState.collectAsState()

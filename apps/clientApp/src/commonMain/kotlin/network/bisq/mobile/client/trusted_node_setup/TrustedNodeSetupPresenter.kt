@@ -10,7 +10,10 @@ import kotlinx.coroutines.launch
 import network.bisq.mobile.client.common.domain.access.ApiAccessService
 import network.bisq.mobile.client.common.domain.access.pairing.qr.PairingQrCode
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
+import network.bisq.mobile.client.common.domain.websocket.ConnectionState
+import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
 import network.bisq.mobile.client.common.presentation.navigation.TrustedNodeSetup
+import network.bisq.mobile.client.trusted_node_setup.components.SubscriptionsFailedDialogUiAction
 import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeConnectionStatus
 import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeSetupUseCase
 import network.bisq.mobile.data.service.bootstrap.ApplicationLifecycleService
@@ -31,6 +34,7 @@ class TrustedNodeSetupPresenter(
     private val apiAccessService: ApiAccessService,
     private val sensitiveSettingsRepository: SensitiveSettingsRepository,
     private val applicationLifecycleService: ApplicationLifecycleService,
+    private val webSocketClientService: WebSocketClientService,
 ) : BasePresenter(mainPresenter) {
     private val _uiState = MutableStateFlow(TrustedNodeSetupUiState())
     val uiState: StateFlow<TrustedNodeSetupUiState> = _uiState.asStateFlow()
@@ -51,6 +55,7 @@ class TrustedNodeSetupPresenter(
         isWorkflow: Boolean,
         showConnectionFailed: Boolean = false,
         showKeystoreError: Boolean = false,
+        showSubscriptionsFailed: Boolean = false,
     ) {
         this.isWorkflow = isWorkflow
         if (!isWorkflow) {
@@ -69,6 +74,18 @@ class TrustedNodeSetupPresenter(
             _uiState.update {
                 it.copy(showConnectionFailedWarning = true)
             }
+        } else if (showSubscriptionsFailed) {
+            _uiState.update {
+                if (webSocketClientService.connectionState.value is ConnectionState.Connected) {
+                    it.copy(
+                        showSubscriptionsFailedWarning = true,
+                    )
+                } else {
+                    it.copy(
+                        showConnectionFailedWarning = true,
+                    )
+                }
+            }
         }
     }
 
@@ -86,7 +103,12 @@ class TrustedNodeSetupPresenter(
                     }
 
                     else -> {
-                        _uiState.update { it.copy(status = state.connectionStatus) }
+                        _uiState.update {
+                            it.copy(
+                                status = state.connectionStatus,
+                                serverVersion = state.serverVersion,
+                            )
+                        }
                     }
                 }
             }
@@ -102,6 +124,31 @@ class TrustedNodeSetupPresenter(
         presenterScope.launch {
             kmpTorService.bootstrapProgress.collect { torProgress ->
                 _uiState.update { it.copy(torProgress = torProgress) }
+            }
+        }
+
+        presenterScope.launch {
+            webSocketClientService.failedSubscriptionTopics.collect { topics ->
+                _uiState.update {
+                    it.copy(failedTopics = topics.toList())
+                }
+            }
+        }
+
+        presenterScope.launch {
+            webSocketClientService.connectionState.collect { connectionState ->
+                if (connectionState is ConnectionState.Disconnected) {
+                    _uiState.update { currentState ->
+                        if (currentState.showSubscriptionsFailedWarning) {
+                            currentState.copy(
+                                showSubscriptionsFailedWarning = false,
+                                showConnectionFailedWarning = true,
+                            )
+                        } else {
+                            currentState
+                        }
+                    }
+                }
             }
         }
     }
@@ -151,6 +198,12 @@ class TrustedNodeSetupPresenter(
             TrustedNodeSetupUiAction.OnKeystoreErrorDismiss -> {
                 _uiState.update { it.copy(showKeystoreError = false) }
             }
+
+            is TrustedNodeSetupUiAction.OnSubscriptionsFailedDialogUiAction ->
+                when (action.action) {
+                    SubscriptionsFailedDialogUiAction.OnRetryPress -> onConnectionFailedRetry()
+                    SubscriptionsFailedDialogUiAction.OnContinuePress -> onFailedSubsDialogContinuePress()
+                }
         }
     }
 
@@ -252,10 +305,10 @@ class TrustedNodeSetupPresenter(
         connectJob = null
     }
 
-    private fun navigateToSplashScreen() {
+    private fun navigateToSplashScreen(continueWithLimitations: Boolean = false) {
         presenterScope.launch {
-            navigateTo(NavRoute.Splash) {
-                it.popUpTo(NavRoute.Splash) { inclusive = true }
+            navigateTo(NavRoute.Splash(continueWithLimitations = continueWithLimitations)) {
+                it.popUpTo<NavRoute.Splash> { inclusive = true }
             }
         }
     }
@@ -273,7 +326,7 @@ class TrustedNodeSetupPresenter(
 
     private fun onConnectionFailedRetry() {
         presenterScope.launch {
-            _uiState.update { it.copy(showConnectionFailedWarning = false) }
+            _uiState.update { it.copy(showConnectionFailedWarning = false, showSubscriptionsFailedWarning = false) }
             showLoading()
 
             // TODO this client networking reset is a good candidate for the new UseCase component if we were to
@@ -294,7 +347,7 @@ class TrustedNodeSetupPresenter(
 
             if (restartSucceeded) {
                 // Navigate to Splash to trigger fresh bootstrap attempt
-                navigateTo(NavRoute.Splash) {
+                navigateTo(NavRoute.Splash()) {
                     it.popUpTo<TrustedNodeSetup> { inclusive = true }
                 }
             } else {
@@ -302,5 +355,9 @@ class TrustedNodeSetupPresenter(
                 _uiState.update { it.copy(showConnectionFailedWarning = true) }
             }
         }
+    }
+
+    private fun onFailedSubsDialogContinuePress() {
+        navigateToSplashScreen(continueWithLimitations = true)
     }
 }

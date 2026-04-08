@@ -8,6 +8,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -156,7 +157,10 @@ class ClientConnectivityService(
                                 log.i { "Connection trust restored after successful health check" }
                                 connectionUntrusted = false
                                 consecutiveReconnectingCycles = 0
-                                if (isSlow()) {
+                                val failedSubs = webSocketClientService.failedSubscriptionTopics.first()
+                                if (failedSubs.isNotEmpty()) {
+                                    ConnectivityStatus.CONNECTED_WITH_LIMITATIONS
+                                } else if (isSlow()) {
                                     ConnectivityStatus.REQUESTING_INVENTORY
                                 } else {
                                     ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
@@ -188,10 +192,15 @@ class ClientConnectivityService(
                             connectionUntrusted = true
                             webSocketClientService.forceReconnect()
                             ConnectivityStatus.RECONNECTING
-                        } else if (isSlow()) {
-                            ConnectivityStatus.REQUESTING_INVENTORY
                         } else {
-                            ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
+                            val failedSubs = webSocketClientService.failedSubscriptionTopics.first()
+                            if (failedSubs.isNotEmpty()) {
+                                ConnectivityStatus.CONNECTED_WITH_LIMITATIONS
+                            } else if (isSlow()) {
+                                ConnectivityStatus.REQUESTING_INVENTORY
+                            } else {
+                                ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
+                            }
                         }
                     }
                 }
