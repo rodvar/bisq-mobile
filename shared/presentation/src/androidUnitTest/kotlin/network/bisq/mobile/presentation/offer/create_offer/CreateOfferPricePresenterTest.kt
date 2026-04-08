@@ -120,6 +120,10 @@ class CreateOfferPricePresenterTest {
         override suspend fun setMarketSortBy(value: MarketSortBy) {}
 
         override suspend fun setMarketFilter(value: MarketFilter) {}
+
+        override suspend fun setDontShowAgainHyperlinksOpenInBrowser(value: Boolean) {}
+
+        override suspend fun setPermitOpeningBrowser(value: Boolean) {}
     }
 
     private class FakeMarketPriceServiceFacade(
@@ -171,6 +175,16 @@ class CreateOfferPricePresenterTest {
         override suspend fun setIgnoreDiffAdjustmentFromSecManager(value: Boolean) = Result.success(Unit)
 
         override suspend fun setNumDaysAfterRedactingTradeData(days: Int) = Result.success(Unit)
+
+        override val showWebLinkConfirmation: StateFlow<Boolean> = MutableStateFlow(false)
+
+        override suspend fun setWebLinkDontShowAgain() = Result.success(Unit)
+
+        override suspend fun resetAllDontShowAgainFlags() = Result.success(Unit)
+
+        override val permitOpeningBrowser: StateFlow<Boolean> = MutableStateFlow(false)
+
+        override suspend fun setPermitOpeningBrowser(value: Boolean) = Result.success(Unit)
     }
 
     private class FakeTradesServiceFacade : TradesServiceFacade {

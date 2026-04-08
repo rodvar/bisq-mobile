@@ -3,15 +3,18 @@ package network.bisq.mobile.client.common.domain.service.settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.settings.SettingsVO
 import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.settings.DEFAULT_DIFFICULTY_ADJUSTMENT_FACTOR
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
+import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.i18n.I18nSupport
 
 class ClientSettingsServiceFacade(
     private val apiGateway: SettingsApiGateway,
+    private val settingsRepository: SettingsRepository,
 ) : ServiceFacade(),
     SettingsServiceFacade,
     Logging {
@@ -85,8 +88,41 @@ class ClientSettingsServiceFacade(
         )
     }
 
+    private val _showWebLinkConfirmation: MutableStateFlow<Boolean> = MutableStateFlow(true)
+    override val showWebLinkConfirmation: StateFlow<Boolean> get() = _showWebLinkConfirmation.asStateFlow()
+
+    override suspend fun setWebLinkDontShowAgain(): Result<Unit> =
+        runCatching {
+            settingsRepository.setDontShowAgainHyperlinksOpenInBrowser(true)
+        }.onSuccess {
+            _showWebLinkConfirmation.value = false
+        }
+
+    override suspend fun resetAllDontShowAgainFlags(): Result<Unit> =
+        runCatching {
+            settingsRepository.setDontShowAgainHyperlinksOpenInBrowser(false)
+        }.onSuccess {
+            _showWebLinkConfirmation.value = true
+        }
+
+    private val _permitOpeningBrowser: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    override val permitOpeningBrowser: StateFlow<Boolean> get() = _permitOpeningBrowser.asStateFlow()
+
+    override suspend fun setPermitOpeningBrowser(value: Boolean): Result<Unit> =
+        runCatching {
+            settingsRepository.setPermitOpeningBrowser(value)
+        }.onSuccess {
+            _permitOpeningBrowser.value = value
+        }
+
     override suspend fun activate() {
         super<ServiceFacade>.activate()
+        jobsManager.getScope().launch {
+            settingsRepository.data.collect { settings ->
+                _showWebLinkConfirmation.value = !settings.dontShowAgainHyperlinksOpenInBrowser
+                _permitOpeningBrowser.value = settings.cookiePermitOpeningBrowser
+            }
+        }
     }
 
     override suspend fun deactivate() {

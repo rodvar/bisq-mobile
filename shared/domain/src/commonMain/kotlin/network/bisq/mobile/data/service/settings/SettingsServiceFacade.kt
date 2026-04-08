@@ -39,5 +39,15 @@ interface SettingsServiceFacade : LifeCycleAware {
 
     suspend fun setNumDaysAfterRedactingTradeData(days: Int): Result<Unit>
 
+    val showWebLinkConfirmation: StateFlow<Boolean>
+
+    suspend fun setWebLinkDontShowAgain(): Result<Unit>
+
+    suspend fun resetAllDontShowAgainFlags(): Result<Unit>
+
+    val permitOpeningBrowser: StateFlow<Boolean>
+
+    suspend fun setPermitOpeningBrowser(value: Boolean): Result<Unit>
+
     suspend fun getTrustedNodeVersion() = ""
 }

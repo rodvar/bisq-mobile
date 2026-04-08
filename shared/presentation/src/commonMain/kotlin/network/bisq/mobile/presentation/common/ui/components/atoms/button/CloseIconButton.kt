@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.CloseIcon
 
@@ -11,8 +13,13 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.icons.CloseIc
 fun CloseIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier.size(20.dp),
+    disabled: Boolean = false,
 ) {
-    IconButton(onClick = onClick, modifier = modifier) {
+    IconButton(
+        onClick = onClick,
+        enabled = !disabled,
+        modifier = modifier.semantics { contentDescription = "close" },
+    ) {
         CloseIcon()
     }
 }
