@@ -14,6 +14,6 @@ class SessionApiGateway(
         request: SessionRequestDto,
     ): Result<SessionResponseDto> {
         val path = "$basePath/session"
-        return httpClientService.post(path, request)
+        return httpClientService.post(path, request, authenticated = false)
     }
 }
