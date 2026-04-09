@@ -226,11 +226,12 @@ class HttpClientService(
         path: String,
         requestBody: R? = null,
         headers: Map<String, String> = emptyMap(),
+        authenticated: Boolean = true,
     ): Result<T> {
         log.d { "HTTP POST to ${apiPath + path} with body: ${redactForLogging(requestBody)}" }
         try {
             val response: HttpResponse =
-                post {
+                post(authenticated) {
                     url {
                         path(apiPath + path)
                     }
@@ -256,9 +257,12 @@ class HttpClientService(
         }
     }
 
-    suspend fun post(block: HttpRequestBuilder.() -> Unit): HttpResponse =
+    suspend fun post(
+        authenticated: Boolean = true,
+        block: HttpRequestBuilder.() -> Unit,
+    ): HttpResponse =
         getClient().post {
-            addAuthHeaders()
+            if (authenticated) addAuthHeaders()
             block(this)
         }
 

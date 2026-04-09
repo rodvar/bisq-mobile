@@ -14,6 +14,6 @@ class PairingApiGateway(
         request: PairingRequestDto,
     ): Result<PairingResponseDto> {
         val path = "$basePath/pairing"
-        return httpClientService.post(path, request)
+        return httpClientService.post(path, request, authenticated = false)
     }
 }
