@@ -105,6 +105,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqCard
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -117,7 +118,6 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.inputfiel
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 // -------------------------------------------------------------------------------------
 // Simulated data for preview purposes
@@ -371,7 +371,7 @@ fun CreateFiatAccount_Step1_SelectMethod(
         // Search field
         BisqSearchField(
             value = searchQuery,
-            onValueChange = { value, _ -> onSearchChange(value) },
+            onValueChange = onSearchChange,
             placeholder = "Search payment methods",
         )
 
