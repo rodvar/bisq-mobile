@@ -5,7 +5,11 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import kotlinx.serialization.Serializable
+import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.common.model.account.PaymentMethodVO
+import network.bisq.mobile.presentation.common.ui.components.ErrorState
 import network.bisq.mobile.presentation.common.ui.navigation.types.PaymentAccountType
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.create_payment_account.account_review.PaymentAccountReviewScreen
@@ -18,7 +22,12 @@ sealed interface CreatePaymentAccountRoute {
     data object SelectPaymentMethod : CreatePaymentAccountRoute
 
     @Serializable
-    data object PaymentAccountForm : CreatePaymentAccountRoute
+    @ConsistentCopyVisibility
+    data class PaymentAccountForm private constructor(
+        val paymentMethodName: String,
+    ) : CreatePaymentAccountRoute {
+        constructor(paymentMethod: PaymentMethodVO) : this(paymentMethodName = paymentMethod.name)
+    }
 
     @Serializable
     data object PaymentAccountReview : CreatePaymentAccountRoute
@@ -40,14 +49,26 @@ fun CreatePaymentAccountNavHost(
         composable<CreatePaymentAccountRoute.SelectPaymentMethod> {
             SelectPaymentMethodScreen(
                 accountType = accountType,
-                onContinue = { navController.navigate(CreatePaymentAccountRoute.PaymentAccountForm) },
+                onContinue = { selectedPaymentMethod ->
+                    navController.navigate(
+                        CreatePaymentAccountRoute.PaymentAccountForm(selectedPaymentMethod),
+                    )
+                },
             )
         }
 
-        composable<CreatePaymentAccountRoute.PaymentAccountForm> {
-            PaymentAccountFormScreen(
-                onContinue = { navController.navigate(CreatePaymentAccountRoute.PaymentAccountReview) },
-            )
+        composable<CreatePaymentAccountRoute.PaymentAccountForm> { backStackEntry ->
+            val route: CreatePaymentAccountRoute.PaymentAccountForm = backStackEntry.toRoute()
+            val paymentMethod = runCatching { PaymentMethodVO.valueOf(route.paymentMethodName) }.getOrNull()
+
+            if (paymentMethod == null) {
+                ErrorState(message = "mobile.error.generic".i18n())
+            } else {
+                PaymentAccountFormScreen(
+                    paymentMethod = paymentMethod,
+                    onContinue = { navController.navigate(CreatePaymentAccountRoute.PaymentAccountReview) },
+                )
+            }
         }
 
         composable<CreatePaymentAccountRoute.PaymentAccountReview> {

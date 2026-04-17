@@ -28,9 +28,7 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.model.account.FiatPaymentMethodChargebackRiskVO
 import network.bisq.mobile.presentation.common.model.account.PaymentMethodVO
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
-import network.bisq.mobile.presentation.common.ui.components.atoms.button.GreyCloseButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
-import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.BisqDialog
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
@@ -102,23 +100,18 @@ fun FiatPaymentAccountCard(
             )
         }
 
-        account.chargebackRisk.let { chargebackRisk ->
+        account.chargebackRisk?.let { chargebackRisk ->
             Spacer(modifier = Modifier.height(8.dp))
             ChargebackRiskBadge(chargebackRisk)
         }
     }
 
     if (showCurrencyDialog.value) {
-        BisqDialog(
-            horizontalAlignment = Alignment.Start,
+        AccountFlowDialog(
+            title = "paymentAccounts.createAccount.paymentMethod.table.currencies".i18n(),
+            bodyText = account.currency,
             onDismissRequest = { showCurrencyDialog.value = false },
-        ) {
-            BisqText.H6Regular(account.paymentMethodName)
-            BisqGap.V1()
-            BisqText.BaseLight(account.currency)
-            BisqGap.V1()
-            GreyCloseButton(onClick = { showCurrencyDialog.value = false })
-        }
+        )
     }
 }
 
