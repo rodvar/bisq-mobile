@@ -41,17 +41,15 @@ kotlin {
             api(project(sharedPresentationModule))
 
             // Compose
-            implementation(compose.foundation)
-            implementation(compose.material3)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui.tooling.preview)
 
             // Other libraries
             implementation(libs.navigation.compose)
         }
 
         androidMain.dependencies {
-            // Compose
-            implementation(compose.preview)
-
             // AndroidX
             implementation(libs.androidx.activity.compose)
         }
@@ -310,7 +308,7 @@ dependencies {
     implementation(project(sharedDomainModule))
 
     // Debug tools
-    debugImplementation(compose.uiTooling)
+    debugImplementation(libs.compose.ui.tooling)
 
     // Android libraries
     implementation(libs.androidx.multidex)
