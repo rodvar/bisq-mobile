@@ -41,8 +41,13 @@ class LinkButtonUiTest {
     @Before
     fun setup() {
         I18nSupport.setLanguage()
-        val settingsFacade = WebLinkDialogSettingsServiceFake(initialShowWebLinkConfirmation = true)
+        initKoin(showWebLinkConfirmation = true)
+    }
 
+    private fun initKoin(showWebLinkConfirmation: Boolean) {
+        runCatching { stopKoin() }
+        val settingsFacade =
+            WebLinkDialogSettingsServiceFake(initialShowWebLinkConfirmation = showWebLinkConfirmation)
         startKoin {
             modules(
                 module {
@@ -67,6 +72,7 @@ class LinkButtonUiTest {
         onClick: (() -> Unit)? = null,
         onError: ((Throwable) -> Unit)? = null,
         openConfirmation: Boolean = true,
+        forceConfirm: Boolean = false,
     ) {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalUriHandler provides uriHandler) {
@@ -77,6 +83,7 @@ class LinkButtonUiTest {
                         onClick = onClick,
                         onError = onError,
                         openConfirmation = openConfirmation,
+                        forceConfirm = forceConfirm,
                     )
                 }
             }
@@ -91,6 +98,19 @@ class LinkButtonUiTest {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText(dialogTitle).assertIsDisplayed()
+        composeTestRule.onNodeWithText("action.dontShowAgain".i18n()).assertIsDisplayed()
+    }
+
+    @Test
+    fun `when forceConfirm true and showWebLinkConfirmation false then shows confirmation dialog`() {
+        initKoin(false)
+        setLinkButton(uriHandler = NoopUriHandler(), forceConfirm = true)
+
+        composeTestRule.onNodeWithText("Open docs").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText(dialogTitle).assertIsDisplayed()
+        assertNoNodeWithText("action.dontShowAgain".i18n())
     }
 
     @Test

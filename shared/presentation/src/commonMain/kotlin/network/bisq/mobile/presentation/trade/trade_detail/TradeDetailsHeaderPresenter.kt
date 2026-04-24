@@ -4,8 +4,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
@@ -16,6 +19,7 @@ import network.bisq.mobile.data.service.offers.MediatorNotAvailableException
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.PlatformImage
+import network.bisq.mobile.domain.formatters.TradeDurationFormatter
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.main.MainPresenter
@@ -35,18 +39,7 @@ class TradeDetailsHeaderPresenter(
 
     val selectedTrade: StateFlow<TradeItemPresentationModel?> get() = tradesServiceFacade.selectedTrade
 
-    var direction: String = ""
     var directionEnum: DirectionEnum = DirectionEnum.BUY
-    var leftAmountDescription: String = ""
-    private val _leftAmount: MutableStateFlow<String> = MutableStateFlow("")
-    val leftAmount: StateFlow<String> = _leftAmount.asStateFlow()
-    private val _leftCode: MutableStateFlow<String> = MutableStateFlow("")
-    val leftCode: StateFlow<String> = _leftCode.asStateFlow()
-    var rightAmountDescription: String = ""
-    private val _rightAmount: MutableStateFlow<String> = MutableStateFlow("")
-    val rightAmount: StateFlow<String> = _rightAmount.asStateFlow()
-    private val _rightCode: MutableStateFlow<String> = MutableStateFlow("")
-    val rightCode: StateFlow<String> = _rightCode.asStateFlow()
 
     private val _tradeCloseType: MutableStateFlow<TradeCloseType?> = MutableStateFlow(null)
     val tradeCloseType: StateFlow<TradeCloseType?> = _tradeCloseType.asStateFlow()
@@ -69,8 +62,11 @@ class TradeDetailsHeaderPresenter(
     private val _mediationError = MutableStateFlow("")
     val mediationError: StateFlow<String> = _mediationError.asStateFlow()
 
-    private val _isShowDetails: MutableStateFlow<Boolean> = MutableStateFlow(false)
-    val isShowDetails: StateFlow<Boolean> = _isShowDetails.asStateFlow()
+    private val _tradeUiState = MutableStateFlow<TradeDetailsHeaderTradeUiState?>(null)
+    val tradeUiState: StateFlow<TradeDetailsHeaderTradeUiState?> = _tradeUiState.asStateFlow()
+
+    private val _sessionUiState = MutableStateFlow(TradeDetailsHeaderSessionUiState())
+    val sessionUiState: StateFlow<TradeDetailsHeaderSessionUiState> = _sessionUiState.asStateFlow()
 
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage get() = userProfileServiceFacade::getUserProfileIcon
 
@@ -78,21 +74,15 @@ class TradeDetailsHeaderPresenter(
         super.onViewAttached()
 
         presenterScope.launch {
-            mainPresenter.languageCode
-                .flatMapLatest { tradesServiceFacade.selectedTrade }
-                .filterNotNull()
-                .collect {
-                    if (it.bisqEasyTradeModel.isSeller) {
-                        _leftAmount.value = it.formattedBaseAmount
-                        _leftCode.value = it.baseCurrencyCode
-                        _rightAmount.value = it.formattedQuoteAmount
-                        _rightCode.value = it.quoteCurrencyCode
-                    } else {
-                        _leftAmount.value = it.formattedQuoteAmount
-                        _leftCode.value = it.quoteCurrencyCode
-                        _rightAmount.value = it.formattedBaseAmount
-                        _rightCode.value = it.baseCurrencyCode
-                    }
+            combine(
+                mainPresenter.languageCode,
+                mainPresenter.isSmallScreen,
+                tradesServiceFacade.selectedTrade,
+            ) { _, isSmall, trade ->
+                trade?.toHeaderTradeUiState(isSmall)
+            }.distinctUntilChanged()
+                .collect { state ->
+                    _tradeUiState.value = state
                 }
         }
 
@@ -101,14 +91,8 @@ class TradeDetailsHeaderPresenter(
 
         if (openTradeItemModel.bisqEasyTradeModel.isSeller) {
             directionEnum = DirectionEnum.SELL
-            direction = "offer.sell".i18n().uppercase()
-            leftAmountDescription = "bisqEasy.tradeState.header.send".i18n()
-            rightAmountDescription = "bisqEasy.tradeState.header.receive".i18n()
         } else {
             directionEnum = DirectionEnum.BUY
-            direction = "offer.buy".i18n().uppercase()
-            leftAmountDescription = "bisqEasy.tradeState.header.pay".i18n()
-            rightAmountDescription = "bisqEasy.tradeState.header.receive".i18n()
         }
 
         presenterScope.launch {
@@ -121,6 +105,66 @@ class TradeDetailsHeaderPresenter(
             openTradeItemModel.bisqEasyOpenTradeChannelModel.isInMediation.collect {
                 this@TradeDetailsHeaderPresenter._isInMediation.value = it
             }
+        }
+
+        presenterScope.launch {
+            val paymentProofFlow =
+                tradesServiceFacade.selectedTrade.flatMapLatest { trade ->
+                    trade?.bisqEasyTradeModel?.paymentProof ?: flowOf(null)
+                }
+            val receiverAddressFlow =
+                tradesServiceFacade.selectedTrade.flatMapLatest { trade ->
+                    trade?.bisqEasyTradeModel?.bitcoinPaymentData ?: flowOf(null)
+                }
+            val actionsFlow =
+                combine(interruptTradeButtonText, openMediationButtonText, isInMediation, tradeCloseType) { interruptTradeButtonText, openMediationButtonText, isInMediation, tradeCloseType ->
+                    Actions(interruptTradeButtonText, openMediationButtonText, isInMediation, tradeCloseType)
+                }
+            val paymentDataFlow =
+                combine(paymentProofFlow, receiverAddressFlow) { paymentProof, receiverAddress ->
+                    PaymentData(paymentProof, receiverAddress)
+                }
+            val formattedTradeDurationFlow =
+                tradesServiceFacade.selectedTrade.flatMapLatest { trade ->
+                    if (trade == null) {
+                        flowOf("")
+                    } else {
+                        val takeOfferDate = trade.bisqEasyTradeModel.takeOfferDate
+                        combine(
+                            mainPresenter.languageCode,
+                            trade.bisqEasyTradeModel.tradeState,
+                            trade.bisqEasyTradeModel.tradeCompletedDate,
+                        ) { _: String, _: BisqEasyTradeStateEnum, completedDate: Long? ->
+                            TradeDurationFormatter.formatAge(
+                                tradeCompletedDate = completedDate,
+                                takeOfferDate = takeOfferDate,
+                            )
+                        }
+                    }
+                }
+            combine(actionsFlow, paymentDataFlow, formattedTradeDurationFlow, isInteractive) { actions, payment, formattedTradeDuration, interactive ->
+                _sessionUiState.update { prev ->
+                    prev.copy(
+                        showDetails = prev.showDetails,
+                        isInteractive = interactive,
+                        interruptTradeButtonText = actions.interruptTradeButtonText,
+                        openMediationButtonText = actions.openMediationButtonText,
+                        isInMediation = actions.isInMediation,
+                        isCompleted = actions.tradeCloseType == TradeCloseType.COMPLETED,
+                        paymentProof = payment.paymentProof,
+                        receiverAddress = payment.receiverAddress,
+                        formattedTradeDuration = formattedTradeDuration,
+                    )
+                }
+            }.collect { }
+        }
+    }
+
+    fun onAction(action: TradeDetailsHeaderUiAction) {
+        when (action) {
+            TradeDetailsHeaderUiAction.ToggleHeader -> onToggleHeader()
+            TradeDetailsHeaderUiAction.OpenInterruptionConfirmationDialog -> onOpenInterruptionConfirmationDialog()
+            TradeDetailsHeaderUiAction.OpenMediationConfirmationDialog -> onOpenMediationConfirmationDialog()
         }
     }
 
@@ -335,26 +379,33 @@ class TradeDetailsHeaderPresenter(
 
     fun onToggleHeader() {
         disableInteractive()
-        this._isShowDetails.value = !this._isShowDetails.value
+        _sessionUiState.update { it.copy(showDetails = !it.showDetails) }
         enableInteractive()
     }
 
     private fun reset() {
-        direction = ""
-        leftAmountDescription = ""
-        _leftAmount.value = ""
-        _leftCode.value = ""
-        rightAmountDescription = ""
-        _rightAmount.value = ""
-        _rightCode.value = ""
-
         _tradeCloseType.value = null
         _isInMediation.value = false
         _interruptTradeButtonText.value = ""
         _openMediationButtonText.value = ""
         _showInterruptionConfirmationDialog.value = false
         _showMediationConfirmationDialog.value = false
+        _mediationError.value = ""
+        _tradeUiState.value = null
+        _sessionUiState.value = TradeDetailsHeaderSessionUiState()
         // Intentionally not resetting _selectedTrade to maintain trade context between view attach/detach cycles
         // _selectedTrade.value = null
     }
+
+    private data class Actions(
+        val interruptTradeButtonText: String,
+        val openMediationButtonText: String,
+        val isInMediation: Boolean,
+        val tradeCloseType: TradeCloseType?,
+    )
+
+    private data class PaymentData(
+        val paymentProof: String?,
+        val receiverAddress: String?,
+    )
 }

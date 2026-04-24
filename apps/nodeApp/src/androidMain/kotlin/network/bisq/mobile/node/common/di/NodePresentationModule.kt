@@ -9,6 +9,8 @@ import network.bisq.mobile.node.tabs.dashboard.NodeDashboardPresenter
 import network.bisq.mobile.node.tabs.more.NodeMiscItemsPresenter
 import network.bisq.mobile.presentation.common.platform_settings.PlatformSettingsManager
 import network.bisq.mobile.presentation.common.platform_settings.PlatformSettingsManagerImpl
+import network.bisq.mobile.presentation.common.share.AndroidShareFileService
+import network.bisq.mobile.presentation.common.share.ShareFileService
 import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBarPresenter
 import network.bisq.mobile.presentation.main.AppPresenter
@@ -25,6 +27,8 @@ import org.koin.dsl.module
 
 val androidNodePresentationModule =
     module {
+        single<ShareFileService> { AndroidShareFileService(androidContext()) }
+
         factory<SettingsPresenter> { NodeSettingsPresenter(get(), get(), get()) }
 
         factory {

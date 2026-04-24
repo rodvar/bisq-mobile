@@ -43,6 +43,16 @@ data class TradeItemPresentationModel(
     val bitcoinSettlementMethodDisplayString: String get() = tradeItemPresentationDto.bitcoinSettlementMethodDisplayString
     val fiatPaymentMethod: String get() = tradeItemPresentationDto.fiatPaymentMethod
     val fiatPaymentMethodDisplayString: String get() = tradeItemPresentationDto.fiatPaymentMethodDisplayString
+    val paymentMethodCsvDisplayString: String
+        get() {
+            val btc =
+                tradeItemPresentationDto.bitcoinSettlementMethodCsvDisplayString
+                    .takeUnless { it.isNullOrEmpty() } ?: bitcoinSettlementMethodDisplayString
+            val fiat =
+                tradeItemPresentationDto.fiatPaymentMethodCsvDisplayString
+                    .takeUnless { it.isNullOrEmpty() } ?: fiatPaymentMethodDisplayString
+            return "$btc / $fiat"
+        }
     val isFiatPaymentMethodCustom: Boolean get() = tradeItemPresentationDto.isFiatPaymentMethodCustom
     val formattedMyRole: String get() = tradeItemPresentationDto.formattedMyRole
 

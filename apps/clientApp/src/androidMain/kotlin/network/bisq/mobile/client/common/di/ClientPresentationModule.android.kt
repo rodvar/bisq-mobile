@@ -14,6 +14,8 @@ import network.bisq.mobile.domain.utils.DeviceInfoProvider
 import network.bisq.mobile.domain.utils.VersionProvider
 import network.bisq.mobile.presentation.common.platform_settings.PlatformSettingsManager
 import network.bisq.mobile.presentation.common.platform_settings.PlatformSettingsManagerImpl
+import network.bisq.mobile.presentation.common.share.AndroidShareFileService
+import network.bisq.mobile.presentation.common.share.ShareFileService
 import network.bisq.mobile.presentation.main.AppPresenter
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.startup.onboarding.OnboardingPresenter
@@ -85,4 +87,6 @@ val androidClientPresentationModule =
         single<PlatformSettingsManager> {
             PlatformSettingsManagerImpl(androidContext())
         }
+
+        single<ShareFileService> { AndroidShareFileService(androidContext()) }
     }

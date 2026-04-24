@@ -16,6 +16,7 @@ import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.trade_completed
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
+import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqTextFieldV0
 import network.bisq.mobile.presentation.common.ui.components.atoms.BtcSatsStyle
@@ -30,8 +31,20 @@ fun State4(
 ) {
     RememberPresenterLifecycle(presenter)
 
-    val tradeItemModel by presenter.selectedTrade.collectAsState()
-    val trade = tradeItemModel ?: return
+    val uiState by presenter.uiState.collectAsState()
+
+    State4Content(
+        uiState = uiState,
+        onAction = presenter::onAction,
+    )
+}
+
+@Composable
+fun State4Content(
+    uiState: State4UiState,
+    onAction: (State4UiAction) -> Unit,
+) {
+    val trade = uiState.trade ?: return
 
     Column {
         BisqGap.V1()
@@ -52,13 +65,13 @@ fun State4(
 
             BtcSatsText(
                 trade.formattedBaseAmount,
-                label = presenter.getMyDirectionString(),
+                label = uiState.myDirectionLabel,
                 style = BtcSatsStyle.TextField,
             )
             BisqGap.VHalf()
 
             BisqTextFieldV0(
-                label = presenter.getMyOutcomeString(),
+                label = uiState.myOutcomeLabel,
                 value = trade.quoteAmountWithCode,
                 enabled = false,
             )
@@ -66,16 +79,18 @@ fun State4(
             BisqGap.V2()
             Row(
                 horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-//                BisqButton(
-//                    text = "bisqEasy.tradeState.info.phase4.exportTrade".i18n(), // Export trade data
-//                    type = BisqButtonType.Grey,
-//                    onClick = { presenter.onExportTradeDate() },
-//                )
+                BisqButton(
+                    text = "bisqEasy.tradeState.info.phase4.exportTrade".i18n(), // Export trade data
+                    type = BisqButtonType.Grey,
+                    onClick = { onAction(State4UiAction.OnExportTradeClick) },
+                )
+                BisqGap.H1()
                 BisqButton(
                     text = "bisqEasy.tradeState.info.phase4.leaveChannel".i18n(), // Close trade
-                    onClick = { presenter.onCloseTrade() },
+                    onClick = { onAction(State4UiAction.OnCloseTradeClick) },
                 )
             }
         }
