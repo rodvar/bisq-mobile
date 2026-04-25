@@ -23,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,7 +47,7 @@ private val FlatRadius = BisqUIConstants.BorderRadiusSmall
 private val SegmentHeight = 44.dp
 private val InnerPadding = BisqUIConstants.ScreenPadding2
 private val TextHorizontalPadding = BisqUIConstants.ScreenPaddingHalf
-private const val ANIMATION_DURATION_MS = 300
+private const val ANIMATION_DURATION_MS = 180
 
 @Composable
 fun <T> BisqSegmentButton(
@@ -64,23 +63,24 @@ fun <T> BisqSegmentButton(
     val density = LocalDensity.current
     val innerMinHeight = SegmentHeight - InnerPadding * 2
 
-    val optionWidths = remember(items) { mutableStateMapOf<Int, Int>() }
-    val optionOffsets = remember(items) { mutableStateMapOf<Int, Int>() }
+    val optionWidths = remember(items) { IntArray(items.size) }
+    val optionOffsets = remember(items) { IntArray(items.size) }
     var containerWidthPx by remember { mutableIntStateOf(0) }
     var rowHeightPx by remember { mutableIntStateOf(0) }
     val rowHeightDp = with(density) { rowHeightPx.toDp() }
 
-    val selectedWidthPx = optionWidths[selectedIndex] ?: 0
-    val selectedOffsetPx = optionOffsets[selectedIndex] ?: 0
+    var selectedWidthPx by remember(items) { mutableIntStateOf(0) }
+    var selectedOffsetPx by remember(items) { mutableIntStateOf(0) }
+
+    LaunchedEffect(selectedIndex, items) {
+        selectedWidthPx = optionWidths.getOrElse(selectedIndex) { 0 }
+        selectedOffsetPx = optionOffsets.getOrElse(selectedIndex) { 0 }
+    }
 
     val selectedWidthDp = with(density) { selectedWidthPx.toDp() }
     val selectedOffsetDp = with(density) { selectedOffsetPx.toDp() }
 
-    var measured by remember(items) { mutableStateOf(false) }
-    LaunchedEffect(items, selectedWidthPx) {
-        if (!measured && selectedWidthPx > 0) measured = true
-    }
-
+    val measured = selectedWidthPx > 0
     val spec =
         remember(measured) {
             if (measured) tween<Dp>(durationMillis = ANIMATION_DURATION_MS) else snap()
@@ -102,7 +102,9 @@ fun <T> BisqSegmentButton(
                     .clip(RoundedCornerShape(CornerRadius))
                     .background(BisqTheme.colors.secondaryDisabled)
                     .padding(InnerPadding)
-                    .onGloballyPositioned { containerWidthPx = it.size.width },
+                    .onGloballyPositioned {
+                        if (containerWidthPx != it.size.width) containerWidthPx = it.size.width
+                    },
         ) {
             val containerWidthDp = with(density) { containerWidthPx.toDp() }
             val innerContainerWidthDp = (containerWidthDp - InnerPadding * 2).coerceAtLeast(0.dp)
@@ -136,7 +138,9 @@ fun <T> BisqSegmentButton(
                     Modifier
                         .fillMaxWidth()
                         .selectableGroup()
-                        .onGloballyPositioned { rowHeightPx = it.size.height },
+                        .onGloballyPositioned {
+                            if (rowHeightPx != it.size.height) rowHeightPx = it.size.height
+                        },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 items.forEachIndexed { index, pair ->
@@ -180,8 +184,14 @@ fun <T> BisqSegmentButton(
                                 .weight(1f)
                                 .defaultMinSize(minHeight = innerMinHeight)
                                 .onGloballyPositioned { coordinates ->
-                                    optionWidths[index] = coordinates.size.width
-                                    optionOffsets[index] = coordinates.positionInParent().x.toInt()
+                                    val w = coordinates.size.width
+                                    val x = coordinates.positionInParent().x.toInt()
+                                    optionWidths[index] = w
+                                    optionOffsets[index] = x
+                                    if (index == selectedIndex) {
+                                        selectedWidthPx = w
+                                        selectedOffsetPx = x
+                                    }
                                 }.clip(segmentShape)
                                 .selectable(
                                     selected = isSelected,
@@ -240,7 +250,7 @@ private enum class DemoRole(
 @Preview(showBackground = true)
 @Preview(showBackground = true, fontScale = 3f)
 @Composable
-private fun V2_Interactive_Preview() {
+private fun Interactive_Preview() {
     BisqTheme.Preview {
         var sort by remember { mutableStateOf(DemoSort.NEWEST) }
         var outcome by remember { mutableStateOf(DemoOutcome.ALL) }
@@ -275,7 +285,7 @@ private fun V2_Interactive_Preview() {
 @ExcludeFromCoverage
 @Preview(showBackground = true)
 @Composable
-private fun V2_Disabled_Preview() {
+private fun Disabled_Preview() {
     BisqTheme.Preview {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -286,6 +296,56 @@ private fun V2_Disabled_Preview() {
                 value = DemoOutcome.DONE,
                 items = DemoOutcome.entries.map { it to it.label },
                 disabled = true,
+            )
+        }
+    }
+}
+
+@ExcludeFromCoverage
+@Preview(showBackground = true)
+@Composable
+private fun LongI18nLabels_Preview() {
+    BisqTheme.Preview {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            // Simulates German-length labels
+            BisqSegmentButton(
+                label = "Sortieren nach",
+                value = "newest",
+                items =
+                    listOf(
+                        "newest" to "Neueste zuerst",
+                        "oldest" to "Älteste zuerst",
+                        "amt_high" to "Betrag abst.",
+                        "amt_low" to "Betrag aufst.",
+                    ),
+            )
+            // Simulates Portuguese-length labels
+            BisqSegmentButton(
+                label = "Filtrar por resultado",
+                value = "all",
+                items =
+                    listOf(
+                        "all" to "Todos",
+                        "completed" to "Concluídos",
+                        "cancelled" to "Cancelados",
+                        "failed" to "Fracassados",
+                    ),
+            )
+            // Stress test: 5 options with long labels
+            BisqSegmentButton(
+                label = "Stress test (5 options)",
+                value = "opt1",
+                items =
+                    listOf(
+                        "opt1" to "Very long option one",
+                        "opt2" to "Another long opt",
+                        "opt3" to "Medium text",
+                        "opt4" to "Short",
+                        "opt5" to "Extra long label here",
+                    ),
             )
         }
     }
