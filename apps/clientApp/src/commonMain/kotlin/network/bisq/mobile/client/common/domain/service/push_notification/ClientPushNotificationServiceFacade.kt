@@ -6,12 +6,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
+import network.bisq.mobile.data.crypto.getOrCreatePushNotificationKeyBase64
 import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.push_notification.PushNotificationServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.getPlatformInfo
+import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.Logging
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 /**
  * Client implementation of PushNotificationServiceFacade.
@@ -142,6 +145,12 @@ class ClientPushNotificationServiceFacade(
         val deviceDescriptor = platformInfo.name
         val platform = PlatformMapper.fromPlatformType(platformInfo.type)
 
+        // Generate symmetric key for push notification encryption (iOS only).
+        // This enables the Notification Service Extension to decrypt notifications
+        // using AES-GCM via CryptoKit, since Apple does not support secp256k1 ECIES.
+        val symmetricKeyBase64 = getOrCreatePushNotificationKeyBase64()
+        validateIosSymmetricKey(platformInfo.type, symmetricKeyBase64)?.let { return it }
+
         log.i { "Registering device with deviceId: $deviceId, descriptor: $deviceDescriptor, platform: $platform" }
 
         val result =
@@ -151,6 +160,7 @@ class ClientPushNotificationServiceFacade(
                 publicKeyBase64 = publicKeyBase64,
                 deviceDescriptor = deviceDescriptor,
                 platform = platform,
+                symmetricKeyBase64 = symmetricKeyBase64,
             )
         if (result.isSuccess) {
             log.i { "Device registered successfully with trusted node" }
@@ -202,6 +212,22 @@ class ClientPushNotificationServiceFacade(
         log.e(error) { "Device token registration failed" }
         _deviceToken.value = null
     }
+}
+
+/**
+ * iOS-only validation: rejects registration when the symmetric key creation failed,
+ * since NSE decryption requires it. Returns a failure Result if validation fails, null otherwise.
+ * Excluded from coverage because Android unit tests always have PlatformType.ANDROID.
+ */
+@ExcludeFromCoverage
+private fun validateIosSymmetricKey(
+    platformType: PlatformType,
+    symmetricKeyBase64: String?,
+): Result<Unit>? {
+    if (platformType == PlatformType.IOS && symmetricKeyBase64 == null) {
+        return Result.failure(PushNotificationException("iOS symmetric key creation failed — NSE decryption will not work"))
+    }
+    return null
 }
 
 class PushNotificationException(
