@@ -97,3 +97,18 @@
 
 # Preserve Tor service classes moved to shared/domain
 -keep class network.bisq.mobile.domain.service.network.** { *; }
+
+## Tink (com.google.crypto.tink) — used transitively for EncryptedSharedPreferences /
+## push-notification-key encryption. Tink ships an unused KeysDownloader utility that
+## references google-http-client + joda-time; those are not on our classpath because
+## we never call KeysDownloader. R8 fails the build on the unresolved references unless
+## we explicitly tell it to ignore them.
+-dontwarn com.google.api.client.http.GenericUrl
+-dontwarn com.google.api.client.http.HttpHeaders
+-dontwarn com.google.api.client.http.HttpRequest
+-dontwarn com.google.api.client.http.HttpRequestFactory
+-dontwarn com.google.api.client.http.HttpResponse
+-dontwarn com.google.api.client.http.HttpTransport
+-dontwarn com.google.api.client.http.javanet.NetHttpTransport
+-dontwarn com.google.api.client.http.javanet.NetHttpTransport$Builder
+-dontwarn org.joda.time.Instant
