@@ -6,7 +6,7 @@ import network.bisq.mobile.i18n.i18n
 
 class NodeVersionProvider : VersionProvider {
     private fun getAppName(isDemo: Boolean): String {
-        val demo = if (isDemo) "-demo-" else ""
+        val demo = if (isDemo) "demo-" else ""
         return demo + BuildNodeConfig.APP_NAME
     }
 

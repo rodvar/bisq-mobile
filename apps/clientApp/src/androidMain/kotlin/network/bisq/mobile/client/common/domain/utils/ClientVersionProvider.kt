@@ -9,7 +9,7 @@ class ClientVersionProvider : VersionProvider {
         isDemo: Boolean,
         isIOS: Boolean,
     ): String {
-        val demo = if (isDemo) "-demo-" else ""
+        val demo = if (isDemo) "demo-" else ""
         return demo + if (isIOS) BuildConfig.IOS_APP_VERSION else BuildConfig.ANDROID_APP_VERSION
     }
 

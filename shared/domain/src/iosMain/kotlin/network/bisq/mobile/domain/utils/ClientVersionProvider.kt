@@ -3,12 +3,15 @@ package network.bisq.mobile.domain.utils
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.i18n.i18n
 
+// TODO: Delete this file — it duplicates apps/clientApp/.../ClientVersionProvider.kt
+//   byte-for-byte. ClientVersionProvider is Connect-app specific (counterpart to
+//   NodeVersionProvider in apps/nodeApp), so it shouldn't live in shared/domain at all.
 class ClientVersionProvider : VersionProvider {
     private fun getAppVersion(
         isDemo: Boolean,
         isIOS: Boolean,
     ): String {
-        val demo = if (isDemo) "-demo-" else ""
+        val demo = if (isDemo) "demo-" else ""
         return demo + if (isIOS) BuildConfig.IOS_APP_VERSION else BuildConfig.ANDROID_APP_VERSION
     }
 
