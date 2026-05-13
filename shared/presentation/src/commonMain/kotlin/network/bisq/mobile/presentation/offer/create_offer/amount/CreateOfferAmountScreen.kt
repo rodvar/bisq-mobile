@@ -22,17 +22,14 @@ import network.bisq.mobile.presentation.common.ui.components.layout.MultiScreenW
 import network.bisq.mobile.presentation.common.ui.components.molecules.ToggleTab
 import network.bisq.mobile.presentation.common.ui.components.molecules.amountSelector.BisqAmountSelector
 import network.bisq.mobile.presentation.common.ui.components.molecules.amountSelector.BisqRangeAmountSelector
-import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.common.ui.components.organisms.create_offer.ReputationBasedBuyerLimitsPopup
 import network.bisq.mobile.presentation.common.ui.components.organisms.create_offer.ReputationBasedSellerLimitsPopup
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
-import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.offer.create_offer.CreateOfferCoordinator
 import network.bisq.mobile.presentation.offer.create_offer.CreateOfferCoordinator.AmountType
 import org.koin.compose.koinInject
 
-@ExcludeFromCoverage
 @Composable
 fun CreateOfferAmountScreen() {
     val presenter: CreateOfferAmountPresenter = koinInject()
@@ -100,13 +97,9 @@ fun CreateOfferAmountScreen() {
         onNext = presenter::onNext,
         onClose = presenter::onClose,
         setShowLimitPopup = presenter::setShowLimitPopup,
-        onReputationLinkClick = presenter::navigateToReputation,
-        onBuildReputationLinkClick = presenter::navigateToBuildReputation,
-        onError = { _ -> presenter.showSnackbar("mobile.error.cannotOpenUrl".i18n(), SnackbarType.ERROR) },
     )
 }
 
-@ExcludeFromCoverage
 @Composable
 fun CreateOfferAmountContent(
     isBuy: Boolean,
@@ -148,9 +141,6 @@ fun CreateOfferAmountContent(
     onNext: () -> Unit,
     onClose: () -> Unit,
     setShowLimitPopup: (Boolean) -> Unit,
-    onReputationLinkClick: () -> Unit,
-    onBuildReputationLinkClick: () -> Unit,
-    onError: ((Throwable) -> Unit)? = null,
 ) {
     val amountTypes = remember { AmountType.entries.toList() }
 
@@ -248,7 +238,6 @@ fun CreateOfferAmountContent(
         if (isBuy) {
             ReputationBasedBuyerLimitsPopup(
                 onDismiss = { setShowLimitPopup(false) },
-                onRepLinkClick = onReputationLinkClick,
                 amountLimitInfoOverlayInfo = amountLimitInfoOverlayInfo,
             )
         } else {
@@ -256,9 +245,6 @@ fun CreateOfferAmountContent(
                 onDismiss = { setShowLimitPopup(false) },
                 reputationScore = reputation.toString(),
                 maxSellAmount = reputationBasedMaxSellAmount,
-                onRepLinkClick = onReputationLinkClick,
-                onBuildRepLinkClick = onBuildReputationLinkClick,
-                onError = onError,
             )
         }
     }
@@ -308,8 +294,6 @@ private fun CreateOfferAmountScreen_FixedAmount_Buyer_Preview() {
             onNext = {},
             onClose = {},
             setShowLimitPopup = {},
-            onReputationLinkClick = {},
-            onBuildReputationLinkClick = {},
         )
     }
 }
@@ -358,8 +342,6 @@ private fun CreateOfferAmountScreen_RangeAmount_Seller_Preview() {
             onNext = {},
             onClose = {},
             setShowLimitPopup = {},
-            onReputationLinkClick = {},
-            onBuildReputationLinkClick = {},
         )
     }
 }
@@ -408,8 +390,6 @@ private fun CreateOfferAmountScreen_WithWarningIcon_Preview() {
             onNext = {},
             onClose = {},
             setShowLimitPopup = {},
-            onReputationLinkClick = {},
-            onBuildReputationLinkClick = {},
         )
     }
 }
@@ -458,8 +438,6 @@ private fun CreateOfferAmountScreen_WithLimitPopup_Buyer_Preview() {
             onNext = {},
             onClose = {},
             setShowLimitPopup = {},
-            onReputationLinkClick = {},
-            onBuildReputationLinkClick = {},
         )
     }
 }
@@ -508,8 +486,6 @@ private fun CreateOfferAmountScreen_WithLimitPopup_Seller_Preview() {
             onNext = {},
             onClose = {},
             setShowLimitPopup = {},
-            onReputationLinkClick = {},
-            onBuildReputationLinkClick = {},
         )
     }
 }
@@ -558,8 +534,6 @@ private fun CreateOfferAmountScreen_InvalidAmount_Preview() {
             onNext = {},
             onClose = {},
             setShowLimitPopup = {},
-            onReputationLinkClick = {},
-            onBuildReputationLinkClick = {},
         )
     }
 }

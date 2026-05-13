@@ -1,20 +1,21 @@
 package network.bisq.mobile.presentation.common.ui.components.atoms
 
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
-import io.mockk.verify
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.presentation.common.di.presentationTestModule
+import network.bisq.mobile.presentation.common.ui.components.context.ExternalUrlOpener
+import network.bisq.mobile.presentation.common.ui.components.context.LocalExternalUrlOpener
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkConfirmationDialogPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkDialogSettingsServiceFake
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -56,7 +57,7 @@ class NoteTextLinkInteractionUiTest {
     fun `when uri link clicked without confirmation then opens uri`() {
         val settings = WebLinkDialogSettingsServiceFake(initialShowWebLinkConfirmation = true)
         val mainPresenter = mockk<MainPresenter>(relaxed = true)
-        every { mainPresenter.navigateToUrl(any()) } returns true
+        coEvery { mainPresenter.navigateToUrlWithLauncher(any()) } returns true
         startKoin {
             modules(
                 webLinkTestModules(settings, mainPresenter),
@@ -67,9 +68,9 @@ class NoteTextLinkInteractionUiTest {
             )
         }
 
-        val handler = CapturingUriHandler()
+        val opener = CapturingExternalUrlOpener()
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalUriHandler provides handler) {
+            CompositionLocalProvider(LocalExternalUrlOpener provides opener) {
                 BisqTheme {
                     NoteText(
                         notes = "Read docs",
@@ -84,14 +85,14 @@ class NoteTextLinkInteractionUiTest {
         composeTestRule.onNodeWithText("Open link", substring = true).performClick()
         composeTestRule.waitForIdle()
 
-        assertEquals(listOf("https://example.com/note-direct"), handler.openedUris)
+        assertEquals(listOf("https://example.com/note-direct"), opener.openedUrls)
     }
 
     @Test
     fun `when uri link clicked with confirmation then presenter navigates to url`() {
         val settings = WebLinkDialogSettingsServiceFake(initialShowWebLinkConfirmation = true)
         val mainPresenter = mockk<MainPresenter>(relaxed = true)
-        every { mainPresenter.navigateToUrl(any()) } returns true
+        coEvery { mainPresenter.navigateToUrlWithLauncher(any()) } returns true
 
         val presenterSpy =
             spyk(WebLinkConfirmationDialogPresenter(settings, mainPresenter))
@@ -107,7 +108,7 @@ class NoteTextLinkInteractionUiTest {
         }
 
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalUriHandler provides NoopUriHandler()) {
+            CompositionLocalProvider(LocalExternalUrlOpener provides ExternalUrlOpener { true }) {
                 BisqTheme {
                     NoteText(
                         notes = "Read docs",
@@ -124,20 +125,17 @@ class NoteTextLinkInteractionUiTest {
         composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
         composeTestRule.waitForIdle()
 
-        verify(exactly = 1) {
-            presenterSpy.navigateToUrl("https://example.com/note-confirm")
+        coVerify(exactly = 1) {
+            presenterSpy.navigateToUrlAwait("https://example.com/note-confirm")
         }
     }
 
-    private class CapturingUriHandler : UriHandler {
-        val openedUris = mutableListOf<String>()
+    private class CapturingExternalUrlOpener : ExternalUrlOpener {
+        val openedUrls = mutableListOf<String>()
 
-        override fun openUri(uri: String) {
-            openedUris += uri
+        override suspend fun openUrl(url: String): Boolean {
+            openedUrls += url
+            return true
         }
-    }
-
-    private class NoopUriHandler : UriHandler {
-        override fun openUri(uri: String) {}
     }
 }

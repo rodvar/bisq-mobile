@@ -31,10 +31,13 @@ import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.UrlLauncher
 import network.bisq.mobile.data.utils.getDeviceLanguageCode
 import network.bisq.mobile.domain.repository.TradeReadStateRepository
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
+import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.common.ui.error.GenericErrorHandler
 import network.bisq.mobile.presentation.common.ui.platform.getScreenWidthDp
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Main Presenter as an example of implementation for now.
@@ -188,7 +191,29 @@ open class MainPresenter(
         _isMainContentVisible.value = value
     }
 
-    final override fun navigateToUrl(url: String): Boolean = urlLauncher.openUrl(url)
+    /**
+     * Opens [url] in the system browser (suspend — awaits platform result). On failure or
+     * unexpected launcher errors, shows [mobile.error.cannotOpenUrl] once — callers should not
+     * duplicate that snackbar.
+     */
+    suspend fun navigateToUrlWithLauncher(url: String): Boolean =
+        try {
+            val opened = urlLauncher.openUrl(url)
+            if (!opened) {
+                showCannotOpenUrlSnackbar()
+            }
+            opened
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.e(e) { "Failed to navigate to URL: $url" }
+            showCannotOpenUrlSnackbar()
+            false
+        }
+
+    private fun showCannotOpenUrlSnackbar() {
+        showSnackbar("mobile.error.cannotOpenUrl".i18n(), SnackbarType.ERROR)
+    }
 
     override fun onCloseConnectionLostDialogue() {
         _showAllConnectionsLostDialogue.value = false

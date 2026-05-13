@@ -90,14 +90,15 @@ class WebLinkConfirmationDialogPresenter(
                         dontShowAgain = _uiState.value.dontShowAgain,
                     )
                 }
-                // navigateToUrl returns false when already non-interactive (anti double-tap)
+                // navigateToUrlAwait returns false when already non-interactive (anti double-tap)
                 // before attempting to open; snapshot before call to tell that apart from a real failure.
                 val interactiveBeforeOpen = isInteractive.value
-                if (!navigateToUrl(uri)) {
+                if (!navigateToUrlAwait(uri)) {
                     if (!interactiveBeforeOpen) {
                         return@launch
                     }
-                    throw IllegalStateException("Failed to open URI")
+                    userOnError.invoke()
+                    return@launch
                 }
                 userOnConfirm.invoke()
             } catch (cancellationException: CancellationException) {

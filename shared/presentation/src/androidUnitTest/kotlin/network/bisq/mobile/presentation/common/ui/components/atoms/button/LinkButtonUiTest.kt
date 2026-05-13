@@ -1,8 +1,6 @@
 package network.bisq.mobile.presentation.common.ui.components.atoms.button
 
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -10,6 +8,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -17,6 +17,8 @@ import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.di.presentationTestModule
+import network.bisq.mobile.presentation.common.ui.components.context.ExternalUrlOpener
+import network.bisq.mobile.presentation.common.ui.components.context.LocalExternalUrlOpener
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkConfirmationDialogPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkDialogSettingsServiceFake
 import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
@@ -53,7 +55,12 @@ class LinkButtonUiTest {
     ) {
         runCatching { stopKoin() }
         mainPresenter = mockk(relaxed = true)
-        every { mainPresenter.navigateToUrl(any()) } returns openUrlResult
+        coEvery { mainPresenter.navigateToUrlWithLauncher(any()) } answers {
+            if (!openUrlResult) {
+                mainPresenter.showSnackbar("mobile.error.cannotOpenUrl".i18n(), SnackbarType.ERROR)
+            }
+            openUrlResult
+        }
         val settingsFacade =
             WebLinkDialogSettingsServiceFake(initialShowWebLinkConfirmation = showWebLinkConfirmation)
         startKoin {
@@ -74,22 +81,20 @@ class LinkButtonUiTest {
     }
 
     private fun setLinkButton(
-        uriHandler: UriHandler,
+        externalUrlOpener: ExternalUrlOpener,
         text: String = "Open docs",
         link: String = "https://example.com",
         onClick: (() -> Unit)? = null,
-        onError: ((Throwable) -> Unit)? = null,
         openConfirmation: Boolean = true,
         forceConfirm: Boolean = false,
     ) {
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+            CompositionLocalProvider(LocalExternalUrlOpener provides externalUrlOpener) {
                 BisqTheme {
                     LinkButton(
                         text = text,
                         link = link,
                         onClick = onClick,
-                        onError = onError,
                         openConfirmation = openConfirmation,
                         forceConfirm = forceConfirm,
                     )
@@ -100,7 +105,7 @@ class LinkButtonUiTest {
 
     @Test
     fun `when clicked with openConfirmation true then shows confirmation dialog`() {
-        setLinkButton(uriHandler = NoopUriHandler())
+        setLinkButton(externalUrlOpener = noopExternalOpener())
 
         composeTestRule.onNodeWithText("Open docs").performClick()
         composeTestRule.waitForIdle()
@@ -112,7 +117,7 @@ class LinkButtonUiTest {
     @Test
     fun `when forceConfirm true and showWebLinkConfirmation false then shows confirmation dialog`() {
         initKoin(false)
-        setLinkButton(uriHandler = NoopUriHandler(), forceConfirm = true)
+        setLinkButton(externalUrlOpener = noopExternalOpener(), forceConfirm = true)
 
         composeTestRule.onNodeWithText("Open docs").performClick()
         composeTestRule.waitForIdle()
@@ -123,10 +128,10 @@ class LinkButtonUiTest {
 
     @Test
     fun `when clicked with openConfirmation false then invokes onClick without dialog`() {
-        val capturingUriHandler = CapturingUriHandler()
+        val capturing = CapturingExternalUrlOpener()
         val onClick = mockk<() -> Unit>(relaxed = true)
         setLinkButton(
-            uriHandler = capturingUriHandler,
+            externalUrlOpener = capturing,
             onClick = onClick,
             openConfirmation = false,
         )
@@ -136,36 +141,15 @@ class LinkButtonUiTest {
 
         verify(exactly = 1) { onClick() }
         assertNoNodeWithText(dialogTitle)
-        assertEquals(listOf("https://example.com"), capturingUriHandler.openedUris)
+        assertEquals(listOf("https://example.com"), capturing.openedUrls)
     }
 
     @Test
-    fun `when openConfirmation false and uri open fails then invokes onError with throwable and does not invoke onClick`() {
-        val receivedErrors = mutableListOf<Throwable>()
+    fun `when openConfirmation false and openUrl returns false then does not invoke onClick`() {
         val onClick = mockk<() -> Unit>(relaxed = true)
         setLinkButton(
-            uriHandler = ThrowingUriHandler(),
-            link = "https://example.com/bypass-fail",
-            onClick = onClick,
-            onError = { receivedErrors += it },
-            openConfirmation = false,
-        )
-
-        composeTestRule.onNodeWithText("Open docs").performClick()
-        composeTestRule.waitForIdle()
-
-        assertEquals(1, receivedErrors.size)
-        assertEquals("forced openUri failure", receivedErrors.first().message)
-        verify(exactly = 0) { onClick() }
-        assertNoNodeWithText(dialogTitle)
-    }
-
-    @Test
-    fun `when openConfirmation false and uri open fails without onError then does not invoke onClick`() {
-        val onClick = mockk<() -> Unit>(relaxed = true)
-        setLinkButton(
-            uriHandler = ThrowingUriHandler(),
-            link = "https://example.com/bypass-fail",
+            externalUrlOpener = ExternalUrlOpener { false },
+            link = "https://example.com/rejected",
             onClick = onClick,
             openConfirmation = false,
         )
@@ -174,14 +158,14 @@ class LinkButtonUiTest {
         composeTestRule.waitForIdle()
 
         verify(exactly = 0) { onClick() }
-        assertNoNodeWithText(dialogTitle)
     }
 
     @Test
     fun `when openConfirmation false and link is blank then invokes onClick without opening uri`() {
         val onClick = mockk<() -> Unit>(relaxed = true)
+        val capturing = CapturingExternalUrlOpener()
         setLinkButton(
-            uriHandler = ThrowingUriHandler(),
+            externalUrlOpener = capturing,
             link = "   ",
             onClick = onClick,
             openConfirmation = false,
@@ -192,13 +176,14 @@ class LinkButtonUiTest {
 
         verify(exactly = 1) { onClick() }
         assertNoNodeWithText(dialogTitle)
+        assertTrue(capturing.openedUrls.isEmpty())
     }
 
     @Test
     fun `when dialog confirm clicked then opens uri and invokes onClick`() {
         val onClick = mockk<() -> Unit>(relaxed = true)
         setLinkButton(
-            uriHandler = NoopUriHandler(),
+            externalUrlOpener = noopExternalOpener(),
             link = "https://example.com/confirm",
             onClick = onClick,
         )
@@ -209,7 +194,7 @@ class LinkButtonUiTest {
         composeTestRule.waitForIdle()
 
         verify(exactly = 1) { onClick() }
-        verify(exactly = 1) { mainPresenter.navigateToUrl("https://example.com/confirm") }
+        coVerify(exactly = 1) { mainPresenter.navigateToUrlWithLauncher("https://example.com/confirm") }
         assertNoNodeWithText(dialogTitle)
     }
 
@@ -217,7 +202,7 @@ class LinkButtonUiTest {
     fun `when dialog dismiss clicked then closes dialog without invoking onClick`() {
         val onClick = mockk<() -> Unit>(relaxed = true)
         setLinkButton(
-            uriHandler = NoopUriHandler(),
+            externalUrlOpener = noopExternalOpener(),
             onClick = onClick,
         )
 
@@ -234,7 +219,7 @@ class LinkButtonUiTest {
     fun `when dialog close button clicked then closes dialog without invoking onClick`() {
         val onClick = mockk<() -> Unit>(relaxed = true)
         setLinkButton(
-            uriHandler = NoopUriHandler(),
+            externalUrlOpener = noopExternalOpener(),
             onClick = onClick,
         )
 
@@ -248,15 +233,13 @@ class LinkButtonUiTest {
     }
 
     @Test
-    fun `when uri open fails then shows snackbar via main presenter and closes dialog without invoking onClick or composable onError`() {
+    fun `when uri open fails then shows snackbar via main presenter and closes dialog without invoking onClick`() {
         initKoin(showWebLinkConfirmation = true, openUrlResult = false)
         val onClick = mockk<() -> Unit>(relaxed = true)
-        val onError = mockk<(Throwable) -> Unit>(relaxed = true)
         setLinkButton(
-            uriHandler = NoopUriHandler(),
+            externalUrlOpener = noopExternalOpener(),
             link = "https://example.com/fail",
             onClick = onClick,
-            onError = onError,
         )
 
         composeTestRule.onNodeWithText("Open docs").performClick()
@@ -264,7 +247,6 @@ class LinkButtonUiTest {
         composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
         composeTestRule.waitForIdle()
 
-        verify(exactly = 0) { onError(any()) }
         verify(exactly = 1) { mainPresenter.showSnackbar("mobile.error.cannotOpenUrl".i18n(), SnackbarType.ERROR) }
         verify(exactly = 0) { onClick() }
         assertNoNodeWithText(dialogTitle)
@@ -278,19 +260,14 @@ class LinkButtonUiTest {
         assertTrue(nodes.isEmpty(), "Expected no composable with text \"$text\"")
     }
 
-    private class NoopUriHandler : UriHandler {
-        override fun openUri(uri: String) {}
-    }
+    private fun noopExternalOpener(): ExternalUrlOpener = ExternalUrlOpener { true }
 
-    private class CapturingUriHandler : UriHandler {
-        val openedUris = mutableListOf<String>()
+    private class CapturingExternalUrlOpener : ExternalUrlOpener {
+        val openedUrls = mutableListOf<String>()
 
-        override fun openUri(uri: String) {
-            openedUris += uri
+        override suspend fun openUrl(url: String): Boolean {
+            openedUrls += url
+            return true
         }
-    }
-
-    private class ThrowingUriHandler : UriHandler {
-        override fun openUri(uri: String): Unit = throw RuntimeException("forced openUri failure")
     }
 }

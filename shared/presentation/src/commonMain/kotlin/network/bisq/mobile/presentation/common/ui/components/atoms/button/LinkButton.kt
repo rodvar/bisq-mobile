@@ -5,20 +5,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
+import kotlinx.coroutines.launch
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
+import network.bisq.mobile.presentation.common.ui.components.context.LocalExternalUrlOpener
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkConfirmationDialog
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
-import network.bisq.mobile.presentation.common.ui.utils.openUriSafely
 
-// TODO: Centralize URL-open logic via UrlLauncher and eliminate LocalUriHandler,
-// So the behavior can be customized per OS and exceptions handled in a single place.
 @Composable
 fun LinkButton(
     text: String,
@@ -28,7 +26,6 @@ fun LinkButton(
     color: Color = BisqTheme.colors.primary,
     padding: PaddingValues = PaddingValues(all = BisqUIConstants.ScreenPaddingHalf),
     onClick: (() -> Unit)? = null,
-    onError: ((Throwable) -> Unit)? = null,
     fullWidth: Boolean = false,
     openConfirmation: Boolean = true,
     forceConfirm: Boolean = false,
@@ -36,7 +33,8 @@ fun LinkButton(
     rightIcon: (@Composable () -> Unit)? = null,
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
+    val externalUrlOpener = LocalExternalUrlOpener.current
+    val scope = rememberCoroutineScope()
 
     BisqButton(
         text = text,
@@ -52,8 +50,10 @@ fun LinkButton(
                     onClick?.invoke()
                     return@BisqButton
                 }
-                if (tryOpenLinkWithoutConfirmation(uriHandler, link, onError)) {
-                    onClick?.invoke()
+                scope.launch {
+                    if (externalUrlOpener.openUrl(link)) {
+                        onClick?.invoke()
+                    }
                 }
             }
         },
@@ -79,9 +79,3 @@ fun LinkButton(
         )
     }
 }
-
-internal fun tryOpenLinkWithoutConfirmation(
-    uriHandler: UriHandler,
-    link: String,
-    onError: ((Throwable) -> Unit)?,
-): Boolean = uriHandler.openUriSafely(uri = link) { throwable -> onError?.invoke(throwable) }

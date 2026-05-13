@@ -10,12 +10,15 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.refTo
 import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.serialization.Serializable
 import network.bisq.mobile.domain.model.PlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
+import network.bisq.mobile.domain.utils.getLogger
 import network.bisq.mobile.i18n.i18n
 import org.koin.core.scope.Scope
 import platform.CoreGraphics.CGRectMake
@@ -333,15 +336,47 @@ actual fun setupUncaughtExceptionHandler(onCrash: (Throwable) -> Unit) {
 }
 
 class IOSUrlLauncher : UrlLauncher {
-    override fun openUrl(url: String): Boolean {
+    private val log = getLogger("IOSUrlLauncher")
+
+    override suspend fun openUrl(url: String): Boolean {
+        val safeUrl = sanitizeUrlForLog(url)
         val nsUrl = NSURL.URLWithString(url)
-        if (nsUrl != null && UIApplication.sharedApplication.canOpenURL(nsUrl)) {
-            // fake secondary parameters are important so that iOS compiler knows which override to use
-            UIApplication.sharedApplication.openURL(nsUrl, options = mapOf<Any?, String>(), completionHandler = null)
-            return true
+        if (nsUrl == null) {
+            log.w { "Failed to open URL (invalid URL string): $safeUrl" }
+            return false
         }
-        return false
+        if (!UIApplication.sharedApplication.canOpenURL(nsUrl)) {
+            log.w { "Failed to open URL (restricted or no registered handler): $safeUrl" }
+            return false
+        }
+
+        return try {
+            suspendCancellableCoroutine { cont ->
+                dispatch_async(dispatch_get_main_queue()) {
+                    if (!cont.isActive) {
+                        return@dispatch_async
+                    }
+                    // Secondary parameters select openURL:options:completionHandler: (vs deprecated openURL:).
+                    UIApplication.sharedApplication.openURL(
+                        nsUrl,
+                        options = emptyMap<Any?, Any?>(),
+                        completionHandler = completionHandler@{ success ->
+                            if (cont.isActive) {
+                                cont.resumeWith(Result.success(success))
+                            }
+                        },
+                    )
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.e(e) { "Failed to open URL: $safeUrl" }
+            false
+        }
     }
+
+    private fun sanitizeUrlForLog(rawUrl: String): String = rawUrl.take(256).ifEmpty { "invalid-url" }
 }
 
 class IOSPlatformInfo : PlatformInfo {

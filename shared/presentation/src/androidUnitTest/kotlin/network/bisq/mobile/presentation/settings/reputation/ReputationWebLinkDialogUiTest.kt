@@ -4,8 +4,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,13 +11,16 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.di.presentationTestModule
+import network.bisq.mobile.presentation.common.ui.components.context.ExternalUrlOpener
+import network.bisq.mobile.presentation.common.ui.components.context.LocalExternalUrlOpener
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkConfirmationDialog
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkConfirmationDialogPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkDialogSettingsServiceFake
@@ -47,13 +48,11 @@ class ReputationWebLinkDialogUiTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private lateinit var uriHandler: NoopUriHandler
     private lateinit var mainPresenter: MainPresenter
 
     @Before
     fun setup() {
         I18nSupport.setLanguage()
-        uriHandler = NoopUriHandler()
         initKoin(openUrlResult = true)
     }
 
@@ -74,7 +73,7 @@ class ReputationWebLinkDialogUiTest {
         composeTestRule.onNodeWithContentDescription("dialog_confirm_no").performClick()
         composeTestRule.waitForIdle()
         assertNoDialog()
-        verify(exactly = 0) { mainPresenter.navigateToUrl(any()) }
+        coVerify(exactly = 0) { mainPresenter.navigateToUrlWithLauncher(any()) }
     }
 
     @Test
@@ -89,7 +88,7 @@ class ReputationWebLinkDialogUiTest {
         composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
         composeTestRule.waitForIdle()
         assertNoDialog()
-        verify(exactly = 1) { mainPresenter.navigateToUrl("https://example.com/confirm") }
+        coVerify(exactly = 1) { mainPresenter.navigateToUrlWithLauncher("https://example.com/confirm") }
     }
 
     @Test
@@ -119,7 +118,7 @@ class ReputationWebLinkDialogUiTest {
         assertNoDialog()
         assertTrue(errorFlag)
         assertFalse(clearedFlag)
-        verify(exactly = 1) { mainPresenter.navigateToUrl("https://example.com/error") }
+        coVerify(exactly = 1) { mainPresenter.navigateToUrlWithLauncher("https://example.com/error") }
     }
 
     private val dialogTitle get() = "hyperlinks.openInBrowser.attention.headline".i18n()
@@ -130,7 +129,7 @@ class ReputationWebLinkDialogUiTest {
         onError: () -> Unit = onClear,
     ) {
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+            CompositionLocalProvider(LocalExternalUrlOpener provides ExternalUrlOpener { true }) {
                 BisqTheme {
                     selectedWebLink()?.let { webLink ->
                         WebLinkConfirmationDialog(
@@ -148,7 +147,7 @@ class ReputationWebLinkDialogUiTest {
     private fun initKoin(openUrlResult: Boolean) {
         runCatching { stopKoin() }
         mainPresenter = mockk(relaxed = true)
-        every { mainPresenter.navigateToUrl(any()) } returns openUrlResult
+        coEvery { mainPresenter.navigateToUrlWithLauncher(any()) } returns openUrlResult
         startKoin {
             modules(
                 module {
@@ -167,9 +166,5 @@ class ReputationWebLinkDialogUiTest {
                 .onAllNodesWithText(dialogTitle)
                 .fetchSemanticsNodes(atLeastOneRootRequired = false)
         assertTrue(nodes.isEmpty(), "Expected dialog to be dismissed")
-    }
-
-    private class NoopUriHandler : UriHandler {
-        override fun openUri(uri: String) = Unit
     }
 }

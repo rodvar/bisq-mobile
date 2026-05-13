@@ -4,12 +4,12 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -21,6 +21,7 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.di.presentationTestModule
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.base.SnackbarPosition
+import network.bisq.mobile.presentation.common.ui.components.context.ExternalUrlOpener
 import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.main.MainPresenter
 import org.junit.After
@@ -57,11 +58,11 @@ class WebLinkDialogUiKoinTest {
     }
 
     private fun setTestContent(
-        uriHandler: UriHandler,
+        externalUrlOpener: ExternalUrlOpener,
         content: @Composable () -> Unit,
     ) {
         composeTestRule.setContent {
-            KoinTestHost(uriHandler, content)
+            KoinTestHost(externalUrlOpener, content)
         }
     }
 
@@ -81,7 +82,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = onConfirm,
@@ -94,7 +95,7 @@ class WebLinkDialogUiKoinTest {
 
         // Then
         composeTestRule.waitForIdle()
-        verify(exactly = 1) { presenter.navigateToUrl(link) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
         verify(exactly = 1) { onConfirm() }
         composeTestRule.assertNoNodeWithText("Should not appear")
     }
@@ -113,7 +114,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = onConfirm,
@@ -127,7 +128,7 @@ class WebLinkDialogUiKoinTest {
 
         // Then
         composeTestRule.waitForIdle()
-        verify(exactly = 1) { presenter.navigateToUrl(link) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
         verify(exactly = 1) { onError() }
         verify(exactly = 0) { onConfirm() }
         verify(exactly = 1) {
@@ -157,7 +158,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = {},
@@ -193,7 +194,7 @@ class WebLinkDialogUiKoinTest {
         val (facade, _) = startKoinWithWebLinkDeps()
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = {},
@@ -226,7 +227,7 @@ class WebLinkDialogUiKoinTest {
         val (facade, _) = startKoinWithWebLinkDeps()
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = {},
@@ -262,7 +263,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = {},
@@ -305,7 +306,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = {},
@@ -356,7 +357,7 @@ class WebLinkDialogUiKoinTest {
         } throws RuntimeException("forced copy snackbar failure")
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = {},
@@ -397,7 +398,7 @@ class WebLinkDialogUiKoinTest {
         val (facade, presenter) = startKoinWithWebLinkDeps()
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = onConfirm,
@@ -418,7 +419,7 @@ class WebLinkDialogUiKoinTest {
         // Then
         coVerify(exactly = 1) { facade.setPermitOpeningBrowser(true) }
         coVerify(exactly = 0) { facade.setWebLinkDontShowAgain() }
-        verify(exactly = 1) { presenter.navigateToUrl(link) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
         verify(exactly = 1) { onConfirm() }
     }
 
@@ -430,7 +431,7 @@ class WebLinkDialogUiKoinTest {
         val (facade, presenter) = startKoinWithWebLinkDeps()
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = onConfirm,
@@ -452,7 +453,7 @@ class WebLinkDialogUiKoinTest {
         // Then
         coVerify(exactly = 1) { facade.setPermitOpeningBrowser(true) }
         coVerify(exactly = 1) { facade.setWebLinkDontShowAgain() }
-        verify(exactly = 1) { presenter.navigateToUrl(link) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
         verify(exactly = 1) { onConfirm() }
     }
 
@@ -467,7 +468,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = onConfirm,
@@ -495,7 +496,7 @@ class WebLinkDialogUiKoinTest {
                 SnackbarDuration.Short,
             )
         }
-        verify(exactly = 1) { presenter.navigateToUrl(link) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
         verify(exactly = 1) { onConfirm() }
     }
 
@@ -510,7 +511,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = onConfirm,
@@ -540,7 +541,7 @@ class WebLinkDialogUiKoinTest {
                 SnackbarDuration.Short,
             )
         }
-        verify(exactly = 1) { presenter.navigateToUrl(link) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
         verify(exactly = 1) { onConfirm() }
     }
 
@@ -556,7 +557,7 @@ class WebLinkDialogUiKoinTest {
             )
 
         // When
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = onConfirm,
@@ -577,7 +578,7 @@ class WebLinkDialogUiKoinTest {
 
         // Then
         coVerify(exactly = 1) { facade.setPermitOpeningBrowser(true) }
-        verify(exactly = 1) { presenter.navigateToUrl(link) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
         verify(exactly = 1) { onError() }
         verify(exactly = 0) { onConfirm() }
         verify(exactly = 1) {
@@ -613,7 +614,7 @@ class WebLinkDialogUiKoinTest {
         // One setContent per test (Compose rule); drive second navigation by changing link state.
         val linkState = mutableStateOf(link1)
         composeTestRule.setContent {
-            KoinTestHost(WebLinkDialogTestFixtures.noopUriHandler) {
+            KoinTestHost(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
                 key(linkState.value) {
                     WebLinkConfirmationDialog(
                         link = linkState.value,
@@ -638,7 +639,7 @@ class WebLinkDialogUiKoinTest {
         // Then — persisted state matches production semantics
         assertEquals(false, fake.showWebLinkConfirmation.value)
         assertEquals(true, fake.permitOpeningBrowser.value)
-        verify(exactly = 1) { presenter.navigateToUrl(link1) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link1) }
         verify(exactly = 1) { onConfirm() }
 
         // When — second link: suppressed confirmation, auto-open
@@ -646,7 +647,7 @@ class WebLinkDialogUiKoinTest {
         composeTestRule.waitForIdle()
 
         // Then
-        verify(exactly = 1) { presenter.navigateToUrl(link2) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link2) }
         verify(exactly = 2) { onConfirm() }
         composeTestRule.assertNoNodeWithText(headline)
     }
@@ -673,7 +674,7 @@ class WebLinkDialogUiKoinTest {
 
         val linkState = mutableStateOf(link1)
         composeTestRule.setContent {
-            KoinTestHost(WebLinkDialogTestFixtures.noopUriHandler) {
+            KoinTestHost(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
                 key(linkState.value) {
                     WebLinkConfirmationDialog(
                         link = linkState.value,
@@ -732,7 +733,7 @@ class WebLinkDialogUiKoinTest {
         runCatching { stopKoin() }
         val fake = WebLinkDialogSettingsServiceFake()
         val mainPresenter = mockk<MainPresenter>(relaxed = true)
-        every { mainPresenter.navigateToUrl(any()) } returns false
+        coEvery { mainPresenter.navigateToUrlWithLauncher(any()) } returns false
         startKoin {
             modules(
                 module {
@@ -746,7 +747,7 @@ class WebLinkDialogUiKoinTest {
         val dialogPresenter =
             GlobalContext.get().get<WebLinkConfirmationDialogPresenter>()
         val link = "https://example.com/noninteractive-guard"
-        setTestContent(WebLinkDialogTestFixtures.noopUriHandler) {
+        setTestContent(WebLinkDialogTestFixtures.noopExternalUrlOpener) {
             WebLinkConfirmationDialog(
                 link = link,
                 onConfirm = {},
@@ -760,7 +761,7 @@ class WebLinkDialogUiKoinTest {
         composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
         composeTestRule.waitForIdle()
 
-        verify(exactly = 0) { mainPresenter.navigateToUrl(any()) }
+        coVerify(exactly = 0) { mainPresenter.navigateToUrlWithLauncher(any()) }
     }
 }
 

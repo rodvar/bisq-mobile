@@ -10,11 +10,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -24,23 +23,21 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
+import network.bisq.mobile.presentation.common.ui.components.context.LocalExternalUrlOpener
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
-import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
-import network.bisq.mobile.presentation.common.ui.utils.openUriSafely
 
 private val HyperlinkTokenRegex = Regex("\\[HYPERLINK:\\s*([^]]+)]")
 
-@ExcludeFromCoverage
 @Composable
 fun PaymentMethodBackgroundInformationDialog(
     bodyText: String,
     onDismissRequest: () -> Unit,
-    onError: (() -> Unit)? = null,
 ) {
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -61,7 +58,7 @@ fun PaymentMethodBackgroundInformationDialog(
                         .weight(1f, false)
                         .verticalScroll(rememberScrollState()),
             ) {
-                LinkifiedBodyText(bodyText = bodyText, onError = onError)
+                LinkifiedBodyText(bodyText = bodyText)
             }
             BisqGap.V1()
             BisqButton(
@@ -74,13 +71,12 @@ fun PaymentMethodBackgroundInformationDialog(
     }
 }
 
-@ExcludeFromCoverage
 @Composable
 private fun LinkifiedBodyText(
     bodyText: String,
-    onError: (() -> Unit)?,
 ) {
-    val uriHandler = LocalUriHandler.current
+    val externalUrlOpener = LocalExternalUrlOpener.current
+    val scope = rememberCoroutineScope()
     val text =
         buildAnnotatedString {
             var lastIndex = 0
@@ -111,7 +107,7 @@ private fun LinkifiedBodyText(
                                         ),
                                 ),
                             linkInteractionListener = {
-                                paymentMethodBackgroundHyperlinkInteraction(uriHandler, url, onError)
+                                scope.launch { externalUrlOpener.openUrl(url) }
                             },
                         ),
                     ) {
@@ -136,24 +132,6 @@ private fun LinkifiedBodyText(
                 color = BisqTheme.colors.white,
             ),
     )
-}
-
-internal fun paymentMethodBackgroundHyperlinkInteraction(
-    uriHandler: UriHandler,
-    url: String,
-    onError: (() -> Unit)? = null,
-): Boolean = openPaymentMethodBackgroundInfoUri(uriHandler, url, onError)
-
-internal fun openPaymentMethodBackgroundInfoUri(
-    uriHandler: UriHandler,
-    url: String,
-    onError: (() -> Unit)? = null,
-): Boolean {
-    val result = uriHandler.openUriSafely(url)
-    if (!result) {
-        onError?.invoke()
-    }
-    return result
 }
 
 @Preview

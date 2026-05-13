@@ -20,17 +20,12 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.Bi
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.BisqLinks
-import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
-@ExcludeFromCoverage
 @Composable
 fun ReputationBasedSellerLimitsPopup(
     onDismiss: () -> Unit,
-    onBuildRepLinkClick: () -> Unit,
-    onRepLinkClick: () -> Unit,
     reputationScore: String,
     maxSellAmount: String,
-    onError: ((Throwable) -> Unit)? = null,
 ) {
     BisqDialog(
         horizontalAlignment = Alignment.Start,
@@ -51,8 +46,6 @@ fun ReputationBasedSellerLimitsPopup(
             type = BisqButtonType.Outline,
             padding = PaddingValues(horizontal = BisqUIConstants.ScreenPadding, vertical = 8.dp),
             fullWidth = true,
-            onClick = onBuildRepLinkClick,
-            onError = onError,
         )
 
         BisqGap.V1()
@@ -60,8 +53,8 @@ fun ReputationBasedSellerLimitsPopup(
         NoteText(
             "bisqEasy.tradeWizard.amount.buyer.limitInfo.overlay.linkToWikiText".i18n(),
             linkText = BisqLinks.REPUTATION_WIKI_URL,
+            uri = BisqLinks.REPUTATION_WIKI_URL,
             openConfirmation = true,
-            onLinkClick = onRepLinkClick,
         )
 
         BisqGap.V3()
@@ -77,8 +70,6 @@ private fun ReputationBasedSellerLimitsPopupPreview() {
         Box(Modifier.background(BisqTheme.colors.backgroundColor).padding(16.dp)) {
             ReputationBasedSellerLimitsPopup(
                 onDismiss = {},
-                onBuildRepLinkClick = {},
-                onRepLinkClick = {},
                 reputationScore = "100",
                 maxSellAmount = "1000",
             )
