@@ -19,7 +19,15 @@
       "iconURL": "https://bisq-network.github.io/bisq-mobile/assets/icon-512.png",
       "tintColor": "#25B135",
       "category": "utilities",
-      "screenshots": [],
+      "screenshots": [
+        "https://bisq-network.github.io/bisq-mobile/assets/screenshots/screenshot_1.png",
+        "https://bisq-network.github.io/bisq-mobile/assets/screenshots/screenshot_2.png",
+        "https://bisq-network.github.io/bisq-mobile/assets/screenshots/screenshot_3.png",
+        "https://bisq-network.github.io/bisq-mobile/assets/screenshots/screenshot_4.png",
+        "https://bisq-network.github.io/bisq-mobile/assets/screenshots/screenshot_5.png",
+        "https://bisq-network.github.io/bisq-mobile/assets/screenshots/screenshot_6.png",
+        "https://bisq-network.github.io/bisq-mobile/assets/screenshots/screenshot_7.png"
+      ],
       "versions": [
         {
           "version": "0.4.2",

@@ -66,6 +66,40 @@
         .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
         .feature-item { background: #242424; border-radius: 8px; padding: 1rem; }
         .feature-item strong { color: var(--bisq-green); font-size: 1.125rem;; font-weight: 200; }
+        .screenshots-scroller {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding: 0.5rem 0 1rem;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        .screenshots-scroller img {
+            flex: 0 0 auto;
+            width: 200px;
+            height: auto;
+            border-radius: 16px;
+            scroll-snap-align: start;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .secondary-section {
+            background: var(--bisq-card2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 3px solid var(--bisq-green-dim);
+        }
+        .secondary-section h2 { font-size: 1.25rem; margin-bottom: 0.75rem; }
+        .secondary-section .badge {
+            display: inline-block;
+            background: var(--bisq-green-dim);
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
     </style>
 
 </head>
@@ -82,6 +116,16 @@
     <p style="margin-top: 1rem; margin-bottom: 0.3rem; color: var(--bisq-text-muted); font-size: 0.9rem;">
         Requires iOS 16.0 or later
     </p>
+</div>
+
+<div class="screenshots-scroller">
+    <img src="assets/screenshots/screenshot_1.png" alt="Bisq Connect screenshot 1">
+    <img src="assets/screenshots/screenshot_2.png" alt="Bisq Connect screenshot 2">
+    <img src="assets/screenshots/screenshot_3.png" alt="Bisq Connect screenshot 3">
+    <img src="assets/screenshots/screenshot_4.png" alt="Bisq Connect screenshot 4">
+    <img src="assets/screenshots/screenshot_5.png" alt="Bisq Connect screenshot 5">
+    <img src="assets/screenshots/screenshot_6.png" alt="Bisq Connect screenshot 6">
+    <img src="assets/screenshots/screenshot_7.png" alt="Bisq Connect screenshot 7">
 </div>
 
 <div class="section">
@@ -163,6 +207,21 @@
     </ul>
 </div>
 
+<div class="secondary-section">
+    <h2>Alternative install: AltStore PAL <span class="badge">EU + Japan</span></h2>
+    <p>If you're in the European Union or Japan and prefer not to use TestFlight, Bisq Connect is also
+        available through <a href="https://altstore.io/pal/" target="_blank">AltStore PAL</a>, an
+        Apple-authorized alternative marketplace under the EU Digital Markets Act. No 90-day build
+        expiry, no tester cap.</p>
+    <p style="margin-top: 0.75rem;"><strong>Source URL:</strong>
+        <code style="background:#242424; padding:0.15rem 0.4rem; border-radius:4px; font-size:0.9rem;">https://bisq-network.github.io/bisq-mobile/apps.json</code>
+    </p>
+    <p style="margin-top: 0.75rem; color: var(--bisq-text-muted); font-size: 0.9rem;">
+        Requires iOS 17.4+, EU or Japan Apple ID, and device physically located in the EU or Japan.
+        UK is not eligible. For all other regions, please use TestFlight above.
+    </p>
+</div>
+
 <div class="section">
     <h2>Requirements</h2>
     <ul>
@@ -195,7 +254,7 @@
 
 <footer>
     <p>Bisq Connect is open-source software. <a href="https://github.com/bisq-network/bisq-mobile/blob/main/LICENSE">View License</a></p>
-    <p>&copy; 2025 Bisq Network</p>
+    <p>&copy; 2026 Bisq Network</p>
 </footer>
 </body>
 </html>
