@@ -36,7 +36,7 @@ cd iosClient && pod install && cd ..
 
 ### Step 4a: Export for EU (Notarization)
 
-> **Note:** We are not doing this for now
+> **Note:** This is the **active EU distribution path** as of 2026-05-27 (after the App Store path was abandoned under guideline 3.1.5(iii)). See `AltStore-PAL-Strategy.md` for context.
 
 1. In Xcode Organizer (Window → Organizer), select the archive
 2. Click **Distribute App**
@@ -221,6 +221,10 @@ Each version entry has its own `localizedDescription` for release notes:
 
 ## App reviews
 
+> **Status (2026-05-27):** The App Store path is **abandoned**. Apple guideline 3.1.5(iii) is structurally incompatible with Bisq (no licensed operating entity exists or can exist). See `AltStore-PAL-Strategy.md` for the full decision and current distribution channels (TestFlight worldwide + AltStore PAL EU/Japan). Revisit annually (~2027-05).
+>
+> The template below previously worked but **no longer works** as of the May 2026 review cycle. Kept for historical reference and in case it becomes useful for Notarization disputes or a future App Store revisit.
+
 For a project like ours, generally the main blocker gets to:
 
 
@@ -231,7 +235,7 @@ Guideline 3.1.5(iii) - which requires exchange services only be offered in count
 Resulting in a demand for financial documents proving that we can operate in every country we are releasing
 to.
 
-From all the backs and forth with Apple, the one and only explanation that has proven to work is this one
+The following clarification template was used to get testflight beta testing approved (but would not work with full review)
 
 ```
 Subject: Clarification Regarding Cryptocurrency Exchange Services – Bisq Connect
