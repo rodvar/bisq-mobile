@@ -1,7 +1,11 @@
 package network.bisq.mobile.domain.utils
 
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.format.MonthNames
+import kotlinx.datetime.format.Padding
+import kotlinx.datetime.format.char
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.until
 import network.bisq.mobile.data.utils.formatDateTime
@@ -69,6 +73,28 @@ object DateUtils {
         val instant = Instant.fromEpochMilliseconds(epochMillis)
         val localDateTime = instant.toLocalDateTime(timeZone)
         return formatDateTime(localDateTime)
+    }
+
+    private val mediumDateTimeFormat =
+        LocalDateTime.Format {
+            monthName(MonthNames.ENGLISH_ABBREVIATED)
+            char(' ')
+            day(Padding.NONE)
+            chars(", ")
+            year()
+            // the double space is intentional
+            chars("  ")
+            hour()
+            char(':')
+            minute()
+        }
+
+    fun toMediumDateTime(
+        epochMillis: Long,
+        timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    ): String {
+        val instant = Instant.fromEpochMilliseconds(epochMillis)
+        return mediumDateTimeFormat.format(instant.toLocalDateTime(timeZone))
     }
 
     /**
