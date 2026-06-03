@@ -381,3 +381,29 @@
 -dontwarn com.google.api.client.http.javanet.NetHttpTransport
 -dontwarn com.google.api.client.http.javanet.NetHttpTransport$Builder
 -dontwarn org.joda.time.Instant
+
+## bisq2 2.1.11 transitive deps (Apache HttpClient5, Apache Commons, Jersey, Swagger,
+## gRPC-Netty-shaded) reference JDK-only and optional classes that don't exist on
+## Android. None are reachable at runtime on the node app:
+##  - MethodHandleProxies / AnnotatedParameterizedType / InaccessibleObjectException
+##    — JDK-only reflection APIs used by Apache Commons Lang3 dynamic proxies and
+##    Jersey/Swagger WADL generators. The node app doesn't expose REST surfaces, so
+##    none of those code paths run.
+##  - jdk.net.ExtendedSocketOptions / jdk.net.Sockets — Sun-internal socket option
+##    APIs used by HttpClient5; the library falls back gracefully when absent.
+##  - org.apache.commons.compress.compressors.* — optional content-codec for
+##    HttpClient5; falls back to gzip/deflate when commons-compress isn't on the
+##    classpath. We don't depend on it transitively.
+##  - org.osgi.annotation.bundle.Export — compile-time annotation only, never
+##    referenced at runtime. Pulled in by shaded gRPC-Netty's JCTools package-info.
+## Rules mirror the R8-generated missing_rules.txt verbatim.
+-dontwarn java.lang.invoke.MethodHandleProxies
+-dontwarn java.lang.reflect.AnnotatedParameterizedType
+-dontwarn java.lang.reflect.InaccessibleObjectException
+-dontwarn jdk.net.ExtendedSocketOptions
+-dontwarn jdk.net.Sockets
+-dontwarn org.apache.commons.compress.compressors.CompressorException
+-dontwarn org.apache.commons.compress.compressors.CompressorInputStream
+-dontwarn org.apache.commons.compress.compressors.CompressorOutputStream
+-dontwarn org.apache.commons.compress.compressors.CompressorStreamFactory
+-dontwarn org.osgi.annotation.bundle.Export
