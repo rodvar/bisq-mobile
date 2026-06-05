@@ -2,6 +2,14 @@
 <network-security-config xmlns:tools="http://schemas.android.com/tools">
     <!-- This is insecure but because we want to allow clear connection to local networks and onion domains which are encrypted on tor -->
     <!-- And this file does not support wild cards -->
+    <!-- DO NOT switch this to a domain-restricted <domain-config> — .onion hosts
+         present as plain HTTP at the OkHttp/OS layer (Tor does encryption below
+         that), so a domain allow-list would block every trusted-node Tor
+         connection (UnknownServiceException: CLEARTEXT communication to *.onion
+         not permitted by network security policy). nodeApp's config can be
+         domain-restricted because its embedded bisq2 routes Tor through its own
+         SOCKS proxy, but clientApp talks to the trusted node via OkHttp directly
+         and this config applies. -->
     <base-config cleartextTrafficPermitted="true"
         tools:ignore="InsecureBaseConfiguration" />
 </network-security-config>

@@ -8,14 +8,69 @@ import kotlin.io.path.Path
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.cocoapods)
     alias(libs.plugins.android.library)
     alias(libs.plugins.buildconfig)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.atomicfu)
     alias(libs.plugins.kover)
+    // Sentry-KMP plugin must be applied to every module whose iOS test/main
+    // binary transitively links Sentry-KMP. This module owns
+    // `SentryAnalyticsService` + `DefaultSentryClient` in commonMain, so its
+    // K/N test framework needs Sentry.framework on the link path — without
+    // the plugin coordinating with cocoapods at this module level the link
+    // fails with `ld: framework 'Sentry' not found`.
+    alias(libs.plugins.sentry.kotlin.multiplatform)
 }
 
 version = project.findProperty("shared.version") as String
+
+// `project.findProperty(...)` reads gradle.properties + -P + env vars but NOT
+// the root-level `local.properties` (that file is reserved for the Android
+// Gradle plugin's SDK paths). To honour the comment "local.properties
+// overrides any property if you need to setup for example local networking"
+// below, we load it once here and prefer it over gradle.properties.
+//
+// Used for: feature.analyticsEnabled, analytics.dsn.*, feature.muSigEnabled,
+// bisq.isDebug, and any future per-developer override. Never commit
+// local.properties — it is gitignored.
+val devLocalProperties: Properties =
+    Properties().apply {
+        val localFile = rootProject.file("local.properties")
+        if (localFile.exists()) {
+            localFile.inputStream().use { load(it) }
+        }
+    }
+
+fun resolveProperty(key: String): String? = devLocalProperties.getProperty(key) ?: project.findProperty(key)?.toString()
+
+/**
+ * Resolves whether the current build is a Debug build, used by `BuildConfig.IS_DEBUG`
+ * and `BuildNodeConfig.IS_DEBUG`.
+ *
+ * Three detection sources (manual override wins; else any of the auto-detects):
+ *  1. **`bisq.isDebug` gradle property** — explicit manual override
+ *  2. **Gradle task names containing "debug"** — matches Android Studio invocations
+ *     like `:apps:clientApp:assembleDebug`, `installDebug`, etc.
+ *  3. **Xcode env vars `CONFIGURATION` / `KOTLIN_FRAMEWORK_BUILD_TYPE`** — required
+ *     for iOS builds: Xcode invokes gradle as `embedAndSignAppleFrameworkForXcode`
+ *     (always that task name regardless of config), and passes the actual
+ *     configuration via env vars set in the build phase. Without this, iOS Debug
+ *     builds were incorrectly reporting `IS_DEBUG=false` → `environment=production`
+ *     to GlitchTip (analytics phase 0 issue surfaced 2026-06-04).
+ *
+ * The KMP CocoaPods plugin sets `KOTLIN_FRAMEWORK_BUILD_TYPE` to "DEBUG"/"RELEASE"
+ * (uppercase); Xcode itself sets `CONFIGURATION` to "Debug"/"Release". Both are
+ * checked for resilience against future plugin / Xcode-version changes.
+ */
+val isDebugBuild: Boolean =
+    project.findProperty("bisq.isDebug")?.toString()?.toBoolean()
+        ?: (
+            project.gradle.startParameter.taskNames
+                .any { it.contains("debug", ignoreCase = true) } ||
+                System.getenv("CONFIGURATION").equals("Debug", ignoreCase = true) ||
+                System.getenv("KOTLIN_FRAMEWORK_BUILD_TYPE").equals("DEBUG", ignoreCase = true)
+        )
 
 val bisqCoreVersion: String by extra {
     findTomlVersion("bisq-core")
@@ -60,14 +115,32 @@ buildConfig {
             "MU_SIG_ENABLED",
             muSigEnabled,
         )
+        // Analytics build-time gate (issue #525). See gradle.properties for the
+        // full opt-in story. Strict parse: refuses anything that isn't a literal
+        // "true"/"false" — silent coercion on a privacy-sensitive switch is a
+        // foot-gun we explicitly want to avoid. Read via resolveProperty so
+        // local.properties takes precedence over gradle.properties.
+        val analyticsEnabled =
+            resolveProperty("feature.analyticsEnabled")
+                ?.let { value ->
+                    value.toBooleanStrictOrNull()
+                        ?: error("feature.analyticsEnabled must be 'true' or 'false', got '$value'")
+                }
+                ?: false
+        buildConfigField("ANALYTICS_ENABLED", analyticsEnabled)
+        // DSNs are public per Sentry's threat model — the public key alone
+        // cannot read data, only post. Empty default = effectively disabled.
+        // Connect's BuildConfig holds both Android + iOS DSNs; the runtime
+        // service picks the right one based on getPlatformInfo().
         buildConfigField(
-            "IS_DEBUG",
-            (
-                project.findProperty("bisq.isDebug")?.toString()?.toBoolean()
-                    ?: project.gradle.startParameter.taskNames
-                        .any { it.contains("debug", ignoreCase = true) }
-            ),
+            "ANALYTICS_DSN_ANDROID",
+            resolveProperty("analytics.dsn.connect.android").orEmpty(),
         )
+        buildConfigField(
+            "ANALYTICS_DSN_IOS",
+            resolveProperty("analytics.dsn.connect.ios").orEmpty(),
+        )
+        buildConfigField("IS_DEBUG", isDebugBuild)
     }
     forClass("network.bisq.mobile.android.node", className = "BuildNodeConfig") {
         buildConfigField("APP_NAME", project.findProperty("node.name").toString())
@@ -79,14 +152,23 @@ buildConfig {
         buildConfigField("BISQ_CORE_VERSION", bisqCoreVersion)
         // Note: Update when updating kmp-tor lib
         buildConfigField("TOR_VERSION", "0.4.8.17") // is TOR DAEMON version
+        // Analytics build-time gate (issue #525). See client BuildConfig above for
+        // the rationale; the Node app gets its own DSN pointing at GlitchTip
+        // project id=2 (bisq-easy-node-android). Read via resolveProperty so
+        // local.properties takes precedence over gradle.properties.
+        val nodeAnalyticsEnabled =
+            resolveProperty("feature.analyticsEnabled")
+                ?.let { value ->
+                    value.toBooleanStrictOrNull()
+                        ?: error("feature.analyticsEnabled must be 'true' or 'false', got '$value'")
+                }
+                ?: false
+        buildConfigField("ANALYTICS_ENABLED", nodeAnalyticsEnabled)
         buildConfigField(
-            "IS_DEBUG",
-            (
-                project.findProperty("bisq.isDebug")?.toString()?.toBoolean()
-                    ?: project.gradle.startParameter.taskNames
-                        .any { it.contains("debug", ignoreCase = true) }
-            ),
+            "ANALYTICS_DSN",
+            resolveProperty("analytics.dsn.node.android").orEmpty(),
         )
+        buildConfigField("IS_DEBUG", isDebugBuild)
     }
 //    buildConfigField("APP_SECRET", "Z3JhZGxlLWphdmEtYnVpbGRjb25maWctcGx1Z2lu")
 //    buildConfigField<String>("OPTIONAL", null)
@@ -110,6 +192,27 @@ kotlin {
     }
     iosArm64()
     iosSimulatorArm64()
+
+    // The Sentry Cocoa SDK pod is declared here (matching apps/clientApp) so
+    // the K/N linker for this module's iOS test framework finds Sentry.framework.
+    // Sentry-KMP's cinterop bindings reference Sentry Cocoa symbols at link
+    // time; without this declaration `linkDebugTestIosSimulatorArm64` fails
+    // with `ld: framework 'Sentry' not found`. Shares the iosClient/Podfile
+    // with the host app, so a single `pod install` covers every module.
+    cocoapods {
+        summary = "Bisq Mobile — shared domain module"
+        homepage = "https://github.com/bisq-network/bisq-mobile"
+        version = project.version.toString()
+        ios.deploymentTarget = "16.0"
+        podfile = project.file("../../iosClient/Podfile")
+        pod("Sentry") {
+            // Version and `-fmodules` MUST match apps/clientApp's declaration
+            // (Sentry-KMP 0.26.0 → Sentry Cocoa 8.58.2; -fmodules avoids the
+            // `SentryMechanismMeta declared twice` cinterop crash).
+            version = "8.58.2"
+            extraOpts += listOf("-compiler-option", "-fmodules")
+        }
+    }
 
     sourceSets {
         androidMain.dependencies {
@@ -144,6 +247,13 @@ kotlin {
             implementation(libs.logging.kermit)
             implementation(libs.kphonenumber)
             api(libs.okio) // api to allow platform specific path conversion for kmp-tor
+
+            // Opt-in analytics SDK (issue #525). Always on the classpath so the
+            // DI module can switch between NoOp and Sentry-backed implementations
+            // at runtime based on BuildConfig.ANALYTICS_ENABLED. R8 prunes the
+            // SDK classes from release builds when ANALYTICS_ENABLED=false since
+            // SentryAnalyticsService is then never referenced.
+            implementation(libs.sentry.kotlin.multiplatform)
 
             configurations.all {
                 exclude(group = "org.slf4j", module = "slf4j-api")

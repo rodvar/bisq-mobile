@@ -58,6 +58,7 @@ import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEven
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketMessage
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiRequest
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiResponse
+import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeSetupUseCase
 import network.bisq.mobile.data.datastore.createDataStore
 import network.bisq.mobile.data.replicated.common.monetary.CoinVO
@@ -98,7 +99,13 @@ import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.EnvironmentController
+import network.bisq.mobile.data.utils.getPlatformInfo
 import network.bisq.mobile.data.utils.getStorageDir
+import network.bisq.mobile.domain.analytics.AnalyticsBootstrapConfig
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
+import network.bisq.mobile.domain.analytics.SentryAnalyticsService
+import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import okio.Path.Companion.toPath
 import org.koin.core.qualifier.named
@@ -192,6 +199,50 @@ val clientDomainModule =
                 get(),
                 get(),
                 get(),
+            )
+        }
+
+        // Opt-in analytics (issue #525). Two locks gate emission:
+        //  1. Build-time: ANALYTICS_ENABLED=false → NoOpAnalyticsService is
+        //     bound and R8 prunes Sentry-KMP from release artifacts entirely.
+        //  2. Runtime: `runtimeOptInProvider` below is checked on every emit.
+        //     For first tests we tie it to the same BuildConfig flag — double-lock,
+        //     no information leakage if (1) ever gets bypassed by a refactor.
+        //     TODO swap `{ BuildConfig.ANALYTICS_ENABLED }` for
+        //     `{ get<SettingsRepository>().analyticsEnabled.value }` once the
+        //     Settings UI toggle ships.
+        single<AnalyticsService> {
+            if (BuildConfig.ANALYTICS_ENABLED) {
+                SentryAnalyticsService(
+                    runtimeOptInProvider = { BuildConfig.ANALYTICS_ENABLED },
+                )
+            } else {
+                NoOpAnalyticsService
+            }
+        }
+        // Per-platform analytics bootstrap config. The Connect app ships a
+        // separate GlitchTip project for Android (id=3) and iOS (id=4); the
+        // right DSN is selected at runtime from the platform. `IS_DEBUG`
+        // splits debug-mode opt-in events (tagged "development") from any
+        // future production rollout ("production"). For intial work only debug
+        // builds with `feature.analyticsEnabled=true` in local.properties
+        // emit anything.
+        single<AnalyticsBootstrapConfig> {
+            val dsn =
+                when (getPlatformInfo().type) {
+                    PlatformType.ANDROID -> BuildConfig.ANALYTICS_DSN_ANDROID
+                    PlatformType.IOS -> BuildConfig.ANALYTICS_DSN_IOS
+                }
+            AnalyticsBootstrapConfig(
+                dsn = dsn,
+                environment = if (BuildConfig.IS_DEBUG) "development" else "production",
+                release = "bisq-connect@${
+                    when (getPlatformInfo().type) {
+                        PlatformType.ANDROID -> BuildConfig.ANDROID_APP_VERSION
+                        PlatformType.IOS -> BuildConfig.IOS_APP_VERSION
+                    }
+                }",
+                isDebug = BuildConfig.IS_DEBUG,
             )
         }
 

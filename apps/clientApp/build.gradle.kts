@@ -8,6 +8,11 @@ plugins {
     alias(libs.plugins.jetbrains.compose)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    // Sentry-KMP gradle plugin — auto-installs the Sentry Cocoa pod with the
+    // correct cinterop config for the iOS target. Replaces a hand-written
+    // `pod("Sentry")` block which was crashing cinterop with
+    // `SentryMechanismMeta declared twice`. See [[project_analytics_phase0_plan]].
+    alias(libs.plugins.sentry.kotlin.multiplatform)
     alias(libs.plugins.kover)
     // google-services plugin is applied conditionally below when
     // google-services.json is present (gitignored — provisioned per
@@ -122,6 +127,39 @@ kotlin {
             baseName = clientFrameworkBaseName
             isStatic = true
             configureSharedExports()
+        }
+        // Sentry Cocoa SDK pod, coordinated by the Sentry-KMP gradle plugin
+        // (applied in the plugins{} block above). The pattern mirrors
+        // Sentry-KMP's own sample at tag 0.26.0:
+        //   sentry-samples/kmp-app-cocoapods/shared/build.gradle.kts
+        //
+        // Version pinned to Sentry-KMP 0.26.0's expected Sentry Cocoa SDK
+        // (sentry-kotlin-multiplatform/buildSrc/src/main/java/Config.kt →
+        //  sentryCocoaVersion = "8.58.2"). When bumping
+        // libs.versions.toml's sentry-kotlin-multiplatform, check that tag's
+        // Config.kt for the matching Cocoa version and update both here AND
+        // iosClient/Podfile.lock.
+        //
+        // `-fmodules` enables Objective-C module imports during cinterop —
+        // required, otherwise cinterop crashes with
+        //   IllegalArgumentException: 'SentryMechanismMeta' is going to be declared twice
+        //
+        // TODO: revisit iOS Sentry Cocoa pruning. Unlike Android (where
+        // R8 const-folds `if (BuildConfig.ANALYTICS_ENABLED)` and prunes the
+        // SDK from release builds with the flag off), this pod() declaration
+        // statically links Sentry.framework into the iOS binary regardless of
+        // whether any Kotlin code references it. ~few-hundred-KB binary cost
+        // when analyticsEnabled=false. Options for a follow-up:
+        //   1. Gate this declaration on resolveProperty("feature.analyticsEnabled")
+        //      (cleanest, but requires gating the Sentry-KMP dependency too so
+        //      cinterop bindings don't try to compile against missing types)
+        //   2. Move SentryAnalyticsService.kt into a separate source set
+        //      that's only included when the flag is on
+        //   3. Accept as cost-of-iOS — events go over Tor anyway when the user
+        //      opts in, so the binary surface is exercised in production then.
+        pod("Sentry") {
+            version = "8.58.2"
+            extraOpts += listOf("-compiler-option", "-fmodules")
         }
     }
 
