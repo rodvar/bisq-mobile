@@ -27,6 +27,7 @@ import org.junit.Test
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -160,6 +161,44 @@ class ClientConnectivityServiceTest {
                 ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED,
                 clientConnectivityService.status.value,
             )
+        }
+
+    @Test
+    fun `monitoringStartDelay is 5s for non-Tor connections`() {
+        every { webSocketClientService.isTorProxy } returns false
+        assertEquals(ClientConnectivityService.START_DELAY, clientConnectivityService.monitoringStartDelay())
+    }
+
+    @Test
+    fun `monitoringStartDelay is 20s for Tor connections`() {
+        every { webSocketClientService.isTorProxy } returns true
+        assertEquals(ClientConnectivityService.START_DELAY_TOR, clientConnectivityService.monitoringStartDelay())
+    }
+
+    @Test
+    fun `startMonitoring does not read isTorProxy synchronously at call time`() =
+        runBlocking {
+            // Regression test for the startup race: previously startMonitoring() called
+            // monitoringStartDelay() synchronously, reading isTorProxy before
+            // WebSocketClientService.currentClientSettings was applied.
+            // The fix defers the read to inside the monitoring coroutine after the base delay.
+            var isTorProxyQueried = false
+            every { webSocketClientService.isTorProxy } answers {
+                isTorProxyQueried = true
+                false
+            }
+
+            clientConnectivityService.activate()
+            clientConnectivityService.startMonitoring() // no explicit startDelay
+
+            // isTorProxy must not have been read yet — the monitoring coroutine is scheduled
+            // but hasn't started executing (it first waits START_DELAY ms).
+            assertFalse(
+                isTorProxyQueried,
+                "isTorProxy must not be queried synchronously in startMonitoring() — " +
+                    "it must be deferred until after the base delay so settings have time to load",
+            )
+            clientConnectivityService.stopMonitoring()
         }
 
     @Test

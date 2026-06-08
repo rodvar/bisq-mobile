@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.client.common.di.commonTestModule
 import network.bisq.mobile.client.common.domain.access.DEMO_API_URL
+import network.bisq.mobile.client.common.domain.access.session.SessionResponse
 import network.bisq.mobile.client.common.domain.access.session.SessionService
 import network.bisq.mobile.client.common.domain.httpclient.BisqProxyOption
 import network.bisq.mobile.client.common.domain.httpclient.HttpClientService
@@ -24,6 +25,7 @@ import org.junit.Before
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -140,5 +142,37 @@ class ClientApplicationBootstrapFacadeTest {
             // Given: Fresh facade
             // Then: Initial progress should be 0
             assertTrue(facade.progress.value == 0f, "Initial progress should be 0")
+        }
+
+    @Test
+    fun `successful session renewal persists sessionExpiresAt`() =
+        runTest(testDispatcher) {
+            val expiresAt = 1_700_000_000_000L
+            settingsFlow.value =
+                SensitiveSettings(
+                    bisqApiUrl = "http://localhost:8080",
+                    clientName = "test-client",
+                    clientId = "client-id",
+                    clientSecret = "client-secret",
+                    sessionId = "old-session-id",
+                )
+            coEvery { sessionService.requestSession("client-id", "client-secret") } returns
+                Result.success(
+                    SessionResponse(
+                        sessionId = "new-session-id",
+                        expiresAt = expiresAt,
+                    ),
+                )
+
+            facade.onTorStartedOrSkipped()
+            // onTorStartedOrSkipped uses Dispatchers.Default — advanceUntilIdle() won't drive it.
+            val deadline = System.currentTimeMillis() + 2_000L
+            while (settingsFlow.value.sessionId != "new-session-id") {
+                check(System.currentTimeMillis() < deadline) { "Timed out waiting for session renewal" }
+                Thread.sleep(5)
+            }
+
+            assertEquals("new-session-id", settingsFlow.value.sessionId)
+            assertEquals(expiresAt, settingsFlow.value.sessionExpiresAt)
         }
 }
