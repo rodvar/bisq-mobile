@@ -30,11 +30,11 @@
       ],
       "versions": [
         {
-          "version": "0.4.2",
-          "date": "2026-06-01",
-          "localizedDescription": "# Bisq Connect v0.4.2\n\n## What's New\n\n• First EU release via AltStore PAL alternative distribution\n• Built-in Tor support for enhanced privacy\n• Push notifications for trade events\n• QR-code pairing with your Bisq 2 desktop node\n• Improved connection stability and UI\n\n## Requirements\n\n• iOS 16.0 or later\n• iOS 17.4+ required for AltStore PAL distribution\n• A running Bisq 2 desktop node to pair with",
-          "downloadURL": "https://github.com/bisq-network/bisq-mobile/releases/download/iconnect_0.4.2/BisqConnect-0.4.2.ipa",
-          "size": 50022470,
+          "version": "0.5.0",
+          "date": "2026-06-09",
+          "localizedDescription": "# Bisq Connect v0.5.0\n\n## What's New\n\n• **Trade history**: browse, search, and filter your past trades. Tap any closed trade for full details.\n• **My Trades reorganized**: split into *Open Trades* and *My Trades (history)* tabs; notifications deep-link straight to Open Trades.\n• Translations refreshed across all 13 supported languages.\n• Updated to **Bisq2 core 2.1.11** under the hood (stability + security improvements upstream from the desktop release).\n• Plus the usual stability and UX polish.\n\n## Requirements\n\n• iOS 16.0 or later\n• iOS 17.4+ required for AltStore PAL distribution\n• A running Bisq 2 desktop node to pair with",
+          "downloadURL": "https://github.com/bisq-network/bisq-mobile/releases/download/iconnect_0.5.0/BisqConnect-0.5.0.ipa",
+          "size": 46432958,
           "minOSVersion": "16.0"
         }
       ],
@@ -54,6 +54,15 @@
     }
   ],
   "news": [
+    {
+      "title": "Bisq Connect 0.5.0 — Trade history is here",
+      "identifier": "bisq-connect-0.5.0",
+      "caption": "Browse and search your closed trades, plus a reorganised My Trades view.",
+      "date": "2026-06-09",
+      "tintColor": "#25B135",
+      "notify": false,
+      "appID": "bisq.mobile.client.BisqConnect"
+    },
     {
       "title": "Bisq Connect Now Available for EU!",
       "identifier": "bisq-connect-eu-launch",
