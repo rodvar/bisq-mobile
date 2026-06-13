@@ -40,6 +40,7 @@ import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventObserver
 import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
+import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.data.utils.getPlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.utils.DateUtils
@@ -66,6 +67,7 @@ class WebSocketClientService(
     private val webSocketClientFactory: WebSocketClientFactory,
     private val sessionService: SessionService? = null,
     private val sensitiveSettingsRepository: SensitiveSettingsRepository? = null,
+    private val kmpTorService: KmpTorService? = null,
 ) : ServiceFacade(),
     Logging {
     companion object {
@@ -551,7 +553,7 @@ class WebSocketClientService(
     internal suspend fun forceClientRecreation() {
         clientUpdateMutex.withLock {
             val settings = currentClientSettings ?: return@withLock
-            log.i { "Forcing full client recreation to recover stale iOS NSURLSession" }
+            log.i { "Forcing full client recreation to recover stale HTTP client state / iOS NSURLSession" }
             // Dispose current client and clear settings so updateWebSocketClient
             // treats the next call as a fresh configuration
             currentClient.value?.dispose()
@@ -569,6 +571,9 @@ class WebSocketClientService(
             // Must release clientUpdateMutex first since updateWebSocketClient acquires it
         }
         // Call outside the lock since updateWebSocketClient acquires clientUpdateMutex
+        if (isTorProxy) {
+            kmpTorService?.signalNewNym()
+        }
         httpClientService.recreateClient()
     }
 
