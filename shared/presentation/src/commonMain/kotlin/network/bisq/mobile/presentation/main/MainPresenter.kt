@@ -10,12 +10,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
@@ -30,6 +32,7 @@ import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.UrlLauncher
 import network.bisq.mobile.data.utils.getDeviceLanguageCode
+import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.domain.repository.TradeReadStateRepository
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
@@ -155,6 +158,59 @@ open class MainPresenter(
                 settingsService.setLanguageCode(it)
             }.take(1)
             .launchIn(presenterScope)
+
+        startLanguageAnalyticsObserverOnce()
+    }
+
+    private var languageAnalyticsObserverStarted = false
+
+    /**
+     * Emit [AnalyticsEvent.Settings.LanguageChanged] whenever the observed UI
+     * language settles on a new code. Single-shot per attached scope —
+     * MainPresenter is a Koin `single`, so this guards against double-emission
+     * when [onViewAttached] is invoked multiple times on the SAME live
+     * `presenterScope` (background→foreground without a config change).
+     *
+     * The guard is RESET in [onViewUnattaching] because
+     * `jobsManager.dispose()` cancels the old scope and creates a fresh one
+     * (e.g. on Android config change → activity recreation). Without the
+     * reset, the next `onViewAttached` would skip on the stale flag and the
+     * collector would never start on the new scope.
+     *
+     * Emission semantics (matches the rationale rodvar locked in 2026-06-12 —
+     * "most important so we get to know our userbase preferences on languages"):
+     *  - First non-blank value after the collector starts → auto-detected
+     *    baseline, captures the "user has language X" baseline distribution.
+     *  - Each subsequent distinct value → explicit user change.
+     *
+     * Untracked codes (e.g. a future translation we haven't whitelisted yet)
+     * are NOT emitted — `TRACKED_LANGUAGE_CODES` is the wire-format allowlist.
+     * Defence against a backend that hands us an unexpected code AND
+     * defence against typos in the code path.
+     *
+     * `analyticsService?` is null in tests that don't bind it — silent no-op
+     * by design (see [analyticsService] kdoc on [BasePresenter]).
+     */
+    private fun startLanguageAnalyticsObserverOnce() {
+        if (languageAnalyticsObserverStarted) return
+        languageAnalyticsObserverStarted = true
+
+        languageCode
+            .mapNotNull { AnalyticsEvent.Settings.normalizeLanguageCode(it) }
+            .distinctUntilChanged()
+            .onEach { code ->
+                analyticsService?.track(AnalyticsEvent.Settings.LanguageChanged(code))
+            }.launchIn(presenterScope)
+    }
+
+    @CallSuper
+    override fun onViewUnattaching() {
+        // Reset the guard FIRST — `super.onViewUnattaching()` triggers
+        // `jobsManager.dispose()` which cancels the current scope and creates
+        // a new one. Next `onViewAttached` needs to start a fresh collector
+        // on that new scope; with the flag still `true`, it'd be skipped.
+        languageAnalyticsObserverStarted = false
+        super.onViewUnattaching()
     }
 
     @CallSuper

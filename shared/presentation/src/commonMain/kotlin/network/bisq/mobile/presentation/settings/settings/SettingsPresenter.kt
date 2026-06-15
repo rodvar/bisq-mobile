@@ -14,6 +14,7 @@ import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.utils.getPlatformInfo
 import network.bisq.mobile.data.utils.setDefaultLocale
 import network.bisq.mobile.data.utils.toDoubleOrNullLocaleAware
+import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.domain.formatters.NumberFormatter
 import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.repository.SettingsRepository
@@ -33,6 +34,8 @@ open class SettingsPresenter(
     private val settingsRepository: SettingsRepository,
     mainPresenter: MainPresenter,
 ) : BasePresenter(mainPresenter) {
+    override fun analyticsScreenEvent(): AnalyticsEvent.ScreenOpened = AnalyticsEvent.ScreenOpened.Settings
+
     private val _uiState =
         MutableStateFlow(
             SettingsUiState(
@@ -174,14 +177,45 @@ open class SettingsPresenter(
     }
 
     private fun onAnalyticsToggle(enabled: Boolean) {
+        // Track ordering depends on direction:
+        //  - DISABLE: track BEFORE persist so the event ships through the SDK
+        //    gate while it's still open. Track-after-persist would let the
+        //    StateFlow propagation close the gate first and the event would
+        //    be dropped by `runtimeOptInProvider`.
+        //  - ENABLE: track AFTER persist for the symmetric reason. In the
+        //    re-opt-in-after-opt-out case the SDK is already initialised so
+        //    `track()` forwards direct; the gate would still read the OLD
+        //    `analyticsEnabled=false` if we tracked first, and the event
+        //    would be silently dropped. In the first-ever opt-in case the
+        //    SDK isn't ready yet so the event gets buffered either way —
+        //    ordering doesn't hurt the cold-start path.
+        if (!enabled) {
+            analyticsService?.track(AnalyticsEvent.Settings.AnalyticsDisabled)
+        }
         presenterScope.launch {
             // Persist via the repo. The DI module's hot StateFlow view of
             // analyticsEnabled picks this up on the next emission and the
             // SDK's runtimeOptInProvider reflects the new value on the next
             // track() call. Also mark the prompt as seen so the welcome
             // carousel won't auto-prompt later if the user already engaged.
+            //
+            // On opt-OUT, also reset `analyticsBaselineSent` to false. The
+            // baseline-snapshot mechanism in AnalyticsSettingsBaseline.emit()
+            // checks this flag to avoid re-emitting on every cold start;
+            // resetting on opt-out guarantees that if the user opts back in
+            // later, they get a fresh baseline (their settings may have
+            // changed during the opt-out interval). Single atomic write keeps
+            // the two flags in sync — no risk of "opted out but still flagged
+            // as baselined" leaking into the next opt-in cycle.
             settingsRepository.update {
-                it.copy(analyticsEnabled = enabled, analyticsPromptSeen = true)
+                it.copy(
+                    analyticsEnabled = enabled,
+                    analyticsPromptSeen = true,
+                    analyticsBaselineSent = if (enabled) it.analyticsBaselineSent else false,
+                )
+            }
+            if (enabled) {
+                analyticsService?.track(AnalyticsEvent.Settings.AnalyticsEnabled)
             }
         }
     }
@@ -190,6 +224,13 @@ open class SettingsPresenter(
         presenterScope.launch {
             settingsRepository.update { it.copy(keepConnectedInBackground = enabled) }
         }
+        val event =
+            if (enabled) {
+                AnalyticsEvent.Settings.KeepConnectedEnabled
+            } else {
+                AnalyticsEvent.Settings.KeepConnectedDisabled
+            }
+        analyticsService?.track(event)
     }
 
     private fun onPushNotificationsToggle(enabled: Boolean) {
@@ -217,6 +258,16 @@ open class SettingsPresenter(
                             "mobile.pushNotifications.toggleOffSuccess"
                         }
                     showSnackbar(msgKey.i18n())
+                    // Track only on success — a failed register/unregister means
+                    // the toggle didn't actually take effect, so emitting would
+                    // misrepresent state. handleError path below emits nothing.
+                    val event =
+                        if (enabled) {
+                            AnalyticsEvent.Settings.PushNotificationsEnabled
+                        } else {
+                            AnalyticsEvent.Settings.PushNotificationsDisabled
+                        }
+                    analyticsService?.track(event)
                 }.onFailure { exception ->
                     handleError(exception)
                 }

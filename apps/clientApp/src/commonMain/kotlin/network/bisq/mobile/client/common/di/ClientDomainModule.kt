@@ -107,6 +107,7 @@ import network.bisq.mobile.data.utils.getPlatformInfo
 import network.bisq.mobile.data.utils.getStorageDir
 import network.bisq.mobile.domain.analytics.AnalyticsBootstrapConfig
 import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.AnalyticsSettingsBaseline
 import network.bisq.mobile.domain.analytics.AnalyticsSocksPortProvider
 import network.bisq.mobile.domain.analytics.BufferedAnalyticsService
 import network.bisq.mobile.domain.analytics.SentryAnalyticsService
@@ -288,6 +289,19 @@ val clientDomainModule =
                     }
                 }",
                 isDebug = BuildConfig.IS_DEBUG,
+            )
+        }
+
+        // Settings baseline emitter — fires a snapshot of the user-controlled
+        // settings (analytics, language, push, keep-connected) once per
+        // process AFTER the user opts into analytics, called from
+        // ApplicationLifecycleService.bootstrapAnalytics. Reuses the existing
+        // BufferedAnalyticsService so events go through the same gates.
+        single {
+            AnalyticsSettingsBaseline(
+                analyticsService = get<AnalyticsService>(),
+                settingsRepository = get<SettingsRepository>(),
+                settingsServiceFacade = get<SettingsServiceFacade>(),
             )
         }
 
