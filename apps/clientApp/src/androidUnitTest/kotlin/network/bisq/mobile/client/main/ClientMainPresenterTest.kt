@@ -21,6 +21,7 @@ import network.bisq.mobile.data.model.TradeReadStateMap
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.service.bootstrap.ApplicationLifecycleService
+import network.bisq.mobile.data.service.network.ConnectivityService
 import network.bisq.mobile.data.service.network.NetworkServiceFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
@@ -35,6 +36,9 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ClientMainPresenterTest {
@@ -61,6 +65,7 @@ class ClientMainPresenterTest {
         connectivityService = mockk(relaxed = true)
         networkServiceFacade = mockk(relaxed = true)
         every { connectivityService.clientRevoked } returns MutableStateFlow(false)
+        every { connectivityService.status } returns MutableStateFlow(ConnectivityService.ConnectivityStatus.BOOTSTRAPPING)
         settingsServiceFacade = mockk(relaxed = true)
         tradesServiceFacade = mockk(relaxed = true)
         userProfileServiceFacade = mockk(relaxed = true)
@@ -147,4 +152,166 @@ class ClientMainPresenterTest {
 
             verify(exactly = 1) { connectivityService.stopMonitoring() }
         }
+
+    @Test
+    fun `when reconnecting and main content visible then shows reconnect overlay`() =
+        runTest(testDispatcher) {
+            val statusFlow = MutableStateFlow(ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED)
+            every { connectivityService.status } returns statusFlow
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            presenter.setIsMainContentVisible(true)
+            advanceUntilIdle()
+
+            statusFlow.value = ConnectivityService.ConnectivityStatus.RECONNECTING
+            advanceUntilIdle()
+
+            assertTrue(presenter.showReconnectOverlay.value)
+            assertFalse(presenter.showAllConnectionsLostDialogue.value)
+        }
+
+    @Test
+    fun `when reconnecting before main content visible then hides reconnect overlay`() =
+        runTest(testDispatcher) {
+            val statusFlow = MutableStateFlow(ConnectivityService.ConnectivityStatus.RECONNECTING)
+            every { connectivityService.status } returns statusFlow
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            assertFalse(presenter.showReconnectOverlay.value)
+        }
+
+    @Test
+    fun `when reconnection succeeds then hides reconnect overlay`() =
+        runTest(testDispatcher) {
+            val statusFlow = MutableStateFlow(ConnectivityService.ConnectivityStatus.RECONNECTING)
+            every { connectivityService.status } returns statusFlow
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            presenter.setIsMainContentVisible(true)
+            advanceUntilIdle()
+
+            assertTrue(presenter.showReconnectOverlay.value)
+
+            statusFlow.value = ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
+            advanceUntilIdle()
+
+            assertFalse(presenter.showReconnectOverlay.value)
+        }
+
+    @Test
+    fun `when disconnected without prior reconnecting then hides connection lost dialog`() =
+        runTest(testDispatcher) {
+            val statusFlow = MutableStateFlow(ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED)
+            every { connectivityService.status } returns statusFlow
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            presenter.setIsMainContentVisible(true)
+            advanceUntilIdle()
+
+            statusFlow.value = ConnectivityService.ConnectivityStatus.DISCONNECTED
+            advanceUntilIdle()
+
+            assertFalse(presenter.showReconnectOverlay.value)
+            assertFalse(presenter.showAllConnectionsLostDialogue.value)
+        }
+
+    @Test
+    fun `when disconnected after prolonged reconnecting then shows connection lost dialog`() =
+        runTest(testDispatcher) {
+            val statusFlow = MutableStateFlow(ConnectivityService.ConnectivityStatus.RECONNECTING)
+            every { connectivityService.status } returns statusFlow
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            presenter.setIsMainContentVisible(true)
+            advanceUntilIdle()
+
+            statusFlow.value = ConnectivityService.ConnectivityStatus.DISCONNECTED
+            advanceUntilIdle()
+
+            assertFalse(presenter.showReconnectOverlay.value)
+            assertTrue(presenter.showAllConnectionsLostDialogue.value)
+        }
+
+    /**
+     * Guards against a regression where a brief intermediate CONNECTED state (e.g.
+     * RECONNECTING → CONNECTED_AND_DATA_RECEIVED → DISCONNECTED) would incorrectly
+     * trigger the "connection lost" dialog. The previous-status tracking must reset
+     * once we hit a connected state, so a subsequent DISCONNECTED is treated as a
+     * fresh disconnect — NOT a post-reconnect-timeout transition.
+     */
+    @Test
+    fun `disconnected after intermediate connected state does not show lost dialog`() =
+        runTest(testDispatcher) {
+            val statusFlow = MutableStateFlow(ConnectivityService.ConnectivityStatus.RECONNECTING)
+            every { connectivityService.status } returns statusFlow
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            presenter.setIsMainContentVisible(true)
+            advanceUntilIdle()
+            assertTrue(presenter.showReconnectOverlay.value)
+
+            // Reconnect briefly succeeds — the prior RECONNECTING cycle is now over.
+            statusFlow.value = ConnectivityService.ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
+            advanceUntilIdle()
+            assertFalse(presenter.showReconnectOverlay.value)
+
+            // A new, distinct disconnect — NOT a timeout from the prior cycle.
+            statusFlow.value = ConnectivityService.ConnectivityStatus.DISCONNECTED
+            advanceUntilIdle()
+
+            assertFalse(presenter.showReconnectOverlay.value)
+            assertFalse(
+                presenter.showAllConnectionsLostDialogue.value,
+                "dialog must NOT show for a disconnect that did not directly follow RECONNECTING",
+            )
+        }
+
+    /**
+     * Backgrounding the app during a reconnect should hide the overlay (no foreground
+     * UI to show it on), and foregrounding again while still RECONNECTING should bring
+     * the overlay back. The previous-status tracking resets when main goes hidden,
+     * so the re-emerged RECONNECTING is treated as a fresh transition (not a stale one).
+     */
+    @Test
+    fun `mainVisible toggling during reconnecting keeps overlay in sync with status`() =
+        runTest(testDispatcher) {
+            val statusFlow = MutableStateFlow(ConnectivityService.ConnectivityStatus.RECONNECTING)
+            every { connectivityService.status } returns statusFlow
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            presenter.setIsMainContentVisible(true)
+            advanceUntilIdle()
+            assertTrue(presenter.showReconnectOverlay.value)
+
+            // App backgrounded — overlay hidden.
+            presenter.setIsMainContentVisible(false)
+            advanceUntilIdle()
+            assertFalse(presenter.showReconnectOverlay.value)
+            assertFalse(presenter.showAllConnectionsLostDialogue.value)
+
+            // App foregrounded again while reconnect is still in progress — overlay returns.
+            presenter.setIsMainContentVisible(true)
+            advanceUntilIdle()
+            assertTrue(presenter.showReconnectOverlay.value)
+            assertFalse(presenter.showAllConnectionsLostDialogue.value)
+        }
+
+    @Test
+    fun `uses client specific reconnect overlay copy keys`() {
+        val presenter = createPresenter()
+
+        assertEquals("mobile.connectivity.reconnecting.client.info", presenter.reconnectOverlayInfoKey)
+        assertEquals("mobile.connectivity.reconnecting.client.details", presenter.reconnectOverlayDetailsKey)
+        assertEquals("mobile.connectivity.disconnected.client.title", presenter.connectionsLostDialogTitleKey)
+        assertEquals("mobile.connectivity.disconnected.client.message", presenter.connectionsLostDialogMessageKey)
+    }
 }

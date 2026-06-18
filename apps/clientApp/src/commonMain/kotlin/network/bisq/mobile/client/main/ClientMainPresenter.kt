@@ -1,11 +1,13 @@
 package network.bisq.mobile.client.main
 
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import network.bisq.mobile.client.common.domain.service.network.ClientConnectivityService
 import network.bisq.mobile.client.common.presentation.navigation.ClientNavRoute
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationLifecycleService
+import network.bisq.mobile.data.service.network.ConnectivityService
 import network.bisq.mobile.data.service.network.NetworkServiceFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
@@ -41,14 +43,45 @@ open class ClientMainPresenter(
         urlLauncher,
         applicationLifecycleService,
     ) {
+    override val reconnectOverlayInfoKey: String = "mobile.connectivity.reconnecting.client.info"
+    override val reconnectOverlayDetailsKey: String = "mobile.connectivity.reconnecting.client.details"
+    override val connectionsLostDialogTitleKey: String = "mobile.connectivity.disconnected.client.title"
+    override val connectionsLostDialogMessageKey: String = "mobile.connectivity.disconnected.client.message"
+
     override fun onViewAttached() {
         super.onViewAttached()
         listenForConnectivity()
+        observeConnectivity()
         observeClientRevocation()
     }
 
     private fun listenForConnectivity() {
         connectivityService.startMonitoring()
+    }
+
+    private var previousConnectivityStatus: ConnectivityService.ConnectivityStatus? = null
+
+    private fun observeConnectivity() {
+        presenterScope.launch {
+            combine(connectivityService.status, isMainContentVisible) { status, mainVisible ->
+                status to mainVisible
+            }.collect { (status, mainVisible) ->
+                if (!mainVisible) {
+                    _showReconnectOverlay.value = false
+                    _showAllConnectionsLostDialogue.value = false
+                    previousConnectivityStatus = null
+                    return@collect
+                }
+
+                _showReconnectOverlay.value =
+                    status == ConnectivityService.ConnectivityStatus.RECONNECTING
+                _showAllConnectionsLostDialogue.value =
+                    previousConnectivityStatus == ConnectivityService.ConnectivityStatus.RECONNECTING &&
+                    status == ConnectivityService.ConnectivityStatus.DISCONNECTED
+
+                previousConnectivityStatus = status
+            }
+        }
     }
 
     @ExcludeFromCoverage
