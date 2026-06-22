@@ -21,6 +21,9 @@ class IgnoredUsersPresenter(
     private val _ignoreUserId: MutableStateFlow<String> = MutableStateFlow("")
     override val ignoreUserId: StateFlow<String> = _ignoreUserId.asStateFlow()
 
+    private val _isUnblockUserConfirmEnabled = MutableStateFlow(true)
+    override val isUnblockUserConfirmEnabled: StateFlow<Boolean> = _isUnblockUserConfirmEnabled.asStateFlow()
+
     override val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage get() = userProfileServiceFacade::getUserProfileIcon
 
     override fun onViewAttached() {
@@ -46,7 +49,7 @@ class IgnoredUsersPresenter(
     }
 
     override fun unblockUserConfirm(userId: String) {
-        presenterScope.launch {
+        guardedSuspendAction(_isUnblockUserConfirmEnabled, "unblockUserConfirm") {
             try {
                 userProfileServiceFacade.undoIgnoreUserProfile(userId)
                 _ignoreUserId.value = ""

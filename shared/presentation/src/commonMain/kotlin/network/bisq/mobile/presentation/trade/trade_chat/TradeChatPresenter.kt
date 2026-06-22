@@ -89,6 +89,15 @@ class TradeChatPresenter(
     private val _reportUserMessage = MutableStateFlow<String?>(null)
     val reportUserMessage: StateFlow<String?> = _reportUserMessage.asStateFlow()
 
+    private val _isSendChatMessageEnabled = MutableStateFlow(true)
+    val isSendChatMessageEnabled: StateFlow<Boolean> = _isSendChatMessageEnabled.asStateFlow()
+
+    private val _isConfirmIgnoreUserEnabled = MutableStateFlow(true)
+    val isConfirmIgnoreUserEnabled: StateFlow<Boolean> = _isConfirmIgnoreUserEnabled.asStateFlow()
+
+    private val _isConfirmUndoIgnoreUserEnabled = MutableStateFlow(true)
+    val isConfirmUndoIgnoreUserEnabled: StateFlow<Boolean> = _isConfirmUndoIgnoreUserEnabled.asStateFlow()
+
     val readCount =
         selectedTrade
             .combine(tradeReadStateRepository.data.map { it.map }) { trade, readStates ->
@@ -180,6 +189,7 @@ class TradeChatPresenter(
     fun sendChatMessage(text: String) {
         val finalText = text.trim()
         if (finalText.isEmpty()) return
+
         val citation =
             quotedMessage.value?.let { quotedMessage ->
                 quotedMessage.text?.let { text ->
@@ -190,9 +200,12 @@ class TradeChatPresenter(
                     )
                 }
             }
-        presenterScope.launch {
-            tradeChatMessagesServiceFacade.sendChatMessage(finalText, citation)
-            _quotedMessage.value = null
+        guardedSuspendAction(_isSendChatMessageEnabled, "sendChatMessage") {
+            tradeChatMessagesServiceFacade
+                .sendChatMessage(finalText, citation)
+                .onSuccess {
+                    _quotedMessage.value = null
+                }
         }
     }
 
@@ -241,29 +254,23 @@ class TradeChatPresenter(
     }
 
     fun onConfirmedIgnoreUser(id: String) {
-        presenterScope.launch {
-            showLoading()
+        guardedSuspendAction(_isConfirmIgnoreUserEnabled, "onConfirmedIgnoreUser") {
             try {
                 userProfileServiceFacade.ignoreUserProfile(id)
                 hideIgnoreUserPopup()
             } catch (e: Exception) {
                 log.e(e) { "Failed to ignore user $id" }
-            } finally {
-                hideLoading()
             }
         }
     }
 
     fun onConfirmedUndoIgnoreUser(id: String) {
-        presenterScope.launch {
-            showLoading()
+        guardedSuspendAction(_isConfirmUndoIgnoreUserEnabled, "onConfirmedUndoIgnoreUser") {
             try {
                 userProfileServiceFacade.undoIgnoreUserProfile(id)
                 hideUndoIgnoreUserPopup()
             } catch (e: Exception) {
                 log.e(e) { "Failed to undo ignore user $id" }
-            } finally {
-                hideLoading()
             }
         }
     }

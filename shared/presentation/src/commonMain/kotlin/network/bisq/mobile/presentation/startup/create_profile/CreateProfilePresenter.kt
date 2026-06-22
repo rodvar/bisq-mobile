@@ -4,7 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
@@ -65,8 +65,14 @@ class CreateProfilePresenter(
     private val _generateKeyPairInProgress = MutableStateFlow(false)
     val generateKeyPairInProgress: StateFlow<Boolean> = _generateKeyPairInProgress.asStateFlow()
 
+    private val _isGenerateKeyPairEnabled = MutableStateFlow(true)
+    val isGenerateKeyPairEnabled: StateFlow<Boolean> = _isGenerateKeyPairEnabled.asStateFlow()
+
     private val _createAndPublishInProgress = MutableStateFlow(false)
     val createAndPublishInProgress: StateFlow<Boolean> = _createAndPublishInProgress.asStateFlow()
+
+    private val _isCreateAndPublishEnabled = MutableStateFlow(true)
+    val isCreateAndPublishEnabled: StateFlow<Boolean> = _isCreateAndPublishEnabled.asStateFlow()
 
     // Lifecycle
     override fun onViewAttached() {
@@ -89,60 +95,66 @@ class CreateProfilePresenter(
 
     fun onCreateAndPublishNewUserProfile() {
         val toSubmit = nickName.value.trim()
-        if (toSubmit.isNotEmpty()) {
-            presenterScope.launch {
-                disableInteractive()
+        if (toSubmit.isEmpty()) return
+
+        guardedSuspendAction(
+            _isCreateAndPublishEnabled,
+            "onCreateAndPublishNewUserProfile",
+            reEnableGuardOnComplete = false,
+        ) {
+            try {
                 _createAndPublishInProgress.value = true
                 log.i { "Show busy animation for createAndPublishInProgress" }
-                runCatching {
-                    userProfileService.createAndPublishNewUserProfile(toSubmit)
-                    if (isOnboarding.value) {
-                        // Navigate to TabContainer and completely clear the back stack
-                        // This ensures the user can never navigate back to onboarding screens
-                        navigateTo(NavRoute.TabContainer) {
-                            it.popUpTo<NavRoute.Splash> { inclusive = true }
-                        }
-                    } else {
-                        navigateBack()
+                userProfileService.createAndPublishNewUserProfile(toSubmit)
+                if (isOnboarding.value) {
+                    // Navigate to TabContainer and completely clear the back stack
+                    // This ensures the user can never navigate back to onboarding screens
+                    navigateTo(NavRoute.TabContainer) {
+                        it.popUpTo<NavRoute.Splash> { inclusive = true }
                     }
-
-                    log.i { "Hide busy animation for createAndPublishInProgress" }
-                    _nickName.value = ""
-                    _createAndPublishInProgress.value = false
-                    enableInteractive()
-                }.onFailure { e ->
-                    GenericErrorHandler.handleGenericError(
-                        "Creating and publishing new user profile failed.",
-                        e,
-                    )
-                    _createAndPublishInProgress.value = false
-                    enableInteractive()
+                } else {
+                    navigateBack()
                 }
+                log.i { "Hide busy animation for createAndPublishInProgress" }
+                _nickName.value = ""
+                _createAndPublishInProgress.value = false
+            } catch (e: Exception) {
+                GenericErrorHandler.handleGenericError(
+                    "Creating and publishing new user profile failed.",
+                    e,
+                )
+                _createAndPublishInProgress.value = false
+                _isCreateAndPublishEnabled.value = true
             }
         }
     }
 
     // Private
     private fun generateKeyPair() {
-        _generateKeyPairInProgress.value = true
-        log.i { "Show busy animation for generateKeyPair" }
-
-        presenterScope.launch(Dispatchers.Default) {
-            // takes 200 -1000 ms
-            runCatching {
-                userProfileService.generateKeyPair(
-                    IMAGE_SIZE_IN_PX,
-                ) { id, nym, profileIcon ->
-                    setId(id)
-                    setNym(nym)
-                    setProfileIcon(profileIcon)
+        guardedSuspendAction(
+            _isGenerateKeyPairEnabled,
+            "generateKeyPair",
+            showLoadingOverlay = false,
+        ) {
+            _generateKeyPairInProgress.value = true
+            log.i { "Show busy animation for generateKeyPair" }
+            try {
+                withContext(Dispatchers.Default) {
+                    // takes 200 -1000 ms
+                    userProfileService.generateKeyPair(
+                        IMAGE_SIZE_IN_PX,
+                    ) { id, nym, profileIcon ->
+                        setId(id)
+                        setNym(nym)
+                        setProfileIcon(profileIcon)
+                    }
                 }
-            }.onFailure {
-                disableInteractive()
+            } catch (e: Exception) {
                 showSnackbar("mobile.profile.generatingKeyPairFailed".i18n(), type = SnackbarType.ERROR)
+            } finally {
+                _generateKeyPairInProgress.value = false
+                log.i { "Hide busy animation for generateKeyPair" }
             }
-            _generateKeyPairInProgress.value = false
-            log.i { "Hide busy animation for generateKeyPair" }
         }
     }
 }

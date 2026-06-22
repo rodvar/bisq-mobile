@@ -1,13 +1,11 @@
 package network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.step3_account_review
 
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import network.bisq.mobile.client.payment_accounts.domain.model.PaymentMethod
 import network.bisq.mobile.client.payment_accounts.domain.service.PaymentAccountNameAlreadyExistsException
 import network.bisq.mobile.client.payment_accounts.domain.service.PaymentAccountsServiceFacade
@@ -28,7 +26,8 @@ class PaymentAccountReviewPresenter(
     private val _effect = MutableSharedFlow<PaymentAccountReviewEffect>()
     val effect = _effect.asSharedFlow()
 
-    private var createAccountJob: Job? = null
+    private val _isCreateAccountEnabled = MutableStateFlow(true)
+    val isCreateAccountEnabled: StateFlow<Boolean> = _isCreateAccountEnabled.asStateFlow()
 
     fun initialize(
         createPaymentAccount: CreatePaymentAccount,
@@ -51,19 +50,20 @@ class PaymentAccountReviewPresenter(
     }
 
     private fun onCreateAccount(account: CreatePaymentAccount) {
-        if (createAccountJob?.isActive == true) return
-        createAccountJob =
-            presenterScope.launch {
-                showLoading()
-                paymentAccountsServiceFacade
-                    .addAccount(account)
-                    .onSuccess {
-                        _effect.emit(PaymentAccountReviewEffect.CloseCreateAccountFlow)
-                    }.onFailure {
-                        handleError(it, customHandler = ::handleCreateAccountError)
-                    }
-                hideLoading()
-            }
+        guardedSuspendAction(
+            _isCreateAccountEnabled,
+            "onCreateAccount",
+            reEnableGuardOnComplete = false,
+        ) {
+            paymentAccountsServiceFacade
+                .addAccount(account)
+                .onSuccess {
+                    _effect.emit(PaymentAccountReviewEffect.CloseCreateAccountFlow)
+                }.onFailure {
+                    handleError(it, customHandler = ::handleCreateAccountError)
+                    _isCreateAccountEnabled.value = true
+                }
+        }
     }
 
     private fun handleCreateAccountError(exception: Throwable): Boolean {

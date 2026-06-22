@@ -50,9 +50,29 @@ fun SettingsScreen() {
     RememberPresenterLifecycle(presenter)
 
     val uiState by presenter.uiState.collectAsState()
+    val isTradePriceToleranceSaveEnabled by presenter.isTradePriceToleranceSaveEnabled.collectAsState()
+    val isNumDaysAfterRedactingTradeDataSaveEnabled by presenter.isNumDaysAfterRedactingTradeDataSaveEnabled.collectAsState()
+    val isPowFactorSaveEnabled by presenter.isPowFactorSaveEnabled.collectAsState()
+    val isPushNotificationsToggleEnabled by presenter.isPushNotificationsToggleEnabled.collectAsState()
+    val isLanguageCodeChangeEnabled by presenter.isLanguageCodeChangeEnabled.collectAsState()
+    val isSupportedLanguageCodesChangeEnabled by presenter.isSupportedLanguageCodesChangeEnabled.collectAsState()
+    val isCloseOfferWhenTradeTakenChangeEnabled by presenter.isCloseOfferWhenTradeTakenChangeEnabled.collectAsState()
+    val isUseAnimationsChangeEnabled by presenter.isUseAnimationsChangeEnabled.collectAsState()
+    val isIgnorePowChangeEnabled by presenter.isIgnorePowChangeEnabled.collectAsState()
+    val isResetAllDontShowAgainEnabled by presenter.isResetAllDontShowAgainEnabled.collectAsState()
 
     SettingsContent(
         uiState = uiState,
+        isTradePriceToleranceSaveEnabled = isTradePriceToleranceSaveEnabled,
+        isNumDaysAfterRedactingTradeDataSaveEnabled = isNumDaysAfterRedactingTradeDataSaveEnabled,
+        isPowFactorSaveEnabled = isPowFactorSaveEnabled,
+        isPushNotificationsToggleEnabled = isPushNotificationsToggleEnabled,
+        isLanguageCodeChangeEnabled = isLanguageCodeChangeEnabled,
+        isSupportedLanguageCodesChangeEnabled = isSupportedLanguageCodesChangeEnabled,
+        isCloseOfferWhenTradeTakenChangeEnabled = isCloseOfferWhenTradeTakenChangeEnabled,
+        isUseAnimationsChangeEnabled = isUseAnimationsChangeEnabled,
+        isIgnorePowChangeEnabled = isIgnorePowChangeEnabled,
+        isResetAllDontShowAgainEnabled = isResetAllDontShowAgainEnabled,
         onAction = presenter::onAction,
         topBar = { TopBar("mobile.settings.title".i18n()) },
     )
@@ -62,6 +82,16 @@ fun SettingsScreen() {
 fun SettingsContent(
     uiState: SettingsUiState,
     onAction: (SettingsUiAction) -> Unit,
+    isTradePriceToleranceSaveEnabled: Boolean = true,
+    isNumDaysAfterRedactingTradeDataSaveEnabled: Boolean = true,
+    isPowFactorSaveEnabled: Boolean = true,
+    isPushNotificationsToggleEnabled: Boolean = true,
+    isLanguageCodeChangeEnabled: Boolean = true,
+    isSupportedLanguageCodesChangeEnabled: Boolean = true,
+    isCloseOfferWhenTradeTakenChangeEnabled: Boolean = true,
+    isUseAnimationsChangeEnabled: Boolean = true,
+    isIgnorePowChangeEnabled: Boolean = true,
+    isResetAllDontShowAgainEnabled: Boolean = true,
     topBar: @Composable () -> Unit = {},
 ) {
     // Pre-prompt explainer + system permission launcher for the push-notifications
@@ -115,6 +145,7 @@ fun SettingsContent(
                         selectedKey = uiState.languageCode,
                         onSelect = { onAction(SettingsUiAction.OnLanguageCodeChange(it.key)) },
                         searchable = true,
+                        disabled = !isLanguageCodeChangeEnabled,
                     )
 
                     BisqMultiSelect(
@@ -131,6 +162,7 @@ fun SettingsContent(
                         maxSelectionLimit = 5,
                         minSelectionLimit = 1,
                         chipType = BisqChipType.Outline,
+                        disabled = !isSupportedLanguageCodesChangeEnabled,
                     )
 
                     BisqHDivider()
@@ -142,6 +174,7 @@ fun SettingsContent(
                     BisqSwitch(
                         label = "settings.trade.closeMyOfferWhenTaken".i18n(),
                         checked = uiState.closeOfferWhenTradeTaken,
+                        disabled = !isCloseOfferWhenTradeTakenChangeEnabled,
                         onSwitch = { onAction(SettingsUiAction.OnCloseOfferWhenTradeTakenChange(it)) },
                     )
 
@@ -168,6 +201,7 @@ fun SettingsContent(
                                     EditableFieldActions(
                                         onSave = { onAction(SettingsUiAction.OnTradePriceToleranceSave) },
                                         onCancel = { onAction(SettingsUiAction.OnTradePriceToleranceCancel) },
+                                        disabled = !isTradePriceToleranceSaveEnabled,
                                     )
                                 }
                             } else {
@@ -203,6 +237,7 @@ fun SettingsContent(
                                     EditableFieldActions(
                                         onSave = { onAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataSave) },
                                         onCancel = { onAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataCancel) },
+                                        disabled = !isNumDaysAfterRedactingTradeDataSaveEnabled,
                                     )
                                 }
                             } else {
@@ -221,6 +256,7 @@ fun SettingsContent(
                     BisqSwitch(
                         label = "settings.display.useAnimations".i18n(),
                         checked = uiState.useAnimations,
+                        disabled = !isUseAnimationsChangeEnabled,
                         onSwitch = { onAction(SettingsUiAction.OnUseAnimationsChange(it)) },
                     )
 
@@ -230,6 +266,7 @@ fun SettingsContent(
                         onClick = { onAction(SettingsUiAction.OnResetAllDontShowAgainClick) },
                         type = BisqButtonType.Outline,
                         fullWidth = true,
+                        disabled = !isResetAllDontShowAgainEnabled,
                     )
 
                     if (uiState.shouldShowPushNotificationsToggle) {
@@ -242,6 +279,7 @@ fun SettingsContent(
                         BisqSwitch(
                             label = "mobile.pushNotifications.settings.toggleLabel".i18n(),
                             checked = uiState.pushNotificationsEnabled,
+                            disabled = !isPushNotificationsToggleEnabled,
                             onSwitch = { newValue ->
                                 if (newValue) {
                                     showPushPermissionExplainer = true
@@ -328,6 +366,7 @@ fun SettingsContent(
                                         EditableFieldActions(
                                             onSave = { onAction(SettingsUiAction.OnPowFactorSave) },
                                             onCancel = { onAction(SettingsUiAction.OnPowFactorCancel) },
+                                            disabled = !isPowFactorSaveEnabled,
                                         )
                                     }
                                 } else {
@@ -340,6 +379,7 @@ fun SettingsContent(
                         BisqSwitch(
                             label = "settings.network.difficultyAdjustmentFactor.ignoreValueFromSecManager".i18n(),
                             checked = uiState.ignorePow,
+                            disabled = !isIgnorePowChangeEnabled,
                             onSwitch = { onAction(SettingsUiAction.OnIgnorePowChange(it)) },
                         )
                     }

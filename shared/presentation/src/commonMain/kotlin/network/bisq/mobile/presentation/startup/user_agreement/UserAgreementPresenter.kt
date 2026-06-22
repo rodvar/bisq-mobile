@@ -3,7 +3,6 @@ package network.bisq.mobile.presentation.startup.user_agreement
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.i18n.i18n
@@ -21,13 +20,19 @@ open class UserAgreementPresenter(
     private val _accepted = MutableStateFlow(false)
     override val isAccepted: StateFlow<Boolean> = _accepted.asStateFlow()
 
+    private val _isAcceptTermsEnabled = MutableStateFlow(true)
+    override val isAcceptTermsEnabled: StateFlow<Boolean> = _isAcceptTermsEnabled.asStateFlow()
+
     override fun onAccepted(accepted: Boolean) {
         _accepted.value = accepted
     }
 
     override fun onAcceptTerms() {
-        showLoading()
-        presenterScope.launch {
+        guardedSuspendAction(
+            _isAcceptTermsEnabled,
+            "onAcceptTerms",
+            reEnableGuardOnComplete = false,
+        ) {
             settingsServiceFacade
                 .confirmTacAccepted(true)
                 .onSuccess {
@@ -35,8 +40,8 @@ open class UserAgreementPresenter(
                     showSnackbar("mobile.startup.agreement.welcome".i18n())
                 }.onFailure { exception ->
                     handleError(exception)
+                    _isAcceptTermsEnabled.value = true
                 }
-            hideLoading()
         }
     }
 

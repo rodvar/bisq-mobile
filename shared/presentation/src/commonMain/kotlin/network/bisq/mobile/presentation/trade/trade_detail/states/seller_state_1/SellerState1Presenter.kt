@@ -29,6 +29,9 @@ class SellerState1Presenter(
     private var _paymentAccountName = MutableStateFlow("")
     val paymentAccountName: StateFlow<String> = _paymentAccountName.asStateFlow()
 
+    private val _isSendPaymentDataEnabled = MutableStateFlow(true)
+    val isSendPaymentDataEnabled: StateFlow<Boolean> = _isSendPaymentDataEnabled.asStateFlow()
+
     private val minPaymentAccountDataLength = 3
     private val maxPaymentAccountDataLength = 1024
 
@@ -88,10 +91,17 @@ class SellerState1Presenter(
             return
         }
 
-        presenterScope.launch {
-            showLoading()
-            tradesServiceFacade.sellerSendsPaymentAccount(paymentAccountData)
-            hideLoading()
+        guardedSuspendAction(
+            _isSendPaymentDataEnabled,
+            "onSendPaymentData",
+            reEnableGuardOnComplete = false,
+        ) {
+            val result =
+                runCatching { tradesServiceFacade.sellerSendsPaymentAccount(paymentAccountData) }
+                    .getOrElse { Result.failure(it) }
+            result.onFailure {
+                _isSendPaymentDataEnabled.value = true
+            }
         }
     }
 }

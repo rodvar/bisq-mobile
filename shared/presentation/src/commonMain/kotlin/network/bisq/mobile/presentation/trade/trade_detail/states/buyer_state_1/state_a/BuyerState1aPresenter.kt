@@ -43,6 +43,9 @@ class BuyerState1aPresenter(
     private val _triggerBitcoinLnAddressValidation = MutableStateFlow(0)
     val triggerBitcoinLnAddressValidation = _triggerBitcoinLnAddressValidation.asStateFlow()
 
+    private val _isSendBitcoinPaymentDataEnabled = MutableStateFlow(true)
+    val isSendBitcoinPaymentDataEnabled: StateFlow<Boolean> = _isSendBitcoinPaymentDataEnabled.asStateFlow()
+
     fun setShowInvalidAddressDialog(value: Boolean) {
         _showInvalidAddressDialog.value = value
     }
@@ -109,15 +112,19 @@ class BuyerState1aPresenter(
     fun sendBitcoinPaymentData() {
         val bitcoinPaymentData = bitcoinPaymentData.value
         if (bitcoinPaymentData.isEmpty()) return
-        setShowInvalidAddressDialog(false)
-        presenterScope.launch {
-            showLoading()
+
+        guardedSuspendAction(
+            _isSendBitcoinPaymentDataEnabled,
+            "sendBitcoinPaymentData",
+            reEnableGuardOnComplete = false,
+        ) {
+            setShowInvalidAddressDialog(false)
             tradesServiceFacade
                 .buyerSendBitcoinPaymentData(bitcoinPaymentData)
                 .onFailure { exception ->
                     handleError(exception)
+                    _isSendBitcoinPaymentDataEnabled.value = true
                 }
-            hideLoading()
         }
     }
 

@@ -103,6 +103,15 @@ open class OfferbookPresenter(
     private val _showNotEnoughReputationDialog = MutableStateFlow(false)
     val showNotEnoughReputationDialog: StateFlow<Boolean> = _showNotEnoughReputationDialog.asStateFlow()
 
+    private val _isCreateOfferEnabled = MutableStateFlow(true)
+    val isCreateOfferEnabled: StateFlow<Boolean> = _isCreateOfferEnabled.asStateFlow()
+
+    private val _isDeleteOfferEnabled = MutableStateFlow(true)
+    val isDeleteOfferEnabled: StateFlow<Boolean> = _isDeleteOfferEnabled.asStateFlow()
+
+    private val _isTakeOfferEnabled = MutableStateFlow(true)
+    val isTakeOfferEnabled: StateFlow<Boolean> = _isTakeOfferEnabled.asStateFlow()
+
     val selectedMarket get() = marketPriceServiceFacade.selectedMarketPriceItem
 
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage get() = userProfileServiceFacade::getUserProfileIcon
@@ -120,6 +129,7 @@ open class OfferbookPresenter(
     override fun onViewAttached() {
         super.onViewAttached()
 
+        resetActionGuards()
         selectedOffer = null
         presenterScope.launch {
             // pack strongly-typed, use vararg combine -> Array, then map
@@ -399,21 +409,19 @@ open class OfferbookPresenter(
             showSnackbar("mobile.bisqEasy.offerbook.failedToDeleteOffer".i18n(EMPTY_STRING), type = SnackbarType.ERROR)
             return
         }
-        runCatching {
-            _showDeleteConfirmation.value = false
-            require(selectedOffer.isMyOffer)
-            if (isDemo()) {
-                showSnackbar("mobile.demo.action.disabled".i18n(), type = SnackbarType.ERROR)
-                return@runCatching
-            }
-            presenterScope.launch {
-                showLoading()
+        guardedSuspendAction(_isDeleteOfferEnabled, "onConfirmedDeleteOffer") {
+            runCatching {
+                _showDeleteConfirmation.value = false
+                require(selectedOffer.isMyOffer)
+                if (isDemo()) {
+                    showSnackbar("mobile.demo.action.disabled".i18n(), type = SnackbarType.ERROR)
+                    return@runCatching
+                }
                 val result =
                     offersServiceFacade
                         .deleteOffer(selectedOffer.offerId)
                         .getOrDefault(false)
                 log.d { "delete offer success $result" }
-                hideLoading()
                 if (result) {
                     deselectOffer()
                 } else {
@@ -425,15 +433,14 @@ open class OfferbookPresenter(
                         type = SnackbarType.ERROR,
                     )
                 }
+            }.onFailure {
+                log.e(it) { "Failed to delete offer ${selectedOffer.offerId}" }
+                showSnackbar(
+                    "mobile.bisqEasy.offerbook.unableToDeleteOffer".i18n(selectedOffer.offerId),
+                    type = SnackbarType.ERROR,
+                )
+                deselectOffer()
             }
-        }.onFailure {
-            hideLoading()
-            log.e(it) { "Failed to delete offer ${selectedOffer.offerId}" }
-            showSnackbar(
-                "mobile.bisqEasy.offerbook.unableToDeleteOffer".i18n(selectedOffer.offerId),
-                type = SnackbarType.ERROR,
-            )
-            deselectOffer()
         }
     }
 
@@ -448,39 +455,49 @@ open class OfferbookPresenter(
             _showTradeRestrictedDialog.value = activeAlert.toAlertNotificationUiState()
             return
         }
-        runCatching {
-            selectedOffer?.let { item ->
+        val item = selectedOffer
+        if (item == null) {
+            log.w { "takeOffer called with no selected offer; ignoring" }
+            return
+        }
+        guardedSuspendAction(
+            _isTakeOfferEnabled,
+            "takeOffer",
+            reEnableGuardOnComplete = false,
+        ) {
+            runCatching {
                 require(!item.isMyOffer)
                 val selectedProfile = selectedUserProfile.value
                 require(selectedProfile != null)
-                presenterScope.launch {
-                    try {
-                        if (canTakeOffer(item, selectedProfile)) {
-                            takeOfferCoordinator.selectOfferToTake(item)
-                            if (takeOfferCoordinator.showAmountScreen()) {
-                                navigateTo(NavRoute.TakeOfferTradeAmount)
-                            } else if (takeOfferCoordinator.showPaymentMethodsScreen()) {
-                                navigateTo(NavRoute.TakeOfferPaymentMethod)
-                            } else if (takeOfferCoordinator.showSettlementMethodsScreen()) {
-                                navigateTo(NavRoute.TakeOfferSettlementMethod)
-                            } else {
-                                navigateTo(NavRoute.TakeOfferReviewTrade)
-                            }
+                try {
+                    if (canTakeOffer(item, selectedProfile)) {
+                        takeOfferCoordinator.selectOfferToTake(item)
+                        if (takeOfferCoordinator.showAmountScreen()) {
+                            navigateTo(NavRoute.TakeOfferTradeAmount)
+                        } else if (takeOfferCoordinator.showPaymentMethodsScreen()) {
+                            navigateTo(NavRoute.TakeOfferPaymentMethod)
+                        } else if (takeOfferCoordinator.showSettlementMethodsScreen()) {
+                            navigateTo(NavRoute.TakeOfferSettlementMethod)
                         } else {
-                            showReputationRequirementInfo(item)
+                            navigateTo(NavRoute.TakeOfferReviewTrade)
                         }
-                    } catch (e: Exception) {
-                        log.e("canTakeOffer call failed", e)
+                    } else {
+                        showReputationRequirementInfo(item)
+                        _isTakeOfferEnabled.value = true
                     }
+                } catch (e: Exception) {
+                    log.e("canTakeOffer call failed", e)
+                    _isTakeOfferEnabled.value = true
                 }
+            }.onFailure {
+                log.e(it) { "Failed to take offer ${item.offerId}" }
+                showSnackbar(
+                    "mobile.bisqEasy.offerbook.unableToTakeOffer".i18n(item.offerId),
+                    type = SnackbarType.ERROR,
+                )
+                deselectOffer()
+                _isTakeOfferEnabled.value = true
             }
-        }.onFailure {
-            log.e(it) { "Failed to take offer ${selectedOffer?.offerId}" }
-            showSnackbar(
-                "mobile.bisqEasy.offerbook.unableToTakeOffer".i18n(selectedOffer?.offerId ?: ""),
-                type = SnackbarType.ERROR,
-            )
-            deselectOffer()
         }
     }
 
@@ -651,30 +668,35 @@ open class OfferbookPresenter(
             _showTradeRestrictedDialog.value = activeAlert.toAlertNotificationUiState()
             return
         }
-        disableInteractive()
-        try {
-            val selectedMarket = offersServiceFacade.selectedOfferbookMarket.value.market
-            createOfferCoordinator.onStartCreateOffer()
+        guardedSuspendAction(
+            _isCreateOfferEnabled,
+            "createOffer",
+            showLoadingOverlay = false,
+            reEnableGuardOnComplete = false,
+        ) {
+            try {
+                val selectedMarket = offersServiceFacade.selectedOfferbookMarket.value.market
+                createOfferCoordinator.onStartCreateOffer()
 
-            // Check if a market is already selected (not EMPTY)
+                // Check if a market is already selected (not EMPTY)
 
-            val hasValidMarket = selectedMarket.baseCurrencyCode.isNotEmpty() && selectedMarket.quoteCurrencyCode.isNotEmpty()
+                val hasValidMarket = selectedMarket.baseCurrencyCode.isNotEmpty() && selectedMarket.quoteCurrencyCode.isNotEmpty()
 
-            if (hasValidMarket) {
-                // Use the already selected market
-                createOfferCoordinator.commitMarket(selectedMarket)
-                createOfferCoordinator.skipCurrency = true
-            } else {
-                // No market selected, go to market selection
-                createOfferCoordinator.skipCurrency = false
+                if (hasValidMarket) {
+                    // Use the already selected market
+                    createOfferCoordinator.commitMarket(selectedMarket)
+                    createOfferCoordinator.skipCurrency = true
+                } else {
+                    // No market selected, go to market selection
+                    createOfferCoordinator.skipCurrency = false
+                }
+
+                navigateTo(NavRoute.CreateOfferDirection)
+            } catch (e: Exception) {
+                _isCreateOfferEnabled.value = true
+                log.e(e) { "Failed to create offer" }
+                showSnackbar(if (isDemo()) "mobile.demo.action.disabled".i18n() else "mobile.bisqEasy.offerbook.cannotCreateOffer".i18n(), type = SnackbarType.ERROR)
             }
-
-            enableInteractive()
-            navigateTo(NavRoute.CreateOfferDirection)
-        } catch (e: Exception) {
-            enableInteractive()
-            log.e(e) { "Failed to create offer" }
-            showSnackbar(if (isDemo()) "mobile.demo.action.disabled".i18n() else "mobile.bisqEasy.offerbook.cannotCreateOffer".i18n(), type = SnackbarType.ERROR)
         }
     }
 
@@ -746,4 +768,10 @@ open class OfferbookPresenter(
      * This method is safe to call from hot paths like offer filtering.
      */
     open fun isOfferFromIgnoredUserCached(offer: BisqEasyOfferVO): Boolean = false
+
+    private fun resetActionGuards() {
+        _isCreateOfferEnabled.value = true
+        _isDeleteOfferEnabled.value = true
+        _isTakeOfferEnabled.value = true
+    }
 }

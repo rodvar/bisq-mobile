@@ -30,12 +30,12 @@ fun BuyerState1a(
 ) {
     RememberPresenterLifecycle(presenter)
 
-    val isInteractive by presenter.isInteractive.collectAsState()
     val headline by presenter.headline.collectAsState()
     val description by presenter.description.collectAsState()
     val bitcoinPaymentData by presenter.bitcoinPaymentData.collectAsState()
     val addressFieldType by presenter.bitcoinLnAddressFieldType.collectAsState()
     val triggerBitcoinLnAddressValidation by presenter.triggerBitcoinLnAddressValidation.collectAsState()
+    val isSendBitcoinPaymentDataEnabled by presenter.isSendBitcoinPaymentDataEnabled.collectAsState()
 
     Column {
         BisqGap.V1()
@@ -63,12 +63,11 @@ fun BuyerState1a(
             BisqButton(
                 text = "bisqEasy.tradeState.info.buyer.phase1a.send".i18n(), // Send to seller
                 onClick = { presenter.onSendBitcoinPaymentDataClick() },
-                disabled = bitcoinPaymentData.isEmpty(),
+                disabled = bitcoinPaymentData.isEmpty() || !isSendBitcoinPaymentDataEnabled,
                 modifier = Modifier.fillMaxHeight(),
             )
             BisqButton(
                 text = "bisqEasy.tradeState.info.buyer.phase1a.walletHelpButton".i18n(), // Open wallet guide
-                disabled = !isInteractive,
                 onClick = { presenter.onOpenWalletGuide() },
                 type = BisqButtonType.Outline,
                 padding =

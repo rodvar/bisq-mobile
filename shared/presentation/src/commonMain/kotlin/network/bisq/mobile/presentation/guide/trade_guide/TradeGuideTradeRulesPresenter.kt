@@ -1,8 +1,9 @@
 package network.bisq.mobile.presentation.guide.trade_guide
 
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -15,13 +16,19 @@ class TradeGuideTradeRulesPresenter(
 ) : BasePresenter(mainPresenter) {
     val tradeRulesConfirmed: StateFlow<Boolean> get() = settingsServiceFacade.tradeRulesConfirmed
 
+    private val _isTradeRulesNextEnabled = MutableStateFlow(true)
+    val isTradeRulesNextEnabled: StateFlow<Boolean> = _isTradeRulesNextEnabled.asStateFlow()
+
     fun prevClick() {
         navigateBack()
     }
 
     fun tradeRulesNextClick() {
-        showLoading()
-        presenterScope.launch {
+        guardedSuspendAction(
+            _isTradeRulesNextEnabled,
+            "tradeRulesNextClick",
+            reEnableGuardOnComplete = false,
+        ) {
             try {
                 val isConfirmed = tradeRulesConfirmed.first()
                 if (!isConfirmed) {
@@ -29,8 +36,9 @@ class TradeGuideTradeRulesPresenter(
                 }
                 navigateBackTo(NavRoute.TradeGuideSecurity, true, false)
                 navigateBack()
-            } finally {
-                hideLoading()
+            } catch (e: Exception) {
+                _isTradeRulesNextEnabled.value = true
+                throw e
             }
         }
     }

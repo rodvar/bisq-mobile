@@ -38,6 +38,9 @@ class SellerState3aPresenter(
     private val _isLightning: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isLightning: StateFlow<Boolean> = _isLightning.asStateFlow()
 
+    private val _isConfirmSendEnabled = MutableStateFlow(true)
+    val isConfirmSendEnabled: StateFlow<Boolean> = _isConfirmSendEnabled.asStateFlow()
+
     override fun onViewAttached() {
         super.onViewAttached()
         require(tradesServiceFacade.selectedTrade.value != null)
@@ -76,16 +79,20 @@ class SellerState3aPresenter(
             _showInvalidAddressDialog.value = true
             return
         }
-        presenterScope.launch {
-            showLoading()
-            val result = tradesServiceFacade.sellerConfirmBtcSent(paymentProof.value)
-            hideLoading()
-            if (result.isSuccess) {
-                setShowInvalidAddressDialog(false)
-            } else {
-                // TODO: Display error to user (e.g., via snackbar or error dialog) ?
-                log.e { "Failed to confirm BTC sent: ${result.exceptionOrNull()?.message}" }
-            }
+
+        guardedSuspendAction(
+            _isConfirmSendEnabled,
+            "confirmSend",
+            reEnableGuardOnComplete = false,
+        ) {
+            setShowInvalidAddressDialog(false)
+            tradesServiceFacade
+                .sellerConfirmBtcSent(paymentProof.value)
+                .onFailure { exception ->
+                    _isConfirmSendEnabled.value = true
+                    // TODO: Display error to user (e.g., via snackbar or error dialog) ?
+                    log.e(exception) { "Failed to confirm BTC sent" }
+                }
         }
     }
 

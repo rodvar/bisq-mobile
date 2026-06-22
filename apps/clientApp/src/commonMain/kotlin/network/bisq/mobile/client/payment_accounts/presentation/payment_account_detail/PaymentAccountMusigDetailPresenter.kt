@@ -4,7 +4,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import network.bisq.mobile.client.payment_accounts.domain.service.PaymentAccountsServiceFacade
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.main.MainPresenter
@@ -15,6 +14,9 @@ class PaymentAccountMusigDetailPresenter(
 ) : BasePresenter(mainPresenter) {
     private val _uiState = MutableStateFlow(PaymentAccountMusigDetailUiState())
     val uiState: StateFlow<PaymentAccountMusigDetailUiState> = _uiState.asStateFlow()
+
+    private val _isConfirmDeleteEnabled = MutableStateFlow(true)
+    val isConfirmDeleteEnabled: StateFlow<Boolean> = _isConfirmDeleteEnabled.asStateFlow()
 
     fun initialize(accountName: String) {
         val paymentAccount = paymentAccountsServiceFacade.accountsByName.value[accountName]
@@ -40,8 +42,11 @@ class PaymentAccountMusigDetailPresenter(
 
     private fun onConfirmDeleteAccountClick() {
         val account = uiState.value.paymentAccount ?: return
-        presenterScope.launch {
-            showLoading()
+        guardedSuspendAction(
+            _isConfirmDeleteEnabled,
+            "onConfirmDeleteAccountClick",
+            reEnableGuardOnComplete = false,
+        ) {
             _uiState.update { state -> state.copy(showDeleteConfirmationDialog = false) }
             paymentAccountsServiceFacade
                 .deleteAccount(account.accountName)
@@ -49,8 +54,8 @@ class PaymentAccountMusigDetailPresenter(
                     navigateBack()
                 }.onFailure {
                     handleError(it)
+                    _isConfirmDeleteEnabled.value = true
                 }
-            hideLoading()
         }
     }
 

@@ -129,6 +129,26 @@ class State4PresenterTest {
         }
 
     @Test
+    fun onConfirmCloseTrade_rapidDoubleTap_triggersCloseTradeOnlyOnce() =
+        runTest {
+            val trade = tradeForTests("t-guard", "sg1")
+            val selected = MutableStateFlow<TradeItemPresentationModel?>(trade)
+            val presenter = createPresenter(selected)
+            presenter.onViewAttached()
+            presenter.onAction(State4UiAction.OnCloseTradeClick)
+            coEvery { tradesServiceFacade.closeTrade() } coAnswers {
+                delay(Long.MAX_VALUE)
+                Result.success(Unit)
+            }
+
+            presenter.onAction(State4UiAction.OnConfirmCloseTrade)
+            presenter.onAction(State4UiAction.OnConfirmCloseTrade)
+
+            coVerify(exactly = 1) { tradesServiceFacade.closeTrade() }
+            assertFalse(presenter.isConfirmCloseTradeEnabled.value)
+        }
+
+    @Test
     fun onConfirmCloseTrade_success_clearsReadState_navigatesBack_and_closes_dialog() =
         runTest {
             val trade = tradeForTests("t-ok", "s1")
@@ -144,6 +164,28 @@ class State4PresenterTest {
             coVerify(timeout = 500) { tradeReadStateRepository.clearId("t-ok") }
             verify(timeout = 500) { navigationManager.navigateBack(any()) }
             assertFalse(presenter.uiState.value.showCloseTradeDialog)
+            waitUntil(timeoutMs = 1000) { globalUiManager.showLoadingDialog.value == false }
+            assertFalse(globalUiManager.showLoadingDialog.value)
+        }
+
+    @Test
+    fun onConfirmCloseTrade_success_but_clearReadState_throws_showsError_and_still_navigates() =
+        runTest {
+            val trade = tradeForTests("t-clear-fail", "s3")
+            val selected = MutableStateFlow<TradeItemPresentationModel?>(trade)
+            val presenter = createPresenter(selected)
+            presenter.onViewAttached()
+            presenter.onAction(State4UiAction.OnCloseTradeClick)
+            coEvery { tradesServiceFacade.closeTrade() } returns Result.success(Unit)
+            coEvery { tradeReadStateRepository.clearId("t-clear-fail") } throws IllegalStateException("fail-clear")
+
+            presenter.onAction(State4UiAction.OnConfirmCloseTrade)
+
+            verify(timeout = 500) { navigationManager.navigateBack(any()) }
+            assertFalse(presenter.uiState.value.showCloseTradeDialog)
+            waitUntil(timeoutMs = 500) {
+                GenericErrorHandler.genericErrorMessage.value?.contains("Failed to update read state") == true
+            }
             waitUntil(timeoutMs = 1000) { globalUiManager.showLoadingDialog.value == false }
             assertFalse(globalUiManager.showLoadingDialog.value)
         }

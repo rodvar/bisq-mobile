@@ -36,6 +36,7 @@ interface IIgnoredUsersPresenter : ViewPresenter {
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage
     val ignoredUsers: StateFlow<List<UserProfileVO>>
     val ignoreUserId: StateFlow<String>
+    val isUnblockUserConfirmEnabled: StateFlow<Boolean>
 
     fun unblockUser(userId: String)
 
@@ -49,15 +50,14 @@ fun IgnoredUsersScreen() {
     val presenter: IIgnoredUsersPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
 
-    val isInteractive by presenter.isInteractive.collectAsState()
     val ignoredUsers by presenter.ignoredUsers.collectAsState()
     val ignoreUserId by presenter.ignoreUserId.collectAsState()
+    val isUnblockUserConfirmEnabled by presenter.isUnblockUserConfirmEnabled.collectAsState()
     val showIgnoreUserWarnBox = ignoreUserId.isNotEmpty()
 
     BisqScrollScaffold(
         topBar = { TopBar("mobile.settings.ignoredUsers".i18n()) },
         verticalArrangement = Arrangement.SpaceBetween,
-        isInteractive = isInteractive,
     ) {
         if (ignoredUsers.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -87,6 +87,7 @@ fun IgnoredUsersScreen() {
                 confirmButtonText = "user.profileCard.userActions.undoIgnore".i18n(),
                 dismissButtonText = "action.cancel".i18n(),
                 verticalButtonPlacement = true,
+                confirmButtonLoading = !isUnblockUserConfirmEnabled,
                 onConfirm = {
                     presenter.unblockUserConfirm(ignoreUserId)
                 },

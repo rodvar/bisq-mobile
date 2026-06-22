@@ -38,6 +38,9 @@ class UserProfilePresenter(
     private val _uiState = MutableStateFlow(UserProfileUiState())
     override val uiState = _uiState.asStateFlow()
 
+    private val _isActionEnabled = MutableStateFlow(true)
+    override val isActionEnabled = _isActionEnabled.asStateFlow()
+
     override fun onViewAttached() {
         super.onViewAttached()
         _uiState.update { it.copy(isLoadingData = true) }
@@ -103,9 +106,7 @@ class UserProfilePresenter(
     private fun onSavePress() {
         val uiStateSnapshot = _uiState.value
         val selectedProfile = uiStateSnapshot.selectedUserProfile ?: return
-        disableInteractive()
-        _uiState.update { it.copy(isBusyWithAction = true) }
-        presenterScope.launch {
+        guardedSuspendAction(_isActionEnabled, "onSavePress") {
             try {
                 val na = getLocalizedNA()
                 val safeStatement = uiStateSnapshot.statementDraft.takeUnless { it == na } ?: ""
@@ -123,49 +124,46 @@ class UserProfilePresenter(
                 }
             } catch (e: Exception) {
                 log.e(e) { "Failed to save user profile settings" }
-            } finally {
-                _uiState.update { it.copy(isBusyWithAction = false) }
-                enableInteractive()
             }
         }
     }
 
     private fun onDeleteConfirm() {
         val profileId = _uiState.value.showDeleteConfirmationForProfile?.id ?: return
-        disableInteractive()
-        _uiState.update { it.copy(isBusyWithAction = true, showDeleteConfirmationForProfile = null) }
-        presenterScope.launch {
-            userProfileServiceFacade
-                .deleteUserProfile(profileId)
-                .onSuccess {
-                    showSnackbar("mobile.settings.userProfile.deleteSuccess".i18n())
-                }.onFailure { e ->
-                    log.e(e) { "Failed to delete user profile" }
-                    onAction(UserProfileUiAction.OnDeleteError)
-                }
-            _uiState.update { it.copy(isBusyWithAction = false) }
-            enableInteractive()
+        guardedSuspendAction(_isActionEnabled, "onDeleteConfirm") {
+            _uiState.update { it.copy(showDeleteConfirmationForProfile = null) }
+            try {
+                userProfileServiceFacade
+                    .deleteUserProfile(profileId)
+                    .onSuccess {
+                        showSnackbar("mobile.settings.userProfile.deleteSuccess".i18n())
+                    }.onFailure { e ->
+                        log.e(e) { "Failed to delete user profile" }
+                        onAction(UserProfileUiAction.OnDeleteError)
+                    }
+            } catch (e: Exception) {
+                log.e(e) { "Failed to delete user profile $profileId" }
+                onAction(UserProfileUiAction.OnDeleteError)
+            }
         }
     }
 
     private fun onUserProfileSelect(profileId: String) {
         if (_uiState.value.selectedUserProfile?.id == profileId) return
-
-        disableInteractive()
-        _uiState.update { it.copy(isBusyWithAction = true) }
-        presenterScope.launch {
-            userProfileServiceFacade
-                .selectUserProfile(profileId)
-                .onSuccess {
-                    showSnackbar("mobile.settings.userProfile.selectSuccess".i18n())
-                    _uiState.update { it.copy(isBusyWithAction = false) }
-                    enableInteractive()
-                }.onFailure { e ->
-                    log.e(e) { "Failed to change user profile" }
-                    showSnackbar("mobile.settings.userProfile.selectFailure".i18n(), type = SnackbarType.ERROR)
-                    _uiState.update { it.copy(isBusyWithAction = false) }
-                    enableInteractive()
-                }
+        guardedSuspendAction(_isActionEnabled, "onUserProfileSelect") {
+            try {
+                userProfileServiceFacade
+                    .selectUserProfile(profileId)
+                    .onSuccess {
+                        showSnackbar("mobile.settings.userProfile.selectSuccess".i18n())
+                    }.onFailure { e ->
+                        log.e(e) { "Failed to change user profile" }
+                        showSnackbar("mobile.settings.userProfile.selectFailure".i18n(), type = SnackbarType.ERROR)
+                    }
+            } catch (e: Exception) {
+                log.e(e) { "Failed to select user profile $profileId" }
+                showSnackbar("mobile.settings.userProfile.selectFailure".i18n(), type = SnackbarType.ERROR)
+            }
         }
     }
 

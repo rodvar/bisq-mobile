@@ -8,12 +8,14 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.data.model.Settings
@@ -1402,5 +1404,163 @@ class SettingsPresenterTest {
 
             verify(exactly = 0) { analyticsService.track(AnalyticsEvent.Settings.PushNotificationsEnabled) }
             verify(exactly = 0) { analyticsService.track(AnalyticsEvent.Settings.PushNotificationsDisabled) }
+        }
+
+    // ========== Duplicate-call protection tests ==========
+
+    @Test
+    fun `rapid double-tap on supported language toggle triggers setSupportedLanguageCodes only once`() =
+        runTest(testDispatcher) {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            val blocker = CompletableDeferred<Unit>()
+            coEvery { settingsServiceFacade.setSupportedLanguageCodes(setOf("en", "es", "de")) } coAnswers {
+                blocker.await()
+                Result.success(Unit)
+            }
+
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnSupportedLanguageCodeToggle("de", true))
+            presenter.onAction(SettingsUiAction.OnSupportedLanguageCodeToggle("de", true))
+            runCurrent()
+
+            coVerify(exactly = 1) { settingsServiceFacade.setSupportedLanguageCodes(setOf("en", "es", "de")) }
+            assertFalse(presenter.isSupportedLanguageCodesChangeEnabled.value)
+
+            blocker.complete(Unit)
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `rapid double-tap on trade price tolerance save triggers setMaxTradePriceDeviation only once`() =
+        runTest(testDispatcher) {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            val blocker = CompletableDeferred<Unit>()
+            coEvery { settingsServiceFacade.setMaxTradePriceDeviation(any()) } coAnswers {
+                blocker.await()
+                Result.success(Unit)
+            }
+
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnTradePriceToleranceChange("7"))
+            presenter.onAction(SettingsUiAction.OnTradePriceToleranceSave)
+            presenter.onAction(SettingsUiAction.OnTradePriceToleranceSave)
+            runCurrent()
+
+            coVerify(exactly = 1) { settingsServiceFacade.setMaxTradePriceDeviation(0.07) }
+            assertFalse(presenter.isTradePriceToleranceSaveEnabled.value)
+
+            blocker.complete(Unit)
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `trade price tolerance save failure re-enables save button for retry`() =
+        runTest(testDispatcher) {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            coEvery { settingsServiceFacade.setMaxTradePriceDeviation(any()) } returns Result.failure(Exception("Error"))
+
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnTradePriceToleranceChange("7"))
+            presenter.onAction(SettingsUiAction.OnTradePriceToleranceSave)
+            advanceUntilIdle()
+
+            assertTrue(presenter.isTradePriceToleranceSaveEnabled.value)
+        }
+
+    @Test
+    fun `rapid double-tap on num days save triggers setNumDaysAfterRedactingTradeData only once`() =
+        runTest(testDispatcher) {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            val blocker = CompletableDeferred<Unit>()
+            coEvery { settingsServiceFacade.setNumDaysAfterRedactingTradeData(any()) } coAnswers {
+                blocker.await()
+                Result.success(Unit)
+            }
+
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataChange("120"))
+            presenter.onAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataSave)
+            presenter.onAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataSave)
+            runCurrent()
+
+            coVerify(exactly = 1) { settingsServiceFacade.setNumDaysAfterRedactingTradeData(120) }
+            assertFalse(presenter.isNumDaysAfterRedactingTradeDataSaveEnabled.value)
+
+            blocker.complete(Unit)
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `rapid double-tap on pow factor save triggers setDifficultyAdjustmentFactor only once`() =
+        runTest(testDispatcher) {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            val blocker = CompletableDeferred<Unit>()
+            coEvery { settingsServiceFacade.setDifficultyAdjustmentFactor(any()) } coAnswers {
+                blocker.await()
+                Result.success(Unit)
+            }
+
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnPowFactorChange("2"))
+            presenter.onAction(SettingsUiAction.OnPowFactorSave)
+            presenter.onAction(SettingsUiAction.OnPowFactorSave)
+            runCurrent()
+
+            coVerify(exactly = 1) { settingsServiceFacade.setDifficultyAdjustmentFactor(2.0) }
+            assertFalse(presenter.isPowFactorSaveEnabled.value)
+
+            blocker.complete(Unit)
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `num days save failure keeps save guard enabled for retry`() =
+        runTest(testDispatcher) {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            coEvery { settingsServiceFacade.setNumDaysAfterRedactingTradeData(any()) } returns
+                Result.failure(Exception("save failed"))
+
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataChange("120"))
+            presenter.onAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataSave)
+            advanceUntilIdle()
+
+            assertTrue(presenter.isNumDaysAfterRedactingTradeDataSaveEnabled.value)
+        }
+
+    @Test
+    fun `pow factor save failure keeps save guard enabled for retry`() =
+        runTest(testDispatcher) {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            coEvery { settingsServiceFacade.setDifficultyAdjustmentFactor(any()) } returns
+                Result.failure(Exception("save failed"))
+
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnPowFactorChange("2"))
+            presenter.onAction(SettingsUiAction.OnPowFactorSave)
+            advanceUntilIdle()
+
+            assertTrue(presenter.isPowFactorSaveEnabled.value)
         }
 }

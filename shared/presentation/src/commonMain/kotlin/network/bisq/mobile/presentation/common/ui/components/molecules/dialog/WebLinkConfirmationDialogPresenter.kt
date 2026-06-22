@@ -1,6 +1,5 @@
 package network.bisq.mobile.presentation.common.ui.components.molecules.dialog
 
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.text.AnnotatedString
 import kotlinx.coroutines.CancellationException
@@ -8,11 +7,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
-import network.bisq.mobile.presentation.common.ui.base.SnackbarPosition
 import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.common.ui.utils.toClipEntry
 import network.bisq.mobile.presentation.main.MainPresenter
@@ -23,6 +20,12 @@ class WebLinkConfirmationDialogPresenter(
 ) : BasePresenter(mainPresenter) {
     private val _uiState = MutableStateFlow(WebLinkConfirmationUiState())
     val uiState: StateFlow<WebLinkConfirmationUiState> = _uiState.asStateFlow()
+
+    private val _isOpenUriEnabled = MutableStateFlow(true)
+    val isOpenUriEnabled: StateFlow<Boolean> = _isOpenUriEnabled.asStateFlow()
+
+    private val _isCopyToClipboardEnabled = MutableStateFlow(true)
+    val isCopyToClipboardEnabled: StateFlow<Boolean> = _isCopyToClipboardEnabled.asStateFlow()
 
     private var userOnConfirm: () -> Unit = {}
     private var userOnDismiss: () -> Unit = {}
@@ -45,6 +48,8 @@ class WebLinkConfirmationDialogPresenter(
         currentClipboard = clipboard
 
         _uiState.value = WebLinkConfirmationUiState()
+        _isOpenUriEnabled.value = true
+        _isCopyToClipboardEnabled.value = true
 
         val shouldShow =
             forceConfirm || settingsServiceFacade.showWebLinkConfirmation.value
@@ -81,8 +86,12 @@ class WebLinkConfirmationDialogPresenter(
         uri: String,
         persist: Boolean,
     ) {
-        presenterScope.launch {
-            if (persist) showLoading()
+        guardedSuspendAction(
+            _isOpenUriEnabled,
+            "openUri",
+            showLoadingOverlay = persist,
+            reEnableGuardOnComplete = false,
+        ) {
             try {
                 if (persist) {
                     persistWebLinkDialogChoice(
@@ -90,25 +99,20 @@ class WebLinkConfirmationDialogPresenter(
                         dontShowAgain = _uiState.value.dontShowAgain,
                     )
                 }
-                // navigateToUrlAwait returns false when already non-interactive (anti double-tap)
-                // before attempting to open; snapshot before call to tell that apart from a real failure.
-                val interactiveBeforeOpen = isInteractive.value
                 if (!navigateToUrlAwait(uri)) {
-                    if (!interactiveBeforeOpen) {
-                        return@launch
-                    }
                     userOnError.invoke()
-                    return@launch
+                    _isOpenUriEnabled.value = true
+                } else {
+                    userOnConfirm.invoke()
                 }
-                userOnConfirm.invoke()
             } catch (cancellationException: CancellationException) {
+                _isOpenUriEnabled.value = true
                 throw cancellationException
             } catch (throwable: Throwable) {
                 log.e(throwable) { "Failed to open URI from web link confirmation dialog" }
                 userOnError.invoke()
                 mainPresenter.showSnackbar("mobile.error.cannotOpenUrl".i18n(), SnackbarType.ERROR)
-            } finally {
-                if (persist) hideLoading()
+                _isOpenUriEnabled.value = true
             }
         }
     }
@@ -117,8 +121,12 @@ class WebLinkConfirmationDialogPresenter(
         uri: String,
         persist: Boolean,
     ) {
-        presenterScope.launch {
-            if (persist) showLoading()
+        guardedSuspendAction(
+            _isCopyToClipboardEnabled,
+            "copyToClipboard",
+            showLoadingOverlay = persist,
+            reEnableGuardOnComplete = false,
+        ) {
             try {
                 currentClipboard?.setClipEntry(AnnotatedString(uri).toClipEntry())
                 mainPresenter.showSnackbar("mobile.components.copyIconButton.copied".i18n())
@@ -130,19 +138,19 @@ class WebLinkConfirmationDialogPresenter(
                 }
                 userOnDismiss.invoke()
             } catch (cancellationException: CancellationException) {
+                _isCopyToClipboardEnabled.value = true
                 throw cancellationException
             } catch (throwable: Throwable) {
                 log.e(throwable) { "Failed to copy URI from web link confirmation dialog" }
                 userOnError.invoke()
-                mainPresenter.showSnackbar("mobile.error.generic".i18n(), type = SnackbarType.ERROR)
-            } finally {
-                if (persist) hideLoading()
+                mainPresenter.showSnackbar("mobile.error.generic".i18n(), SnackbarType.ERROR)
+                _isCopyToClipboardEnabled.value = true
             }
         }
     }
 
     private fun showPersistFailureSnackbar() {
-        mainPresenter.showSnackbar("mobile.error.generic".i18n(), type = SnackbarType.ERROR)
+        mainPresenter.showSnackbar("mobile.error.generic".i18n(), SnackbarType.ERROR)
     }
 
     private suspend fun persistWebLinkDialogChoice(

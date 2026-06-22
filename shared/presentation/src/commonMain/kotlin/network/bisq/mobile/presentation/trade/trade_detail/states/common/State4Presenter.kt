@@ -12,6 +12,7 @@ import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.trade.export.TradeCompletedCsv
 import network.bisq.mobile.domain.trade.export.TradeExportCsvHeaders
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.share.ShareFileService
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.error.GenericErrorHandler
@@ -25,6 +26,9 @@ abstract class State4Presenter(
 ) : BasePresenter(mainPresenter) {
     private val _uiState = MutableStateFlow(State4UiState())
     val uiState: StateFlow<State4UiState> = _uiState.asStateFlow()
+
+    private val _isConfirmCloseTradeEnabled = MutableStateFlow(true)
+    val isConfirmCloseTradeEnabled: StateFlow<Boolean> = _isConfirmCloseTradeEnabled.asStateFlow()
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -64,19 +68,24 @@ abstract class State4Presenter(
     }
 
     private fun onConfirmCloseTrade() {
-        presenterScope.launch {
-            val tradeId =
-                _uiState.value.trade?.tradeId ?: run {
-                    _uiState.update { it.copy(showCloseTradeDialog = false) }
-                    GenericErrorHandler.handleGenericError("No trade selected for closure")
-                    return@launch
-                }
-            showLoading()
+        val tradeId =
+            _uiState.value.trade?.tradeId ?: run {
+                _uiState.update { it.copy(showCloseTradeDialog = false) }
+                GenericErrorHandler.handleGenericError("No trade selected for closure")
+                return
+            }
+
+        guardedSuspendAction(
+            _isConfirmCloseTradeEnabled,
+            "onConfirmCloseTrade",
+            reEnableGuardOnComplete = false,
+        ) {
             val result = tradesServiceFacade.closeTrade()
 
             when {
                 result.isFailure -> {
                     _uiState.update { it.copy(showCloseTradeDialog = false) }
+                    _isConfirmCloseTradeEnabled.value = true
                     result
                         .exceptionOrNull()
                         ?.let { exception -> GenericErrorHandler.handleGenericError(exception.message) }
@@ -85,13 +94,18 @@ abstract class State4Presenter(
 
                 result.isSuccess -> {
                     withContext(Dispatchers.IO) {
-                        tradeReadStateRepository.clearId(tradeId)
+                        runCatching {
+                            tradeReadStateRepository.clearId(tradeId)
+                        }.onFailure { ex ->
+                            GenericErrorHandler.handleGenericError(
+                                "mobile.bisqEasy.openTrades.clearReadState.failed".i18n(ex.message ?: ""),
+                            )
+                        }
                     }
                     _uiState.update { it.copy(showCloseTradeDialog = false) }
                     navigateBack()
                 }
             }
-            hideLoading()
         }
     }
 

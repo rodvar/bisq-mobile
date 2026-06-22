@@ -41,6 +41,9 @@ class TrustedNodeSetupPresenter(
     private val _uiState = MutableStateFlow(TrustedNodeSetupUiState())
     val uiState: StateFlow<TrustedNodeSetupUiState> = _uiState.asStateFlow()
 
+    private val _isConnectionFailedRetryEnabled = MutableStateFlow(true)
+    val isConnectionFailedRetryEnabled: StateFlow<Boolean> = _isConnectionFailedRetryEnabled.asStateFlow()
+
     private var connectJob: Job? = null
     private var countdownJob: Job? = null
 
@@ -73,10 +76,12 @@ class TrustedNodeSetupPresenter(
                 it.copy(showKeystoreError = true)
             }
         } else if (showConnectionFailed) {
+            resetConnectionFailedRetryGuard()
             _uiState.update {
                 it.copy(showConnectionFailedWarning = true)
             }
         } else if (showSubscriptionsFailed) {
+            resetConnectionFailedRetryGuard()
             _uiState.update {
                 if (webSocketClientService.connectionState.value is ConnectionState.Connected) {
                     it.copy(
@@ -143,6 +148,7 @@ class TrustedNodeSetupPresenter(
                 if (connectionState is ConnectionState.Disconnected) {
                     _uiState.update { currentState ->
                         if (currentState.showSubscriptionsFailedWarning) {
+                            resetConnectionFailedRetryGuard()
                             currentState.copy(
                                 showSubscriptionsFailedWarning = false,
                                 showConnectionFailedWarning = true,
@@ -328,9 +334,12 @@ class TrustedNodeSetupPresenter(
     }
 
     private fun onConnectionFailedRetry() {
-        presenterScope.launch {
+        guardedSuspendAction(
+            _isConnectionFailedRetryEnabled,
+            "onConnectionFailedRetry",
+            reEnableGuardOnComplete = false,
+        ) {
             _uiState.update { it.copy(showConnectionFailedWarning = false, showSubscriptionsFailedWarning = false) }
-            showLoading()
 
             // TODO this client networking reset is a good candidate for the new UseCase component if we were to
             //      reuse this
@@ -344,8 +353,6 @@ class TrustedNodeSetupPresenter(
                 } catch (e: Exception) {
                     log.e(e) { "Lifecycle restart failed during retry" }
                     false
-                } finally {
-                    hideLoading()
                 }
 
             if (restartSucceeded) {
@@ -356,8 +363,13 @@ class TrustedNodeSetupPresenter(
             } else {
                 // Re-show the connection failed dialog so the user can retry
                 _uiState.update { it.copy(showConnectionFailedWarning = true) }
+                resetConnectionFailedRetryGuard()
             }
         }
+    }
+
+    private fun resetConnectionFailedRetryGuard() {
+        _isConnectionFailedRetryEnabled.value = true
     }
 
     private fun onFailedSubsDialogContinuePress() {

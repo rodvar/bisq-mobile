@@ -34,6 +34,15 @@ open class PaymentAccountsPresenter(
         )
     val uiState: StateFlow<PaymentAccountsUiState> = _uiState.asStateFlow()
 
+    private val _isAddAccountEnabled = MutableStateFlow(true)
+    val isAddAccountEnabled: StateFlow<Boolean> = _isAddAccountEnabled.asStateFlow()
+
+    private val _isSaveAccountEnabled = MutableStateFlow(true)
+    val isSaveAccountEnabled: StateFlow<Boolean> = _isSaveAccountEnabled.asStateFlow()
+
+    private val _isDeleteAccountEnabled = MutableStateFlow(true)
+    val isDeleteAccountEnabled: StateFlow<Boolean> = _isDeleteAccountEnabled.asStateFlow()
+
     override fun onViewAttached() {
         super.onViewAttached()
         loadAccounts()
@@ -183,8 +192,7 @@ open class PaymentAccountsPresenter(
             return
         }
 
-        presenterScope.launch {
-            showLoading()
+        guardedSuspendAction(_isAddAccountEnabled, "addAccount") {
             val newAccount = createAccount(newName, newDescription)
             userDefinedAccountsServiceFacade
                 .addAccount(newAccount)
@@ -197,7 +205,6 @@ open class PaymentAccountsPresenter(
                 }.onFailure { exception ->
                     handleError(exception)
                 }
-            hideLoading()
         }
     }
 
@@ -212,8 +219,7 @@ open class PaymentAccountsPresenter(
             return
         }
 
-        presenterScope.launch {
-            showLoading()
+        guardedSuspendAction(_isSaveAccountEnabled, "saveAccount") {
             val newAccount = createAccount(newName, newDescription)
             userDefinedAccountsServiceFacade
                 .saveAccount(newAccount)
@@ -224,7 +230,6 @@ open class PaymentAccountsPresenter(
                 }.onFailure { exception ->
                     handleError(exception)
                 }
-            hideLoading()
         }
     }
 
@@ -232,8 +237,8 @@ open class PaymentAccountsPresenter(
         val state = _uiState.value
         val selectedAccount = state.accounts.getOrNull(state.selectedAccountIndex)
         if (selectedAccount == null) return
-        presenterScope.launch {
-            showLoading()
+
+        guardedSuspendAction(_isDeleteAccountEnabled, "deleteSelectedAccount") {
             userDefinedAccountsServiceFacade
                 .deleteAccount(selectedAccount.accountName)
                 .onSuccess {
@@ -247,7 +252,6 @@ open class PaymentAccountsPresenter(
                         )
                     handleError(exception, defaultMessage)
                 }
-            hideLoading()
         }
     }
 

@@ -28,6 +28,9 @@ abstract class OnboardingPresenter(
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
+    private val _isNextButtonEnabled = MutableStateFlow(true)
+    val isNextButtonEnabled: StateFlow<Boolean> = _isNextButtonEnabled.asStateFlow()
+
     private val pages =
         listOf(
             PagerViewItem(
@@ -99,8 +102,11 @@ abstract class OnboardingPresenter(
     private fun onNextButtonClick() {
         // Page navigation happens in the UI
         // This method is called by the UI only on the final page to complete onboarding
-        presenterScope.launch {
-            showLoading()
+        guardedSuspendAction(
+            _isNextButtonEnabled,
+            "onNextButtonClick",
+            reEnableGuardOnComplete = false,
+        ) {
             try {
                 settingsRepository.setFirstLaunch(false)
                 val hasProfile: Boolean = userProfileService.hasUserProfile()
@@ -109,8 +115,9 @@ abstract class OnboardingPresenter(
                 } else {
                     navigateToHome()
                 }
-            } finally {
-                hideLoading()
+            } catch (e: Exception) {
+                _isNextButtonEnabled.value = true
+                throw e
             }
         }
     }

@@ -15,6 +15,7 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
 import network.bisq.mobile.presentation.main.MainPresenter
+import kotlin.coroutines.cancellation.CancellationException
 
 // TODO: Add btc address/tx validation missing
 abstract class BaseTradeStateMainChain3bPresenter(
@@ -46,6 +47,9 @@ abstract class BaseTradeStateMainChain3bPresenter(
     private val _amountNotMatchingDialogText: MutableStateFlow<String?> =
         MutableStateFlow(null)
     val amountNotMatchingDialogText: StateFlow<String?> = _amountNotMatchingDialogText.asStateFlow()
+
+    private val _isCompleteTradeEnabled = MutableStateFlow(true)
+    val isCompleteTradeEnabled: StateFlow<Boolean> = _isCompleteTradeEnabled.asStateFlow()
 
     private var txAmount: Long? = null
     private var txAmountFormatted: String? = null
@@ -122,10 +126,22 @@ abstract class BaseTradeStateMainChain3bPresenter(
     }
 
     private fun completeTrade() {
-        presenterScope.launch {
-            showLoading()
-            tradesServiceFacade.btcConfirmed()
-            hideLoading()
+        guardedSuspendAction(
+            _isCompleteTradeEnabled,
+            "completeTrade",
+            reEnableGuardOnComplete = false,
+        ) {
+            try {
+                tradesServiceFacade.btcConfirmed().onFailure {
+                    _isCompleteTradeEnabled.value = true
+                }
+            } catch (cancellation: CancellationException) {
+                _isCompleteTradeEnabled.value = true
+                throw cancellation
+            } catch (exception: Exception) {
+                _isCompleteTradeEnabled.value = true
+                throw exception
+            }
         }
     }
 
