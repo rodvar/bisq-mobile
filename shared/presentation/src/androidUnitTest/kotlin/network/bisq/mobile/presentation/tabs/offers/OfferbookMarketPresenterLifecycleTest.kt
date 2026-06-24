@@ -1,6 +1,7 @@
 package network.bisq.mobile.presentation.tabs.offers
 
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.CoroutineScope
@@ -8,13 +9,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.data.model.market.MarketFilter
+import network.bisq.mobile.data.model.market.MarketPriceItem
 import network.bisq.mobile.data.model.market.MarketSortBy
+import network.bisq.mobile.data.model.offerbook.MarketListItem
+import network.bisq.mobile.data.replicated.common.currency.MarketVO
+import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
+import network.bisq.mobile.data.service.market_price.MarketPriceServiceFacade
+import network.bisq.mobile.data.service.offers.OffersServiceFacade
+import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.presentation.common.test_utils.NoopNavigationManager
 import network.bisq.mobile.presentation.common.test_utils.OfferbookMarketPresenterTestFactory
@@ -177,6 +186,54 @@ class OfferbookMarketPresenterLifecycleTest {
         }
 
     @Test
+    fun `search filtering continues after back stack hide and reveal`() =
+        runTest(testDispatcher) {
+            val settingsRepository = SettingsRepositoryMock()
+            val marketItems =
+                MutableStateFlow(
+                    listOf(
+                        marketItem("USD", "US Dollar", numOffers = 3),
+                        marketItem("EUR", "Euro", numOffers = 2),
+                        marketItem("BRL", "Brazilian Real", numOffers = 1),
+                    ),
+                )
+            val offersServiceFacade =
+                mockk<OffersServiceFacade>(relaxed = true).also {
+                    every { it.offerbookMarketItems } returns marketItems
+                }
+            val marketPriceServiceFacade =
+                FakeMarketPriceServiceFacade(
+                    settingsRepository,
+                    marketsWithPrice = setOf("USD", "EUR", "BRL"),
+                )
+            val presenter =
+                OfferbookMarketPresenterTestFactory.create(
+                    settingsRepository = settingsRepository,
+                    offersServiceFacade = offersServiceFacade,
+                    marketPriceServiceFacade = marketPriceServiceFacade,
+                    computationDispatcher = testDispatcher,
+                )
+
+            presenter.onViewAttached()
+            advanceUntilIdle()
+            assertEquals(listOf("USD", "EUR", "BRL"), presenter.marketCodes())
+
+            presenter.setSearchText("eu")
+            advanceUntilIdle()
+            assertEquals(listOf("EUR"), presenter.marketCodes())
+
+            // Back-stack-aware lifecycle hides and reveals without disposing presenterScope.
+            presenter.onViewHidden()
+            advanceUntilIdle()
+            presenter.onViewRevealed()
+            advanceUntilIdle()
+
+            presenter.setSearchText("br")
+            advanceUntilIdle()
+            assertEquals(listOf("BRL"), presenter.marketCodes())
+        }
+
+    @Test
     fun `filter and sortBy work through multiple tab switches`() =
         runTest(testDispatcher) {
             val settingsRepository = SettingsRepositoryMock()
@@ -210,4 +267,39 @@ class OfferbookMarketPresenterLifecycleTest {
             advanceUntilIdle()
             assertEquals(MarketFilter.All, presenter.filter.value)
         }
+
+    private fun OfferbookMarketPresenter.marketCodes(): List<String> = marketListItemWithNumOffers.value.map { it.market.quoteCurrencyCode }
+
+    private fun marketItem(
+        quoteCode: String,
+        quoteName: String,
+        numOffers: Int,
+    ): MarketListItem {
+        val market =
+            MarketVO(
+                baseCurrencyCode = "BTC",
+                quoteCurrencyCode = quoteCode,
+                baseCurrencyName = "Bitcoin",
+                quoteCurrencyName = quoteName,
+            )
+        return MarketListItem.from(market = market, numOffers = numOffers)
+    }
+
+    private class FakeMarketPriceServiceFacade(
+        settingsRepository: SettingsRepository,
+        private val marketsWithPrice: Set<String>,
+    ) : MarketPriceServiceFacade(settingsRepository) {
+        override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? {
+            if (!marketsWithPrice.contains(marketVO.quoteCurrencyCode)) return null
+            val quote = PriceQuoteVOFactory.run { fromPrice(priceValue = 100_00L, market = marketVO) }
+            return MarketPriceItem(marketVO, quote, formattedPrice = "100")
+        }
+
+        override fun findUSDMarketPriceItem(): MarketPriceItem? = findMarketPriceItem(MarketVO("BTC", "USD"))
+
+        override fun refreshSelectedFormattedMarketPrice() {
+        }
+
+        override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
+    }
 }

@@ -2,6 +2,8 @@ package network.bisq.mobile.presentation.common.test_utils
 
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.data.model.offerbook.MarketListItem
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
@@ -19,14 +21,7 @@ object OfferbookMarketPresenterTestFactory {
             mockk<OffersServiceFacade>(relaxed = true).also {
                 every { it.offerbookMarketItems } returns MutableStateFlow(emptyList())
             },
-    ): OfferbookMarketPresenter {
-        val mainPresenter =
-            MainPresenterTestFactory.create(applicationLifecycleService = TestApplicationLifecycleService())
-
-        val userProfileServiceFacade = mockk<UserProfileServiceFacade>(relaxed = true)
-        every { userProfileServiceFacade.ignoredProfileIds } returns MutableStateFlow(emptySet())
-
-        val marketPriceServiceFacade =
+        marketPriceServiceFacade: MarketPriceServiceFacade =
             object : MarketPriceServiceFacade(settingsRepository) {
                 override fun findMarketPriceItem(marketVO: MarketVO) = null
 
@@ -36,7 +31,14 @@ object OfferbookMarketPresenterTestFactory {
                 }
 
                 override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
-            }
+            },
+        computationDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    ): OfferbookMarketPresenter {
+        val mainPresenter =
+            MainPresenterTestFactory.create(applicationLifecycleService = TestApplicationLifecycleService())
+
+        val userProfileServiceFacade = mockk<UserProfileServiceFacade>(relaxed = true)
+        every { userProfileServiceFacade.ignoredProfileIds } returns MutableStateFlow(emptySet())
 
         return OfferbookMarketPresenter(
             mainPresenter = mainPresenter,
@@ -45,6 +47,7 @@ object OfferbookMarketPresenterTestFactory {
             userProfileServiceFacade = userProfileServiceFacade,
             settingsRepository = settingsRepository,
             computeOfferbookMarketListUseCase = ComputeOfferbookMarketListUseCase(marketPriceServiceFacade),
+            computationDispatcher = computationDispatcher,
         )
     }
 }
