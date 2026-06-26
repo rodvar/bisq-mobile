@@ -126,7 +126,7 @@ class BasePresenterTest {
         presenter.onViewHidden()
 
         // Loading should be hidden
-        verify(exactly = 1) { globalUiManager.hideLoading() }
+        verify(exactly = 1) { globalUiManager.scheduleHideLoading() }
         // Scope should NOT be disposed (no jobsManager.dispose call via unmanaged scope)
         // The presenter is still alive on the back stack
     }
@@ -207,6 +207,7 @@ class BasePresenterTest {
         val presenter = TestPresenter(mainPresenter)
 
         val result = runBlocking { presenter.navigateToUrlAwait("https://bisq.network") }
+        testDispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(result)
         assertFalse(globalUiManager.isLoadingBlocking.value)
@@ -233,7 +234,7 @@ class BasePresenterTest {
             advanceUntilIdle()
 
             assertTrue(guard.value)
-            verify(atLeast = 1) { globalUiManager.hideLoading() }
+            verify(atLeast = 1) { globalUiManager.scheduleHideLoading() }
         }
 
     @Test
@@ -303,7 +304,7 @@ class BasePresenterTest {
             advanceUntilIdle()
 
             assertTrue(guard.value)
-            verify(atLeast = 1) { globalUiManager.hideLoading() }
+            verify(atLeast = 1) { globalUiManager.scheduleHideLoading() }
         }
 
     @Test
@@ -322,7 +323,7 @@ class BasePresenterTest {
 
             assertEquals(0, presenter.blockStartCount)
             assertTrue(guard.value)
-            verify(atLeast = 1) { globalUiManager.hideLoading() }
+            verify(atLeast = 1) { globalUiManager.scheduleHideLoading() }
         }
 
     private class GuardTestPresenter(
