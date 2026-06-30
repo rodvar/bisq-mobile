@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
     spec.name                     = 'domain'
-    spec.version                  = '0.20.0'
+    spec.version                  = '0.20.1'
     spec.homepage                 = 'https://github.com/bisq-network/bisq-mobile'
     spec.source                   = { :http=> ''}
     spec.authors                  = ''
