@@ -50,7 +50,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   # Decide whether to build, and resolve the version + bisq2 commit from the version catalog.
@@ -63,12 +62,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # need the previous commit to detect a version-line change
+          fetch-depth: 0 # full history so github.event.before is reachable for the version-change check
+          persist-credentials: false # read-only checkout; don't leave the token in .git/config
 
       - id: r
         env:
           OVERRIDE: ${{ inputs.version }}
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
           read_v() { grep -E "^$1 " gradle/libs.versions.toml | sed -E 's/.*"([^"]+)".*/\1/'; }
@@ -91,7 +92,10 @@ jobs:
           # (libs.versions.toml also changes for unrelated dependency bumps).
           should_build=true
           if [ "$EVENT" = "push" ]; then
-            before="$(git show HEAD^:gradle/libs.versions.toml 2>/dev/null | grep -E '^umbrel-image-version ' || true)"
+            # Compare against the state BEFORE the whole push (github.event.before), not HEAD^ — a
+            # multi-commit / rebase push could carry the version bump in an earlier commit. An empty
+            # or unreachable BEFORE (new branch / zeros) yields "" and falls through to a build.
+            before="$(git show "${BEFORE}:gradle/libs.versions.toml" 2>/dev/null | grep -E '^umbrel-image-version ' || true)"
             after="$(grep -E '^umbrel-image-version ' gradle/libs.versions.toml || true)"
             if [ "$before" = "$after" ]; then
               should_build=false
@@ -110,6 +114,10 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.should_build == 'true'
     runs-on: ubuntu-latest
+    # packages:write scoped to only the job that publishes images (resolve/update-store stay read-only).
+    permissions:
+      contents: read
+      packages: write
     outputs:
       node_digest: ${{ steps.node.outputs.digest }}
       web_digest: ${{ steps.web.outputs.digest }}
@@ -126,6 +134,7 @@ jobs:
           ref: ${{ needs.resolve.outputs.bisq2_ref }}
           path: bisq2
           fetch-depth: 1
+          persist-credentials: false # read-only source checkout used as a docker context; no token in .git
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
