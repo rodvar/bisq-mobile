@@ -10,17 +10,19 @@ name: Release Umbrel images
 # in gradle/libs.versions.toml, and builds from there. bisq2 is touched only for rare Dockerfile
 # changes, never for a release.
 #
-# VERSIONING — single source of truth = gradle/libs.versions.toml:
-#   bisq-core            -> "2.1.11"          (the bisq2 core; changes when bisq2 releases)
-#   bisq-core-commit     -> "<hash>"          (the bisq2 source built into the image)
-#   umbrel-image-version -> "2.1.11.1-rc3"    (scheme <bisq2-core>.<umbrel-build>[-rcN])
+# VERSIONING — single source of truth = gradle/libs.versions.toml. The Umbrel image is the bisq2
+# api-app (the trusted node), so it tracks the API pin, NOT bisq-core (which the mobile nodeApp
+# embeds — a separate deployment that can pin a different commit):
+#   bisq-api             -> "2.1.11"          (the bisq2 api version; changes when bisq2 releases)
+#   bisq-api-commit      -> "<hash>"          (the bisq2 source built into the image)
+#   umbrel-image-version -> "2.1.11.1-rc3"    (scheme <bisq2-api>.<umbrel-build>[-rcN])
 # To cut a release: edit `umbrel-image-version`, PR to main, merge -> this fires, builds, and opens
 # a store PR you merge to publish.
 #
 # CONFIG (repo Variables + Secrets):
-#   Variable  GHCR_NAMESPACE      e.g. ghcr.io/rodvar
-#   Variable  UMBREL_STORE_REPO   e.g. rodvar/bisq2-umbrel
-#   Secret    GHCR_USERNAME       e.g. rodvar
+#   Variable  GHCR_NAMESPACE
+#   Variable  UMBREL_STORE_REPO
+#   Secret    GHCR_USERNAME
 #   Secret    GHCR_TOKEN          PAT with write:packages for GHCR_NAMESPACE
 #   Secret    UMBREL_STORE_TOKEN  PAT with repo scope on UMBREL_STORE_REPO (push branch + open PR)
 
@@ -73,15 +75,15 @@ jobs:
 
           version="${OVERRIDE:-}"
           [ -n "$version" ] || version="$(read_v umbrel-image-version)"
-          bisq_core="$(read_v bisq-core)"
-          bisq2_ref="$(read_v bisq-core-commit)"
+          bisq_api="$(read_v bisq-api)"
+          bisq2_ref="$(read_v bisq-api-commit)"
           [ -n "$version" ]   || { echo "::error::umbrel-image-version not found in libs.versions.toml"; exit 1; }
-          [ -n "$bisq2_ref" ] || { echo "::error::bisq-core-commit not found in libs.versions.toml"; exit 1; }
+          [ -n "$bisq2_ref" ] || { echo "::error::bisq-api-commit not found in libs.versions.toml"; exit 1; }
 
-          # Drift guard: the version's core part must match bisq-core.
-          core_part="$(echo "$version" | cut -d. -f1-3)"
-          if [ "$core_part" != "$bisq_core" ]; then
-            echo "::error::version '$version' core part ($core_part) != bisq-core ($bisq_core) — keep them in sync"
+          # Drift guard: the version's api part must match bisq-api.
+          api_part="$(echo "$version" | cut -d. -f1-3)"
+          if [ "$api_part" != "$bisq_api" ]; then
+            echo "::error::version '$version' api part ($api_part) != bisq-api ($bisq_api) — keep them in sync"
             exit 1
           fi
 
@@ -115,7 +117,7 @@ jobs:
       - name: Validate config
         run: |
           [ -n "${{ vars.GHCR_NAMESPACE }}" ] \
-            || { echo "::error::repo variable GHCR_NAMESPACE not set (e.g. ghcr.io/rodvar)"; exit 1; }
+            || { echo "::error::repo variable GHCR_NAMESPACE not set"; exit 1; }
 
       - name: Checkout bisq2 @ pinned commit
         uses: actions/checkout@v4
@@ -183,7 +185,7 @@ jobs:
       - name: Validate config
         run: |
           [ -n "${{ vars.UMBREL_STORE_REPO }}" ] \
-            || { echo "::error::repo variable UMBREL_STORE_REPO not set (e.g. rodvar/bisq2-umbrel)"; exit 1; }
+            || { echo "::error::repo variable UMBREL_STORE_REPO not set"; exit 1; }
 
       - name: Checkout Umbrel store repo
         uses: actions/checkout@v4
