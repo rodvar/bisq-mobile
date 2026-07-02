@@ -35,7 +35,12 @@ class ClientOffersServiceFacade(
     private val webSocketClientService: WebSocketClientService,
 ) : OffersServiceFacade() {
     private companion object {
-        private const val LOADING_TIMEOUT_MS = 12000L
+        // Upper bound for how long we show the blocking spinner while waiting for the initial
+        // OFFERS snapshot. Aligned with the WebSocket request round-trip timeout (30s): on a cold
+        // Tor connection the OFFERS subscription is queued behind the banner subscriptions and its
+        // snapshot can take well over 10s to arrive. This is only a spinner cap — the subscription
+        // is kept alive past it (see [startLoadingTimeout]), so a late snapshot still populates.
+        private const val LOADING_TIMEOUT_MS = 30000L
     }
 
     private var marketPriceUpdateJob: Job? = null
@@ -47,11 +52,12 @@ class ClientOffersServiceFacade(
     private var offerbookListItemsByMarket: MutableMap<String, MutableMap<String, OfferItemPresentationModel>> = mutableMapOf()
 
     /**
-     * Guards single OFFERS WebSocket subscription across market selections. Reset to false
-     * on loading timeout or collect error so the next [selectOfferbookMarket] re-attempts
-     * the subscription. Without this reset, a single failed initial subscription leaves the
-     * app unable to ever show offers again until process restart (CRITICAL bug — manifested
-     * when the trusted node does not respond to the OFFERS subscription request).
+     * Guards the single OFFERS WebSocket subscription across market selections. Kept set for the
+     * lifetime of the subscription so that switching markets only re-applies filters against the
+     * cache instead of re-subscribing. It is released only on a genuine collect error (see
+     * [resetOffersSubscriptionState]) or on [deactivate]. Notably it is NOT released on the loading
+     * timeout: the subscription is kept alive so a late snapshot still populates, and re-selecting a
+     * market must not trigger a re-subscribe (which would cancel the in-flight subscription).
      */
     private var hasSubscribedToOffers = atomic(false)
 
@@ -102,6 +108,18 @@ class ClientOffersServiceFacade(
             if (!hasCache) {
                 _isOfferbookLoading.value = true
                 startLoadingTimeout()
+                prefetchOffersViaRest(code)
+            } else {
+                // We have cached offers, but if NUM_OFFERS reports a different count our cached
+                // offers are stale — e.g. an offer the user just created (count already bumped)
+                // whose OFFERS ADDED push hasn't arrived yet on a slow/Tor connection. Reconcile
+                // via REST in the background (no spinner); the corrected list updates in place.
+                val cachedCount = offerbookListItemsByMarket[code]?.size ?: 0
+                val knownCount = cachedNumOffersByMarketCode?.get(code)
+                if (knownCount != null && knownCount != cachedCount) {
+                    log.d { "Cached offers for $code look stale (cached=$cachedCount, numOffers=$knownCount); reconciling via REST" }
+                    prefetchOffersViaRest(code, replaceExisting = true)
+                }
             }
 
             if (hasSubscribedToOffers.compareAndSet(expect = false, update = true)) {
@@ -234,6 +252,65 @@ class ClientOffersServiceFacade(
         }
     }
 
+    /**
+     * Best-effort REST fast-path for the selected market. On a cold Tor start the OFFERS
+     * subscription snapshot can be delayed many seconds because [WebSocketClientService] applies
+     * subscriptions serially and one slow topic blocks the rest. A direct REST request does not sit
+     * behind that applier, so it typically returns in a few seconds and lets us populate the offers
+     * immediately. This is purely additive: on failure we simply keep waiting for the subscription
+     * (unchanged behaviour), and we never overwrite data the subscription has already delivered.
+     */
+    private fun prefetchOffersViaRest(
+        code: String,
+        replaceExisting: Boolean = false,
+    ) {
+        serviceScope.launch {
+            runCatching { apiGateway.getOffers(code).getOrThrow() }
+                .onSuccess { offers -> applyRestPrefetchedOffers(code, offers, replaceExisting) }
+                .onFailure { e -> log.w(e) { "REST offers prefetch failed for $code; relying on the OFFERS subscription" } }
+        }
+    }
+
+    private suspend fun applyRestPrefetchedOffers(
+        code: String,
+        offers: List<OfferItemPresentationDto>,
+        replaceExisting: Boolean,
+    ) {
+        // Let the OFFERS subscription be the source of truth for genuinely-empty markets; only the
+        // subscription snapshot (or its REMOVED events) can authoritatively confirm "no offers".
+        if (offers.isEmpty()) return
+
+        val models =
+            offers.associate { dto ->
+                val model = OfferItemPresentationModel(dto)
+                model.offerId to model
+            }
+
+        var applied = false
+        offersMutex.withLock {
+            val marketMap = offerbookListItemsByMarket.getOrPut(code) { mutableMapOf() }
+            when {
+                // Reconcile: authoritative REST result replaces a stale cache (count mismatch).
+                replaceExisting -> {
+                    marketMap.clear()
+                    marketMap.putAll(models)
+                    applied = true
+                }
+                // Cold prefetch: only populate if the subscription hasn't delivered anything yet,
+                // so we never clobber fresher subscription data.
+                marketMap.isEmpty() -> {
+                    marketMap.putAll(models)
+                    applied = true
+                }
+            }
+        }
+
+        if (applied) {
+            log.d { "REST prefetch (${if (replaceExisting) "reconcile" else "cold"}) populated ${models.size} offers for $code" }
+            applyOffersToSelectedMarket()
+        }
+    }
+
     private fun subscribeOffers() {
         offersSubscriptionJob?.cancel()
         offersSubscriptionJob =
@@ -348,8 +425,23 @@ class ClientOffersServiceFacade(
         }
 
         _offerbookListItems.value = list ?: emptyList()
-        _isOfferbookLoading.value = false
-        loadingTimeoutJob?.cancel()
+
+        // Count-aware loading: NUM_OFFERS (from a separate, eagerly-subscribed topic) is the source
+        // of truth for how many offers a market has. We only clear the spinner once the result is
+        // authoritative: either the market has offers, or NUM_OFFERS explicitly reports zero for it.
+        // A missing NUM_OFFERS entry means "not received yet" (unknown) — NOT zero — so in that case
+        // we keep the spinner rather than flashing a false "no offers", and likewise while the count
+        // says there are offers but the OFFERS snapshot slice hasn't caught up. The loading timeout
+        // stays armed as a safety net for both.
+        val knownNumOffers: Int? = cachedNumOffersByMarketCode?.get(selectedCurrency)
+        val hasOffers = !list.isNullOrEmpty()
+        val confirmedEmpty = knownNumOffers == 0
+        if (hasOffers || confirmedEmpty) {
+            _isOfferbookLoading.value = false
+            loadingTimeoutJob?.cancel()
+        } else {
+            log.d { "Keeping loading state for $selectedCurrency (knownNumOffers=$knownNumOffers, offers=${list?.size ?: 0})" }
+        }
     }
 
     private fun scheduleOffersPriceRefresh() {
@@ -384,11 +476,20 @@ class ClientOffersServiceFacade(
                     // job cancelled
                 }
                 if (_isOfferbookLoading.value) {
-                    log.w { "Offerbook loading timed out for market ${selectedOfferbookMarket.value.market.quoteCurrencyCode}" }
-                    // Release the subscription guard so the next selectOfferbookMarket
-                    // can re-attempt subscription. Without this, the app would be stuck
-                    // showing 0 offers for every market until process restart.
-                    resetOffersSubscriptionState()
+                    log.w { "Offerbook loading timed out for market ${selectedOfferbookMarket.value.market.quoteCurrencyCode}; keeping subscription alive for a late snapshot" }
+                    // Only stop the blocking spinner. We deliberately KEEP the OFFERS subscription
+                    // collector alive AND keep the subscription guard set:
+                    //  - On a slow Tor cold start the OFFERS snapshot is queued behind the other
+                    //    topics and can arrive well after this timeout; the alive collector then
+                    //    populates the list reactively with no user action.
+                    //  - We must NOT release the guard here: doing so lets a re-selection call
+                    //    subscribeOffers() again, whose first act is to cancel the in-flight
+                    //    subscription — throwing away the snapshot that is about to land. That churn
+                    //    was exactly why offers only appeared after going back and forth.
+                    // Recovery when the node genuinely never answers happens at the connection layer:
+                    // a reconnect re-applies all registered subscriptions (incl. OFFERS) to the same
+                    // observer, so the alive collector still receives the snapshot.
+                    _isOfferbookLoading.value = false
                 }
             }
     }
