@@ -20,11 +20,20 @@ name: Release Umbrel images
 # a store PR you merge to publish.
 #
 # CONFIG (repo Variables + Secrets):
-#   Variable  GHCR_NAMESPACE
-#   Variable  UMBREL_STORE_REPO
-#   Secret    GHCR_USERNAME
-#   Secret    GHCR_TOKEN          PAT with write:packages for GHCR_NAMESPACE
-#   Secret    UMBREL_STORE_TOKEN  PAT with repo scope on UMBREL_STORE_REPO (push branch + open PR)
+#   Variable  GHCR_NAMESPACE      images are pushed here, e.g. ghcr.io/bisq-network
+#   Variable  UMBREL_STORE_REPO   org store = PR TARGET, e.g. bisq-network/bisq2-umbrel (we're pull-only)
+#   Variable  UMBREL_STORE_FORK   our fork = PUSH HEAD, e.g. rodvar/bisq2-umbrel-fork (we own it)
+#   Secret    GHCR_USERNAME       GHCR user (also the fork owner for the store push/PR)
+#   Secret    GHCR_TOKEN          ONE classic PAT used by both jobs — needs scopes:
+#                                   * write:packages  -> push images to GHCR_NAMESPACE
+#                                   * public_repo     -> push branch+main to UMBREL_STORE_FORK and
+#                                                        open the cross-repo PR to UMBREL_STORE_REPO
+#                                                        (both stores are public; else use full `repo`)
+#
+# STORE ACCESS MODEL: we have pull-only on the org store, so update-store bases a release branch on the
+# org store's current main, pushes it to OUR fork (also fast-forwarding the fork's main so the fork
+# doubles as an instant community store for local testing), then opens a cross-repo PR a maintainer
+# merges to publish. Retarget/handoff is entirely via the three Variables above — no code change.
 
 on:
   workflow_dispatch:
@@ -184,8 +193,10 @@ jobs:
             echo "- ${{ vars.GHCR_NAMESPACE }}/bisq2-api-web-ui@${{ steps.web.outputs.digest }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Digest-pin the freshly-built images into the Umbrel store repo + bump the manifest version,
-  # via a PR you merge to publish. Runs on a real version bump (push); on manual runs only if opted in.
+  # Digest-pin the freshly-built images into the Umbrel store + bump the manifest version. We have
+  # pull-only access to the org store, so we base the release branch on the org store's current main,
+  # push it to OUR fork (+ fast-forward the fork's main = instant test store), and open a cross-repo
+  # PR a maintainer merges to publish. Runs on a real version bump (push); on manual runs if opted in.
   update-store:
     needs: [resolve, build-and-push]
     if: github.event_name == 'push' || inputs.update_store
@@ -194,52 +205,103 @@ jobs:
       - name: Validate config
         run: |
           [ -n "${{ vars.UMBREL_STORE_REPO }}" ] \
-            || { echo "::error::repo variable UMBREL_STORE_REPO not set"; exit 1; }
+            || { echo "::error::repo variable UMBREL_STORE_REPO not set (PR target = org store)"; exit 1; }
+          [ -n "${{ vars.UMBREL_STORE_FORK }}" ] \
+            || { echo "::error::repo variable UMBREL_STORE_FORK not set (push head = our fork)"; exit 1; }
 
-      - name: Checkout Umbrel store repo
+      - name: Checkout our fork
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.UMBREL_STORE_REPO }}
-          token: ${{ secrets.UMBREL_STORE_TOKEN }}
+          repository: ${{ vars.UMBREL_STORE_FORK }}
+          token: ${{ secrets.GHCR_TOKEN }} # classic PAT: public_repo covers fork push + cross-repo PR
           path: store
+          fetch-depth: 0 # need real history to branch off upstream/main and push non-shallow
 
-      - name: Pin image digests + bump version
+      - name: Pin digests + bump version on a branch based off the org store's main
+        id: pin
         env:
           VERSION: ${{ needs.resolve.outputs.version }}
           NS: ${{ vars.GHCR_NAMESPACE }}
           NODE_DIGEST: ${{ needs.build-and-push.outputs.node_digest }}
           WEB_DIGEST: ${{ needs.build-and-push.outputs.web_digest }}
+          UPSTREAM: ${{ vars.UMBREL_STORE_REPO }}
         run: |
           set -euo pipefail
-          cd store/bisq2-node
+          cd store
+          git config user.name "bisq-mobile-ci"
+          git config user.email "ci@bisq.network"
+          # Base on the ORG store's current main (not the fork's, which may be stale) so the PR always
+          # diffs cleanly against upstream regardless of fork drift.
+          git remote add upstream "https://github.com/${UPSTREAM}.git"
+          git fetch upstream main
+          branch="release/bisq2-node-${VERSION}"
+          git checkout -B "$branch" upstream/main
+          cd bisq2-node
           sed -i -E "s#^version: .*#version: \"${VERSION}\"#" umbrel-app.yml
-          # Digest-pin both images (matches an existing tag OR digest; '#' sed delim keeps '/' literal).
-          sed -i -E "s#(image: ${NS}/bisq2-api)([:@])[^[:space:]]*#\1@${NODE_DIGEST}#" docker-compose.yml
-          sed -i -E "s#(image: ${NS}/bisq2-api-web-ui)([:@])[^[:space:]]*#\1@${WEB_DIGEST}#" docker-compose.yml
+          # Namespace-AGNOSTIC digest pin: matches any current namespace and rewrites to ${NS}@<digest>,
+          # so the first bisq-network release also migrates the refs (e.g. rodvar -> bisq-network).
+          # web-ui first (more specific); the node regex requires /bisq2-api immediately followed by :/@,
+          # so it never matches the longer -web-ui line.
+          sed -i -E "s#(image: )[^[:space:]]+/bisq2-api-web-ui[:@][^[:space:]]*#\1${NS}/bisq2-api-web-ui@${WEB_DIGEST}#" docker-compose.yml
+          sed -i -E "s#(image: )[^[:space:]]+/bisq2-api[:@][^[:space:]]*#\1${NS}/bisq2-api@${NODE_DIGEST}#" docker-compose.yml
+          # Fail loudly if a pin didn't take (compose format drift / renamed image): sed -i exits 0 even
+          # on no match, which would silently ship a store PR that doesn't actually pin the new images.
+          grep -qF "/bisq2-api-web-ui@${WEB_DIGEST}" docker-compose.yml \
+            || { echo "::error::web-ui image not pinned to ${WEB_DIGEST} — no matching image line?"; exit 1; }
+          grep -qF "/bisq2-api@${NODE_DIGEST}" docker-compose.yml \
+            || { echo "::error::node image not pinned to ${NODE_DIGEST} — no matching image line?"; exit 1; }
           echo "resulting refs:"; grep -E '^\s*image:' docker-compose.yml
+          cd ..
+          # Idempotent: a re-run of an already-published version yields no diff — skip the commit (and,
+          # via the step output, the push/PR below) instead of failing on "nothing to commit".
+          if git diff --quiet; then
+            echo "::notice::store already at ${VERSION} with these digests — nothing to commit"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -am "Release Bisq 2 Node ${VERSION} (pin images, bump version)"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Open store PR
+      - name: Push to fork (branch + fast-lane main) and open cross-repo PR
+        if: steps.pin.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.UMBREL_STORE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
           VERSION: ${{ needs.resolve.outputs.version }}
-          REPO: ${{ vars.UMBREL_STORE_REPO }}
+          UPSTREAM: ${{ vars.UMBREL_STORE_REPO }}
+          FORK: ${{ vars.UMBREL_STORE_FORK }}
         run: |
           set -euo pipefail
           cd store
           branch="release/bisq2-node-${VERSION}"
-          git config user.name "bisq-mobile-ci"
-          git config user.email "ci@bisq.network"
-          git checkout -b "$branch"
-          git commit -am "Release Bisq 2 Node ${VERSION} (pin images, bump version)"
+          fork_owner="${FORK%%/*}"
           git push -f -u origin "$branch"
-          gh pr create --repo "$REPO" --base main --head "$branch" \
-            --title "Release Bisq 2 Node ${VERSION}" \
-            --body "Automated by the Release Umbrel images workflow: digest-pins the freshly-built images and bumps the manifest version to \`${VERSION}\`. Merge to publish to the community store." \
-            || echo "::notice::PR may already exist for $branch"
+          # Fast-lane: fork main := org main + this release, so the fork URL is an instant community
+          # store for testing on Umbrel without waiting on the upstream maintainer merge. Only ever on
+          # OUR fork — if FORK==UPSTREAM (we somehow have write), force-pushing the org store's main
+          # would bypass the PR review, so skip it.
+          if [ "$FORK" != "$UPSTREAM" ]; then
+            git push -f origin "$branch":main
+          else
+            echo "::notice::FORK == UPSTREAM — skipping fast-lane main push (would bypass review)"
+          fi
+          # Open the cross-repo PR; treat ONLY the duplicate-PR case as a notice and fail on real
+          # errors (auth/permission/API) instead of masking them as success.
+          if out="$(gh pr create --repo "$UPSTREAM" --base main --head "${fork_owner}:${branch}" \
+              --title "Release Bisq 2 Node ${VERSION}" \
+              --body "Automated by the Release Umbrel images workflow, opened from fork \`${FORK}\` (we have pull-only access here). Digest-pins the freshly-built images and bumps the manifest version to \`${VERSION}\`. Merge to publish to the community store." 2>&1)"; then
+            echo "$out"
+          elif printf '%s' "$out" | grep -qi "already exists"; then
+            echo "::notice::PR already exists for ${fork_owner}:${branch}"
+          else
+            echo "::error::gh pr create failed: $out"; exit 1
+          fi
 
 # ── Notes ─────────────────────────────────────────────────────────────────────────────────────
-# - Retarget to the official store: set GHCR_NAMESPACE=ghcr.io/bisq-network + org-scoped creds, and
-#   UMBREL_STORE_REPO=bisq-network/bisq2-umbrel. No code change.
-# - Fully hands-off instead of a store PR? swap the `gh pr create` for a push to the store's main.
+# - Retarget/handoff is entirely via Variables (no code change): GHCR_NAMESPACE (image registry ns),
+#   UMBREL_STORE_REPO (PR target org store), UMBREL_STORE_FORK (our push head fork).
+# - If we ever get write on the org store: point UMBREL_STORE_FORK at UMBREL_STORE_REPO — the branch
+#   push + (same-repo) PR still work; the fast-lane main push is GUARDED off so review isn't bypassed.
+# - The fork's main is force-updated each release (it is a throwaway contribution fork, not a source of
+#   truth); its only jobs are being the PR head and an instant test store.
 # - SPEED: if emulated arm64 gets slow, split into a matrix of native runners (ubuntu-latest +
 #   ubuntu-24.04-arm), build per-arch by digest, then merge with `docker buildx imagetools create`.
