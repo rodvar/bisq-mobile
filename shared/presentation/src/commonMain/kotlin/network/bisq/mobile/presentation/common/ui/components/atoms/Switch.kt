@@ -26,9 +26,24 @@ fun BisqSwitch(
     label: String = "",
     disabled: Boolean = false,
     onSwitch: ((Boolean) -> Unit)? = null,
+    onDisabledTap: (() -> Unit)? = null,
 ) {
     Row(
-        modifier = modifier,
+        modifier =
+            modifier.then(
+                // When disabled, route taps anywhere in the row (label AND the greyed Switch area)
+                // to the explanation handler, so the whole control can explain why it can't be
+                // changed rather than only the label. No-op when enabled or when no handler is given.
+                if (disabled && onDisabledTap != null) {
+                    Modifier.clickable(
+                        onClick = onDisabledTap,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    )
+                } else {
+                    Modifier
+                },
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -38,21 +53,27 @@ fun BisqSwitch(
                 Modifier
                     .padding(end = BisqUIConstants.ScreenPadding)
                     .weight(1f)
-                    .clickable(
-                        enabled = !disabled,
-                        onClick = {
-                            if (onSwitch != null) {
-                                onSwitch(!checked)
-                            }
+                    // Only the enabled label toggles. When disabled we must NOT install a (disabled)
+                    // clickable — a disabled clickable still consumes the tap, stopping it from
+                    // reaching the row-level onDisabledTap handler above.
+                    .then(
+                        if (disabled) {
+                            Modifier
+                        } else {
+                            Modifier.clickable(
+                                onClick = { onSwitch?.invoke(!checked) },
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            )
                         },
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
                     ),
         )
 
         Switch(
             checked = checked,
-            onCheckedChange = onSwitch,
+            // Null when disabled so Material doesn't install its toggleable modifier — otherwise the
+            // greyed switch consumes taps instead of letting them reach the row's onDisabledTap.
+            onCheckedChange = if (disabled) null else onSwitch,
             enabled = !disabled,
             colors =
                 SwitchColors(
