@@ -39,7 +39,7 @@ val clientPresentationModule =
             )
         } bind AppPresenter::class
 
-        factory<SplashPresenter> {
+        factory {
             ClientSplashPresenter(
                 get(),
                 get(),
@@ -50,7 +50,7 @@ val clientPresentationModule =
                 get(),
                 get(),
             )
-        }
+        } bind SplashPresenter::class
 
         factory<OfferbookPresenter> {
             ClientOfferbookPresenter(
