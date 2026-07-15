@@ -290,6 +290,8 @@ open class MainPresenter(
         applicationLifecycleService.restartApp(view)
     }
 
+    suspend fun restartTorBootstrap(purgeTorDir: Boolean = false): Boolean = applicationLifecycleService.restartTorBootstrap(purgeTorDir)
+
     open fun onConnectivityRecoveryAction() {
         onRestartApp()
     }

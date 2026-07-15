@@ -1,15 +1,24 @@
 package network.bisq.mobile.data.service.network
 
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.withTimeout
 import network.bisq.mobile.data.service.LifeCycleAware
 import network.bisq.mobile.data.service.ServiceFacade
+import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.domain.utils.Logging
+import kotlin.coroutines.cancellation.CancellationException
 
 abstract class NetworkServiceFacade(
     private val kmpTorService: KmpTorService,
+    private val applicationBootstrapFacade: ApplicationBootstrapFacade,
 ) : ServiceFacade(),
     LifeCycleAware,
     Logging {
@@ -19,6 +28,11 @@ abstract class NetworkServiceFacade(
         // subsequent attempt succeeds. Kept small — genuine failures should surface, not loop.
         private const val MAX_TOR_START_ATTEMPTS = 3
         private const val TOR_START_RETRY_DELAY_MS = 1_000L
+
+        // Upper bound for awaiting Started / torBootstrapFailed after [startTorWithRetries].
+        // Aligns with kmp-tor per-attempt daemon + bootstrap caps in [KmpTorService.startTor].
+        private const val TOR_ACTIVATION_AWAIT_TIMEOUT_MS =
+            KmpTorService.DEFAULT_DAEMON_START_TIMEOUT_MS + KmpTorService.DEFAULT_BOOTSTRAP_TIMEOUT_MS
     }
 
     abstract val numConnections: StateFlow<Int>
@@ -31,6 +45,7 @@ abstract class NetworkServiceFacade(
 
         if (isTorEnabled()) {
             startTorWithRetries()
+            awaitTorStartedOrBootstrapFailed()
         }
     }
 
@@ -49,6 +64,12 @@ abstract class NetworkServiceFacade(
      */
     private suspend fun startTorWithRetries() {
         repeat(MAX_TOR_START_ATTEMPTS) { attempt ->
+            if (applicationBootstrapFacade.torBootstrapFailed.value) {
+                log.i { "Tor bootstrap failed (terminal); skipping remaining start attempts" }
+                return
+            }
+            currentCoroutineContext().ensureActive()
+
             val started =
                 try {
                     kmpTorService.startTor()
@@ -58,6 +79,15 @@ abstract class NetworkServiceFacade(
                     false
                 }
             if (started) return
+
+            if (applicationBootstrapFacade.torBootstrapFailed.value) {
+                log.i {
+                    "Tor bootstrap failed (terminal) after attempt ${attempt + 1}/$MAX_TOR_START_ATTEMPTS; " +
+                        "skipping remaining retries"
+                }
+                return
+            }
+
             if (attempt < MAX_TOR_START_ATTEMPTS - 1) {
                 log.w { "Tor did not start (attempt ${attempt + 1}/$MAX_TOR_START_ATTEMPTS); retrying in ${TOR_START_RETRY_DELAY_MS}ms" }
                 delay(TOR_START_RETRY_DELAY_MS)
@@ -89,5 +119,56 @@ abstract class NetworkServiceFacade(
                 currentCoroutineContext().ensureActive()
             }
         }
+    }
+
+    private suspend fun awaitTorStartedOrBootstrapFailed() {
+        if (kmpTorService.state.value is KmpTorService.TorState.Started) {
+            return
+        }
+
+        val torStarted =
+            kmpTorService.state
+                .filter { it is KmpTorService.TorState.Started }
+                .map { TorActivationOutcome.Started }
+
+        val torFailed =
+            applicationBootstrapFacade.torBootstrapFailed
+                .filter { it }
+                .map { TorActivationOutcome.BootstrapFailed }
+
+        try {
+            when (
+                withTimeout(TOR_ACTIVATION_AWAIT_TIMEOUT_MS) {
+                    merge(torStarted, torFailed).first()
+                }
+            ) {
+                TorActivationOutcome.Started -> Unit
+
+                TorActivationOutcome.BootstrapFailed -> handleTorBootstrapNotReady()
+            }
+        } catch (_: TimeoutCancellationException) {
+            log.w {
+                "Timed out after ${TOR_ACTIVATION_AWAIT_TIMEOUT_MS}ms waiting for Tor started " +
+                    "or bootstrap failure; treating as not ready"
+            }
+            handleTorBootstrapNotReady()
+        }
+    }
+
+    private suspend fun handleTorBootstrapNotReady() {
+        try {
+            deactivate()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.e(e) { "Failed to deactivate after Tor bootstrap failure" }
+        }
+        throw TorBootstrapNotReadyException()
+    }
+
+    private sealed interface TorActivationOutcome {
+        data object Started : TorActivationOutcome
+
+        data object BootstrapFailed : TorActivationOutcome
     }
 }

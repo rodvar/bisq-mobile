@@ -1,11 +1,14 @@
 package network.bisq.mobile.domain.service.bootstrap
 
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -65,6 +68,7 @@ class ApplicationBootstrapFacadeTest : KoinTest {
 
             assertEquals("loading", facade.state.value)
             assertEquals(0.42f, facade.progress.value)
+            facade.releaseTestResources()
         }
 
     @Test
@@ -80,6 +84,7 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             advanceUntilIdle()
 
             assertTrue(facade.isTimeoutDialogVisible.value)
+            facade.releaseTestResources()
         }
 
     @Test
@@ -98,6 +103,7 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             // advance the remaining time -> dialog should now be visible
             testScheduler.advanceTimeBy(100_000)
             assertTrue(facade.isTimeoutDialogVisible.value)
+            facade.releaseTestResources()
         }
 
     @Test
@@ -114,6 +120,7 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             advanceUntilIdle()
 
             assertFalse(facade.isTimeoutDialogVisible.value)
+            facade.releaseTestResources()
         }
 
     @Test
@@ -154,7 +161,7 @@ class ApplicationBootstrapFacadeTest : KoinTest {
                 assertEquals("", facade.currentBootstrapStage.value, "currentBootstrapStage should be reset")
             } finally {
                 // Stop the elapsed ticker so runTest's end-of-test idle drain doesn't hang on it.
-                facade.deactivate()
+                facade.releaseTestResources()
             }
         }
 
@@ -176,17 +183,19 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             // Deactivate and reactivate
             facade.deactivate()
             facade.activate()
-            // activate() starts a perpetual 1s elapsed-time ticker; advanceUntilIdle() would hang.
-            runCurrent()
 
-            // Now timeouts should work again (bootstrapSuccessful was reset)
-            facade.startTimeoutForStagePublic("stage-after-reactivate")
-            testScheduler.advanceTimeBy(90_001)
-            runCurrent()
-            assertTrue(facade.isTimeoutDialogVisible.value, "Timeout should fire after reactivation")
+            try {
+                // activate() starts a perpetual 1s elapsed-time ticker; advanceUntilIdle() would hang.
+                runCurrent()
 
-            // Stop the elapsed ticker so runTest's end-of-test idle drain doesn't hang on it.
-            facade.deactivate()
+                // Now timeouts should work again (bootstrapSuccessful was reset)
+                facade.startTimeoutForStagePublic("stage-after-reactivate")
+                testScheduler.advanceTimeBy(90_001)
+                runCurrent()
+                assertTrue(facade.isTimeoutDialogVisible.value, "Timeout should fire after reactivation")
+            } finally {
+                facade.releaseTestResources()
+            }
         }
 
     @Test
@@ -199,82 +208,152 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             every { kmpTorService.bootstrapProgress } returns progressFlow
             val facade = TestFacade(kmpTorService)
 
-            // Start observing
-            facade.observeTorStatePublic()
+            try {
+                facade.observeTorStatePublic()
 
-            // Emit Starting state via flow
-            stateFlow.emit(KmpTorService.TorState.Starting)
-            advanceUntilIdle()
+                stateFlow.emit(KmpTorService.TorState.Starting)
+                advanceUntilIdle()
 
-            // Starting should set a small progress value
-            assertEquals(0.1f, facade.progress.value)
+                assertEquals(0.1f, facade.progress.value)
 
-            val before = facade.state.value
+                val before = facade.state.value
 
-            // Emit bootstrap progress update and verify facade state changed
-            progressFlow.emit(42)
-            advanceUntilIdle()
-            assertTrue(facade.state.value != before && facade.state.value.contains("42"))
+                progressFlow.emit(42)
+                advanceUntilIdle()
+                assertTrue(facade.state.value != before && facade.state.value.contains("42"))
 
-            // Emit Started state -> progress should update to 0.25f and further progress updates ignored
-            stateFlow.emit(KmpTorService.TorState.Started)
-            advanceUntilIdle()
-            assertEquals(0.25f, facade.progress.value)
+                stateFlow.emit(KmpTorService.TorState.Started)
+                advanceUntilIdle()
+                assertEquals(0.25f, facade.progress.value)
 
-            val afterStarted = facade.state.value
-            progressFlow.emit(99)
-            advanceUntilIdle()
-            assertEquals(afterStarted, facade.state.value)
+                val afterStarted = facade.state.value
+                progressFlow.emit(99)
+                advanceUntilIdle()
+                assertEquals(afterStarted, facade.state.value)
+            } finally {
+                facade.releaseTestResources()
+            }
         }
 
     @Test
-    fun `tor failure within grace period does not show failure dialog`() =
+    fun `handleTorBootstrapError suppresses transient failure until grace elapses`() =
+        runTest(testDispatcher) {
+            val facade = TestFacade(mockk(relaxed = true), testScheduler)
+            try {
+                testScheduler.advanceTimeBy(1_000_000)
+                facade.markTorBootstrapStartingForTest(testScheduler.currentTime)
+                testScheduler.advanceTimeBy(10_000)
+                facade.handleTorBootstrapErrorForTest(RuntimeException("network flake"))
+                assertFalse(facade.torBootstrapFailed.value)
+
+                testScheduler.advanceTimeBy(50_000)
+                advanceUntilIdle()
+                assertTrue(facade.torBootstrapFailed.value)
+            } finally {
+                facade.releaseTestResources()
+            }
+        }
+
+    @Test
+    fun `handleTorBootstrapError arms terminal failure immediately`() =
+        runTest(testDispatcher) {
+            val facade = TestFacade(mockk(relaxed = true), testScheduler)
+            try {
+                testScheduler.advanceTimeBy(1_000_000)
+                facade.markTorBootstrapStartingForTest(testScheduler.currentTime)
+                testScheduler.advanceTimeBy(10_000)
+                facade.handleTorBootstrapErrorForTest(
+                    InterruptedException("CtrlConnection Stream Ended"),
+                )
+                assertTrue(facade.torBootstrapFailed.value)
+            } finally {
+                facade.releaseTestResources()
+            }
+        }
+
+    @Test
+    fun `handleTorBootstrapError arms transient failure after grace period elapsed`() =
+        runTest(testDispatcher) {
+            val facade = TestFacade(mockk(relaxed = true), testScheduler)
+            try {
+                testScheduler.advanceTimeBy(1_000_000)
+                facade.markTorBootstrapStartingForTest(testScheduler.currentTime)
+                testScheduler.advanceTimeBy(65_000)
+                facade.handleTorBootstrapErrorForTest(RuntimeException("Tor failed permanently"))
+                assertTrue(facade.torBootstrapFailed.value)
+            } finally {
+                facade.releaseTestResources()
+            }
+        }
+
+    @Test
+    fun `handleTorBootstrapError ignores stale errors before starting is observed`() =
+        runTest(testDispatcher) {
+            val facade = TestFacade(mockk(relaxed = true), testScheduler)
+            try {
+                facade.handleTorBootstrapErrorForTest(
+                    InterruptedException("CtrlConnection Stream Ended"),
+                )
+                assertFalse(facade.torBootstrapFailed.value)
+            } finally {
+                facade.releaseTestResources()
+            }
+        }
+
+    @Test
+    fun `tor terminal failure within grace period shows failure dialog immediately`() =
         runTest(testDispatcher) {
             val kmpTorService = mockk<KmpTorService>(relaxed = true)
             val stateFlow = MutableStateFlow<KmpTorService.TorState>(KmpTorService.TorState.Stopped())
             val progressFlow = MutableStateFlow(0)
             every { kmpTorService.state } returns stateFlow
             every { kmpTorService.bootstrapProgress } returns progressFlow
-            val facade = TestFacade(kmpTorService)
+            val facade = TestFacade(kmpTorService, testScheduler)
 
-            facade.fakeTimeMillis = 1_000_000L
-            facade.observeTorStatePublic()
+            try {
+                testScheduler.advanceTimeBy(1_000_000)
+                facade.observeTorStatePublic()
 
-            // Tor starts
-            stateFlow.emit(KmpTorService.TorState.Starting)
-            advanceUntilIdle()
+                stateFlow.emit(KmpTorService.TorState.Starting)
+                advanceUntilIdle()
 
-            // Tor fails after 10 seconds (within 60s grace period)
-            facade.fakeTimeMillis = 1_010_000L
-            stateFlow.emit(KmpTorService.TorState.Stopped(RuntimeException("Circuit build timeout")))
-            advanceUntilIdle()
+                testScheduler.advanceTimeBy(10_000)
+                stateFlow.emit(KmpTorService.TorState.Stopped(InterruptedException("CtrlConnection Stream Ended")))
+                advanceUntilIdle()
 
-            assertFalse(facade.torBootstrapFailed.value, "Tor failure within grace period should not show dialog")
+                assertTrue(facade.torBootstrapFailed.value, "Terminal Tor failure should show dialog immediately")
+                coVerify(exactly = 0) { kmpTorService.startTor(any(), any()) }
+            } finally {
+                facade.releaseTestResources()
+            }
         }
 
     @Test
-    fun `tor failure after grace period shows failure dialog`() =
+    fun `stale tor stopped error before starting is ignored on reactivation`() =
         runTest(testDispatcher) {
             val kmpTorService = mockk<KmpTorService>(relaxed = true)
-            val stateFlow = MutableStateFlow<KmpTorService.TorState>(KmpTorService.TorState.Stopped())
+            val stateFlow =
+                MutableStateFlow<KmpTorService.TorState>(
+                    KmpTorService.TorState.Stopped(InterruptedException("CtrlConnection Stream Ended")),
+                )
             val progressFlow = MutableStateFlow(0)
             every { kmpTorService.state } returns stateFlow
             every { kmpTorService.bootstrapProgress } returns progressFlow
             val facade = TestFacade(kmpTorService)
 
-            facade.fakeTimeMillis = 1_000_000L
-            facade.observeTorStatePublic()
+            try {
+                facade.activate()
+                runCurrent()
+                facade.observeTorStatePublic()
+                runCurrent()
 
-            // Tor starts
-            stateFlow.emit(KmpTorService.TorState.Starting)
-            advanceUntilIdle()
-
-            // Tor fails after 65 seconds (past 60s grace period)
-            facade.fakeTimeMillis = 1_065_000L
-            stateFlow.emit(KmpTorService.TorState.Stopped(RuntimeException("Tor failed permanently")))
-            advanceUntilIdle()
-
-            assertTrue(facade.torBootstrapFailed.value, "Tor failure after grace period should show dialog")
+                assertFalse(
+                    facade.torBootstrapFailed.value,
+                    "Stale Stopped(error) before first Starting should not arm failure dialog",
+                )
+            } finally {
+                facade.releaseTestResources()
+            }
         }
 
     @Test
@@ -286,27 +365,33 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             // Start bootstrap; the elapsed ticker counts from this baseline.
             facade.fakeTimeMillis = 1_000_000L
             facade.activate()
-            runCurrent()
+            try {
+                runCurrent()
 
-            // Let ~100s accumulate (simulating a slow attempt that then fails).
-            facade.fakeTimeMillis = 1_100_000L
-            testScheduler.advanceTimeBy(1_000)
-            runCurrent()
-            assertTrue(facade.bootstrapElapsedSeconds.value >= 100L, "elapsed should accumulate before restart")
+                // Let ~100s accumulate (simulating a slow attempt that then fails).
+                facade.fakeTimeMillis = 1_100_000L
+                testScheduler.advanceTimeBy(1_000)
+                runCurrent()
+                assertTrue(facade.bootstrapElapsedSeconds.value >= 100L, "elapsed should accumulate before restart")
 
-            // Restart Tor -> the clock resets immediately to 0.
-            facade.startTor(purgeTorDir = false)
-            runCurrent()
-            assertEquals(0L, facade.bootstrapElapsedSeconds.value, "startTor should reset elapsed to 0")
+                // Restart Tor -> the clock resets immediately to 0.
+                facade.startTor(purgeTorDir = false)
+                runCurrent()
+                assertEquals(0L, facade.bootstrapElapsedSeconds.value, "startTor should reset elapsed to 0")
 
-            // Subsequent ticks count from the restart baseline, not the original activate baseline.
-            facade.fakeTimeMillis = 1_110_000L
-            testScheduler.advanceTimeBy(1_000)
-            runCurrent()
-            assertEquals(10L, facade.bootstrapElapsedSeconds.value, "elapsed should count from the restart baseline")
-
-            // Stop the elapsed ticker so runTest's end-of-test idle drain doesn't hang on it.
-            facade.deactivate()
+                // Subsequent ticks count from the restart baseline, not the original activate baseline.
+                facade.fakeTimeMillis = 1_110_000L
+                testScheduler.advanceTimeBy(1_000)
+                runCurrent()
+                assertEquals(
+                    10L,
+                    facade.bootstrapElapsedSeconds.value,
+                    "elapsed should count from the restart baseline",
+                )
+            } finally {
+                // Stop the elapsed ticker so runTest's end-of-test idle drain doesn't hang on it.
+                facade.releaseTestResources()
+            }
         }
 
     @Test
@@ -334,18 +419,18 @@ class ApplicationBootstrapFacadeTest : KoinTest {
             testScheduler.advanceTimeBy(5_000)
             runCurrent()
             assertEquals(frozen, facade.bootstrapElapsedSeconds.value, "elapsed ticker should be stopped after failure")
-            // No deactivate() needed: handleBootstrapFailure already cancelled the ticker, so the
-            // end-of-test idle drain won't hang.
+            facade.releaseTestResources()
         }
 }
 
 // Test subclass to expose protected functionality for unit testing only
 private class TestFacade(
     kmpTorService: KmpTorService,
+    private val scheduler: TestCoroutineScheduler? = null,
 ) : ApplicationBootstrapFacade(kmpTorService) {
     var fakeTimeMillis: Long = 0L
 
-    override fun currentTimeMillis(): Long = fakeTimeMillis
+    override fun currentTimeMillis(): Long = scheduler?.currentTime ?: fakeTimeMillis
 
     fun startTimeoutForStagePublic(
         stageName: String = state.value,
@@ -360,5 +445,10 @@ private class TestFacade(
 
     fun observeTorStatePublic() {
         observeTorState()
+    }
+
+    /** Ensures [CoroutineJobsManager] is disposed even when tests use serviceScope without [activate]. */
+    suspend fun releaseTestResources() {
+        releaseServiceResources()
     }
 }

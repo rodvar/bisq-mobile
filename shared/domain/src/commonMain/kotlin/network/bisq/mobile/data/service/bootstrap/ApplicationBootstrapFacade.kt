@@ -1,5 +1,6 @@
 package network.bisq.mobile.data.service.bootstrap
 
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -24,10 +25,10 @@ abstract class ApplicationBootstrapFacade(
             90_000L // 90 seconds per stage
         private const val BOOTSTRAP_ELAPSED_TICK_MS = 1_000L
 
-        // Grace period before showing the Tor bootstrap failed dialog.
-        // On iOS, kmp-tor can emit transient Stopped(error) events during initial
-        // circuit establishment (especially over slow networks or onion addresses).
-        // We suppress the failure dialog during this window and let Tor retry.
+        // Grace period before arming the failure dialog for transient Tor bootstrap errors.
+        // On iOS, kmp-tor can emit transient Stopped(error) events during initial circuit
+        // establishment (especially over slow networks or onion addresses). Start retries
+        // are owned by [network.bisq.mobile.data.service.network.NetworkServiceFacade].
         internal const val TOR_FAILURE_GRACE_PERIOD_MS = 60_000L
     }
 
@@ -42,6 +43,15 @@ abstract class ApplicationBootstrapFacade(
 
     @Volatile
     private var torStartingTimestamp: Long = 0L
+
+    @Volatile
+    private var torBootstrapStartObserved: Boolean = false
+
+    @Volatile
+    private var torGracePeriodArmJob: Job? = null
+
+    @Volatile
+    private var pendingGracePeriodErrorMessage: String? = null
 
     @Volatile
     private var elapsedTimerJob: Job? = null
@@ -131,6 +141,9 @@ abstract class ApplicationBootstrapFacade(
         elapsedTimerJob?.cancel()
         elapsedTimerJob = null
         torStartingTimestamp = 0L
+        torBootstrapStartObserved = false
+        cancelGracePeriodArmJob()
+        pendingGracePeriodErrorMessage = null
         bootstrapStartedTimestamp = currentTimeMillis()
 
         super.activate()
@@ -138,6 +151,8 @@ abstract class ApplicationBootstrapFacade(
     }
 
     override suspend fun deactivate() {
+        cancelGracePeriodArmJob()
+        pendingGracePeriodErrorMessage = null
         cancelTimeout()
         cancelElapsedTimer()
         super.deactivate()
@@ -158,6 +173,9 @@ abstract class ApplicationBootstrapFacade(
             kmpTorService.state.collect { newState ->
                 when (newState) {
                     is TorState.Starting -> {
+                        cancelGracePeriodArmJob()
+                        pendingGracePeriodErrorMessage = null
+                        torBootstrapStartObserved = true
                         torStartingTimestamp = currentTimeMillis()
                         setState("mobile.bootstrap.tor.starting".i18n(0))
                         setProgress(0.1f)
@@ -173,6 +191,8 @@ abstract class ApplicationBootstrapFacade(
                     }
 
                     is TorState.Started -> {
+                        cancelGracePeriodArmJob()
+                        pendingGracePeriodErrorMessage = null
                         torProgressCollectJob?.cancel()
                         setTorBootstrapProgress(100)
                         setState("mobile.bootstrap.tor.started".i18n())
@@ -184,28 +204,8 @@ abstract class ApplicationBootstrapFacade(
 
                     is TorState.Stopped -> {
                         torProgressCollectJob?.cancel()
-                        if (newState.error != null) {
-                            val errorMessage =
-                                listOfNotNull(
-                                    newState.error.message,
-                                    newState.error.cause?.message,
-                                ).firstOrNull()
-                                    ?: "Unknown Tor error"
-
-                            val elapsed = currentTimeMillis() - torStartingTimestamp
-                            if (torStartingTimestamp > 0 && elapsed < TOR_FAILURE_GRACE_PERIOD_MS) {
-                                // Within grace period — Tor may still recover. Log but don't
-                                // show the failure dialog yet. The general stage timeout
-                                // (90s) will catch genuinely stuck connections.
-                                log.w { "Bootstrap: Tor error within grace period (${elapsed / 1000}s): $errorMessage — suppressing failure dialog" }
-                                setState("mobile.bootstrap.tor.starting".i18n(0))
-                            } else {
-                                setState("mobile.bootstrap.tor.failed".i18n() + ": $errorMessage")
-                                cancelTimeout(showProgressToast = false)
-                                setTorBootstrapFailed(true)
-                                log.e { "Bootstrap: Tor initialization failed - $errorMessage" }
-                            }
-                        }
+                        val error = newState.error ?: return@collect
+                        handleTorBootstrapError(error)
                     }
                 }
             }
@@ -298,9 +298,99 @@ abstract class ApplicationBootstrapFacade(
 
     protected open fun onTorStarted() {}
 
+    @VisibleForTesting
+    internal fun markTorBootstrapStartingForTest(startTimestamp: Long) {
+        torBootstrapStartObserved = true
+        torStartingTimestamp = startTimestamp
+    }
+
+    @VisibleForTesting
+    internal fun handleTorBootstrapErrorForTest(error: Throwable) {
+        handleTorBootstrapError(error)
+    }
+
+    private fun handleTorBootstrapError(error: Throwable) {
+        val errorMessage =
+            generateSequence(error) { it.cause }
+                .mapNotNull { it.message }
+                .firstOrNull()
+                ?: "Unknown Tor error"
+
+        // Ignore stale Stopped(error) emissions from before the current bootstrap attempt.
+        if (!torBootstrapStartObserved) {
+            return
+        }
+
+        if (TorBootstrapErrorClassification.isTerminal(error)) {
+            cancelGracePeriodArmJob()
+            pendingGracePeriodErrorMessage = null
+            armTorBootstrapFailed(errorMessage)
+            return
+        }
+
+        val elapsed = currentTimeMillis() - torStartingTimestamp
+        if (elapsed >= TOR_FAILURE_GRACE_PERIOD_MS) {
+            cancelGracePeriodArmJob()
+            pendingGracePeriodErrorMessage = null
+            armTorBootstrapFailed(errorMessage)
+            return
+        }
+
+        log.w { "Transient Tor bootstrap error within grace period (${elapsed}ms): $errorMessage" }
+        pendingGracePeriodErrorMessage = errorMessage
+        setState("mobile.bootstrap.tor.starting".i18n(0))
+        scheduleGracePeriodArm()
+    }
+
+    private fun armTorBootstrapFailed(errorMessage: String) {
+        cancelGracePeriodArmJob()
+        pendingGracePeriodErrorMessage = null
+        setState("mobile.bootstrap.tor.failed".i18n() + ": $errorMessage")
+        cancelTimeout(showProgressToast = false)
+        setTorBootstrapFailed(true)
+        torBootstrapStartObserved = false
+        torStartingTimestamp = 0L
+        log.e { "Bootstrap: Tor initialization failed - $errorMessage" }
+    }
+
+    private fun scheduleGracePeriodArm() {
+        if (torGracePeriodArmJob?.isActive == true) {
+            return
+        }
+        val delayMs =
+            (torStartingTimestamp + TOR_FAILURE_GRACE_PERIOD_MS - currentTimeMillis())
+                .coerceAtLeast(0L)
+        torGracePeriodArmJob =
+            serviceScope.launch {
+                try {
+                    delay(delayMs)
+                    if (torBootstrapStartObserved && !_torBootstrapFailed.value) {
+                        armTorBootstrapFailed(
+                            pendingGracePeriodErrorMessage ?: "Unknown Tor error",
+                        )
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) {
+                        log.d { "Bootstrap: Grace-period arm job cancelled" }
+                    } else {
+                        log.e(e) { "Bootstrap: Error in grace-period arm job" }
+                    }
+                }
+            }
+    }
+
+    private fun cancelGracePeriodArmJob() {
+        torGracePeriodArmJob?.cancel()
+        torGracePeriodArmJob = null
+    }
+
     fun startTor(purgeTorDir: Boolean) {
         serviceScope.launch {
             setTorBootstrapFailed(false)
+            cancelGracePeriodArmJob()
+            pendingGracePeriodErrorMessage = null
+            torBootstrapStartObserved = false
+            torStartingTimestamp = 0L
             // Restarting Tor is a fresh connection attempt, so reset the slow-path clock:
             // otherwise the "still connecting, this is normal" banner would reappear immediately
             // showing the elapsed time of the failed attempt. The elapsed ticker keeps running
