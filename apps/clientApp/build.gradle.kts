@@ -236,6 +236,7 @@ kotlin {
             implementation(libs.androidx.test.compose.manifest)
 
             // Kotlin
+            implementation(libs.kotlin.test)
             implementation(libs.kotlin.test.junit)
 
             // KotlinX
@@ -248,6 +249,23 @@ kotlin {
 
             // Test utilities
             implementation(project(sharedTestUtilsModule))
+        }
+
+        // Share presentation's Android unit-test helpers with clientApp tests.
+        // Graft only the subdirs clientApp consumes — not the test_utils root, so
+        // presentation-only helpers and test classes there cannot break client builds.
+        // Do not use kotlin.include here — it replaces the source set's default **/*
+        // and would drop clientApp's own androidUnitTest sources.
+        androidUnitTest {
+            val presentationUnitTestUtils =
+                project(sharedPresentationModule).projectDir.resolve(
+                    "src/androidUnitTest/kotlin/network/bisq/mobile/presentation/common/test_utils",
+                )
+            kotlin.srcDirs(
+                presentationUnitTestUtils.resolve("compose"),
+                presentationUnitTestUtils.resolve("coroutines"),
+                presentationUnitTestUtils.resolve("di"),
+            )
         }
     }
 }

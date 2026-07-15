@@ -7,11 +7,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettings
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
-import network.bisq.mobile.client.common.test_utils.KoinIntegrationTestBase
+import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.domain.utils.VersionProvider
 import org.koin.core.module.Module
@@ -21,7 +20,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class HttpClientServiceAwaitClientReadyTest : KoinIntegrationTestBase() {
+class HttpClientServiceAwaitClientReadyTest : ClientKoinIntegrationTestBase() {
     private lateinit var kmpTorService: KmpTorService
     private lateinit var settingsRepository: SensitiveSettingsRepository
     private lateinit var versionProvider: VersionProvider
@@ -83,7 +82,7 @@ class HttpClientServiceAwaitClientReadyTest : KoinIntegrationTestBase() {
 
     @Test
     fun `awaitClientReady returns false on timeout when no client is built`() =
-        runTest(testDispatcher) {
+        runTest {
             val service = createService()
             val result = service.awaitClientReady(timeoutMs = 100)
             assertFalse(result)

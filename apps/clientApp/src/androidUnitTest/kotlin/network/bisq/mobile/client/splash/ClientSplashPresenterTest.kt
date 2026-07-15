@@ -4,10 +4,9 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.runTest
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
-import network.bisq.mobile.client.common.test_utils.KoinIntegrationTestBase
+import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,7 +18,7 @@ import org.koin.dsl.module
  * Tests for ClientSplashPresenter navigation logic.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class ClientSplashPresenterTest : KoinIntegrationTestBase() {
+class ClientSplashPresenterTest : ClientKoinIntegrationTestBase() {
     private val webSocketClientService: WebSocketClientService = mockk(relaxed = true)
     private val applicationBootstrapFacade: ApplicationBootstrapFacade = mockk(relaxed = true)
 
