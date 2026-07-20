@@ -64,6 +64,7 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
         // Neutral default for the REST fast-path so existing tests are unaffected; an empty result
         // is a no-op (the subscription remains the source of truth for empty markets).
         coEvery { apiGateway.getOffers(any()) } returns Result.success(emptyList())
+        coEvery { apiGateway.subscribeOffers() } returns WebSocketEventObserver()
         facade =
             ClientOffersServiceFacade(
                 marketPriceServiceFacade = marketPriceServiceFacade,
@@ -86,12 +87,107 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
         }
 
     @Test
+    fun `activate subscribes to offers`() =
+        runTest {
+            val offersObserver = WebSocketEventObserver()
+            coEvery { apiGateway.subscribeOffers() } returns offersObserver
+
+            facade.activate()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { apiGateway.subscribeOffers() }
+        }
+
+    @Test
+    fun `selectOfferbookMarket does not re-subscribe when offers subscription started at activate`() =
+        runTest {
+            val offersObserver = WebSocketEventObserver()
+            coEvery { apiGateway.subscribeNumOffers() } returns WebSocketEventObserver()
+            coEvery { apiGateway.subscribeOffers() } returns offersObserver
+
+            facade.activate()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { apiGateway.subscribeOffers() }
+
+            facade.selectOfferbookMarket(MarketListItem.from(brlMarket, numOffers = 15))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { apiGateway.subscribeOffers() }
+        }
+
+    @Test
     fun `activate tolerates num offers subscription failure`() =
         runTest {
             coEvery { apiGateway.subscribeNumOffers() } throws RuntimeException("subscribe failed")
 
             facade.activate()
             advanceUntilIdle()
+        }
+
+    @Test
+    fun `activate tolerates offers subscription failure`() =
+        runTest {
+            coEvery { apiGateway.subscribeNumOffers() } returns WebSocketEventObserver()
+            coEvery { apiGateway.subscribeOffers() } throws RuntimeException("subscribe failed")
+
+            facade.activate()
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `malformed offers event is skipped and the subscription keeps delivering later events`() =
+        runTest {
+            val offersObserver = WebSocketEventObserver()
+            coEvery { apiGateway.subscribeNumOffers() } returns WebSocketEventObserver()
+            coEvery { apiGateway.subscribeOffers() } returns offersObserver
+
+            facade.activate()
+            advanceUntilIdle()
+            facade.selectOfferbookMarket(MarketListItem.from(brlMarket, numOffers = 15))
+            advanceUntilIdle()
+
+            offersObserver.setEvent(offersEvent("not-a-valid-offers-payload", sequenceNumber = 1))
+            advanceUntilIdle()
+
+            offersObserver.setEvent(offersEvent(offersPayload(brlMarket, "good-offer"), sequenceNumber = 2))
+            advanceUntilIdle()
+
+            // The malformed event must not tear down the subscription (no re-subscribe) and the
+            // following valid event must still populate the offerbook.
+            coVerify(exactly = 1) { apiGateway.subscribeOffers() }
+            assertEquals(
+                "good-offer",
+                facade.offerbookListItems.value
+                    .single()
+                    .offerId,
+            )
+        }
+
+    @Test
+    fun `failed offers subscription at activate allows retry on market select`() =
+        runTest {
+            val offersObserver = WebSocketEventObserver()
+            coEvery { apiGateway.subscribeNumOffers() } returns WebSocketEventObserver()
+            coEvery { apiGateway.subscribeOffers() } throws RuntimeException("subscribe failed") andThen offersObserver
+
+            facade.activate()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { apiGateway.subscribeOffers() }
+
+            facade.selectOfferbookMarket(MarketListItem.from(brlMarket, numOffers = 15))
+            advanceUntilIdle()
+
+            coVerify(exactly = 2) { apiGateway.subscribeOffers() }
+            offersObserver.setEvent(offersEvent(offersPayload(brlMarket, "retry-offer")))
+            advanceUntilIdle()
+
+            assertEquals(1, facade.offerbookListItems.value.size)
+            assertEquals(
+                "retry-offer",
+                facade.offerbookListItems.value
+                    .single()
+                    .offerId,
+            )
         }
 
     @Test
@@ -385,7 +481,7 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
 
     /**
      * REST fast-path: on market selection we fetch the market's offers directly, which returns
-     * without waiting for the (serially-applied, cold-start-delayed) OFFERS subscription snapshot.
+     * without waiting for the OFFERS subscription snapshot.
      */
     @Test
     fun `rest prefetch populates offers before the subscription snapshot arrives`() =
