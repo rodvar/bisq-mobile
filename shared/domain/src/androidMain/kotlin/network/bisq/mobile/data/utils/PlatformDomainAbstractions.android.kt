@@ -70,6 +70,13 @@ class AndroidUrlLauncher(
     private val log = getLogger("AndroidUrlLauncher")
 
     override suspend fun openUrl(url: String): Boolean {
+        if (tryOpenUrl(url)) return true
+        val fallback = playStoreHttpsFallback(url) ?: return false
+        log.w { "No handler for market:// URL; falling back to Play Store HTTPS listing" }
+        return tryOpenUrl(fallback)
+    }
+
+    private fun tryOpenUrl(url: String): Boolean {
         val safeUrl = sanitizeUrlForLog(url)
         val intent = Intent(Intent.ACTION_VIEW, url.toUri())
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -85,6 +92,13 @@ class AndroidUrlLauncher(
         }
     }
 
+    private fun playStoreHttpsFallback(url: String): String? {
+        val uri = runCatching { url.toUri() }.getOrNull() ?: return null
+        if (uri.scheme != "market") return null
+        val packageName = uri.getQueryParameter("id")?.takeIf { it.isNotBlank() } ?: return null
+        return AppUpdateUrls.playStoreDetailsUrl(packageName)
+    }
+
     private fun sanitizeUrlForLog(rawUrl: String): String {
         val uri = runCatching { rawUrl.toUri() }.getOrNull()
         return if (uri != null) {
@@ -96,6 +110,40 @@ class AndroidUrlLauncher(
         } else {
             "invalid-url"
         }
+    }
+}
+
+class AndroidAppUpdateLinker(
+    private val context: Context,
+    private val installingPackageNameProvider: (Context) -> String? = ::resolveInstallingPackageName,
+) : AppUpdateLinker {
+    private companion object {
+        private const val GOOGLE_PLAY_INSTALLER = "com.android.vending"
+        private const val GOOGLE_PLAY_FEEDBACK = "com.google.android.feedback"
+
+        fun resolveInstallingPackageName(context: Context): String? =
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    context.packageManager
+                        .getInstallSourceInfo(context.packageName)
+                        .installingPackageName
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.packageManager.getInstallerPackageName(context.packageName)
+                }
+            }.getOrNull()
+    }
+
+    override fun getUpdateUrl(): String =
+        if (isGooglePlayInstall()) {
+            AppUpdateUrls.playStoreMarketUrl(context.packageName)
+        } else {
+            AppUpdateUrls.GITHUB_RELEASES
+        }
+
+    private fun isGooglePlayInstall(): Boolean {
+        val installer = runCatching { installingPackageNameProvider(context) }.getOrNull() ?: return false
+        return installer == GOOGLE_PLAY_INSTALLER || installer == GOOGLE_PLAY_FEEDBACK
     }
 }
 
