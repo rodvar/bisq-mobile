@@ -40,24 +40,19 @@
 -dontwarn kr.motd.maven.**
 -dontwarn org.eclipse.**
 
-# Keep core Android/Gradle plugin APIs
--keep class com.android.** { *; }
--keep class org.gradle.** { *; }
-
 # Keep any native methods
 -keepclasseswithmembernames class * {
     native <methods>;
 }
 
-# Keep all classes that might be used via reflection
--keep class * implements java.io.Serializable { *; }
+# NOTE (issue #1680): a blanket keep for every java.io.Serializable implementor was removed - bisq2
+# serializes via protobuf (fully kept below), our code via kotlinx-serialization (rules above).
 
 # Keep classes used by androidx.datastore persistence
 -keep class network.bisq.mobile.domain.data.model.** { *; }
 -keep class network.bisq.mobile.domain.data.datastore.** { *; }
 
-# Keep androidx.datastore classes and serializers
--keep class androidx.datastore.** { *; }
+# Keep androidx.datastore serializer impls (the library itself ships consumer rules)
 -keep class * implements androidx.datastore.core.okio.OkioSerializer { *; }
 -keepclassmembers class * implements androidx.datastore.core.okio.OkioSerializer {
     public <methods>;
@@ -93,13 +88,12 @@
 # Core Bisq Protobuf preservation rules
 ###########################################
 
-# Keep all Bisq core classes
--keep class org.bisq.** { *; }
+# Keep all Bisq core classes (narrowing tracked as Phase B of issue #1680).
+# NOTE: former sibling rules org.bisq.**/chat.**/network.**/bonded_roles.**/user.** were removed:
+# no such top-level Java packages exist in the bisq2 jars (all core code lives under bisq.*), and
+# network.** additionally swallowed ALL of our own app code (network.bisq.mobile.**), exempting it
+# from shrinking - our reflective surfaces are covered by the targeted rules above.
 -keep class bisq.** { *; }
--keep class chat.** { *; }
--keep class network.** { *; }
--keep class bonded_roles.** { *; }
--keep class user.** { *; }
 
 # Keep all Protobuf-related classes
 -keep class com.google.protobuf.** { *; }
@@ -167,10 +161,6 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
--keepclassmembers class * {
-    static <fields>;
-    static <methods>;
-}
 
 # Keep anything under .proto. packages if they exist
 -keep class **.proto.** { *; }
@@ -215,43 +205,10 @@
 -keepattributes InnerClasses
 -keepattributes EnclosingMethod
 
-# Keep KMP Framework Class Names
--keep class kotlinx.** { *; }
-
-# Keep Compose Compiler Intrinsics - More specific rules to avoid lock verification issues
--keep class androidx.compose.runtime.** { *; }
--keep class androidx.compose.runtime.snapshots.** { *; }
--keep class androidx.compose.ui.** { *; }
-
-# Keep all classes annotated with @Composable
--keep class * {
-    @androidx.compose.runtime.Composable *;
-}
-
-# Prevent lock verification issues with Compose state management
--keep class androidx.compose.runtime.snapshots.SnapshotStateList {
-    public <methods>;
-}
-
-# Keep Compose compiler generated classes
--keep class **.*ComposableSingletons* { *; }
--keep class **.*LiveLiterals* { *; }
-
-# Keep Composer Intrinsics
--keep class androidx.compose.runtime.internal.ComposableLambdaImpl { *; }
-
-# Keep Compose Preview Annotations
--keep @androidx.compose.ui.tooling.preview.Preview class * { *; }
-
-# Keep Kotlin metadata
--keep class kotlin.Metadata { *; }
-
-# Keep Koin classes and avoid stripping DI components
--keep class org.koin.** { *; }
--keepclassmembers class * {
-    @org.koin.core.annotation.* <fields>;
-    @org.koin.core.annotation.* <methods>;
-}
+# NOTE (issue #1680): blanket keeps for kotlinx.**, androidx.compose.**, @Composable classes,
+# ComposableSingletons/LiveLiterals, org.koin.** and kotlin.Metadata were removed - all of these
+# libraries ship their own consumer proguard rules, and Koin resolves via constructor references
+# in module DSLs (no reflection). KotlinMetadata is preserved via -keepattributes above.
 
 # Comprehensive -dontwarn section (consolidated)
 -dontwarn com.fasterxml.jackson.module.jaxb.JaxbAnnotationIntrospector
@@ -290,8 +247,10 @@
 # Keep specific classes that need explicit preservation
 -keep class org.apache.commons.logging.impl.Log4JLogger { *; }
 
-# Disable all optimizations that could break protobuf
--dontoptimize
+# Obfuscation is OFF deliberately and stays off (issue #1680): Bisq is AGPL open source, so renaming
+# buys no secrecy, and readable production stack traces matter more than the Play advisory item -
+# we run no mapping-upload pipeline. Optimization however is ON: everything reflection-sensitive
+# (protobuf, resolvers, bisq core) is explicitly kept below, which is what makes it safe.
 -dontobfuscate
 
 # Keep all protobuf and resolver classes completely intact
@@ -311,17 +270,13 @@
 # Keep resolver registration
 -keep class bisq.application.ResolverConfig { *; }
 
-# Keep all lambda expressions and synthetic methods
--keep class * {
-    synthetic <methods>;
-    static synthetic <methods>;
-}
 
 # Preserve line numbers for debugging
 -keepattributes SourceFile,LineNumberTable
 
-# More aggressive external library shrinking
--keep class !bisq.**,!network.bisq.**,!com.google.protobuf.**,!io.grpc.**,!io.netty.**,!org.bouncycastle.**,!ch.qos.logback.**,!org.slf4j.** { *; }
+# NOTE (issue #1680): a previous rule here kept every class OUTSIDE the bisq/protobuf/netty/... list
+# ("-keep class !bisq.**,...") - despite its comment it PREVENTED all external-library shrinking.
+# Removed; third-party libraries rely on their bundled consumer rules plus the explicit keeps above.
 
 # Allow removal of unused external library methods and debug logs in release builds
 -assumenosideeffects class android.util.Log {
@@ -344,28 +299,11 @@
     *** log.i(...);
 }
 
-# Remove System.out and System.err calls from Bisq2 JARs in release builds
--assumenosideeffects class java.lang.System {
-    public static java.io.PrintStream out;
-    public static java.io.PrintStream err;
-}
--assumenosideeffects class java.io.PrintStream {
-    public *** println(...);
-    public *** print(...);
-    public *** printf(...);
-    public *** format(...);
-}
-
-# Remove specific verbose logging calls from Bisq2 protobuf classes
--assumenosideeffects class bisq.network.protobuf.** {
-    *** getSerializedSize(...);
-}
--assumenosideeffects class bisq.chat.protobuf.** {
-    *** getSerializedSize(...);
-}
--assumenosideeffects class bisq.offer.protobuf.** {
-    *** getSerializedSize(...);
-}
+# NOTE: earlier revisions stripped System.out/println and protobuf getSerializedSize() calls here via
+# -assumenosideeffects, as a workaround for bisq2 core log noise. Removed (issue #1680): those rules were
+# dormant while -dontoptimize was set and would have activated for the first time with optimization on -
+# risky around SystemOutFilter's stream capture - and they are redundant since #767 silences the core's
+# logback (root OFF) and hard-blocks stdout in release builds at runtime.
 
 ## Tink (com.google.crypto.tink) — used transitively for EncryptedSharedPreferences /
 ## push-notification-key encryption. Tink ships an unused KeysDownloader utility that
