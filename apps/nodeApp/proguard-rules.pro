@@ -181,6 +181,19 @@
 # deliberately - security-critical infra, same policy as bouncycastle/netty. TODO evaluate narrowing.
 -keep class io.matthewnelson.** { *; }
 
+# I2P (bisq2 transitive dep): its SDSCache resolves data-type constructors VIA REFLECTION
+# (Class.getConstructor(byte[]) on SigningPublicKey etc.), so shrinking strips those "unused"
+# constructors and key generation dies with NoSuchMethodException at first app start. Crypto infra,
+# kept wholesale like bouncycastle. TODO evaluate narrowing.
+-keep class net.i2p.** { *; }
+
+# Jackson (bisq2 transitive dep, used at runtime by bisq.common.json.JsonMapperProvider and the
+# network HTTP services, e.g. market-price JSON parsing): databind maps DTOs via reflection. The DTO
+# targets live under bisq.** (kept above), but databind's own reflective internals are kept too -
+# a stripped internal fails SILENTLY (caught exception -> empty market prices), the worst failure
+# mode to debug. TODO evaluate narrowing.
+-keep class com.fasterxml.jackson.** { *; }
+
 # Ignore missing Java desktop/server classes
 -dontwarn com.sun.net.httpserver.**
 -dontwarn jakarta.servlet.**
