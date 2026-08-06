@@ -88,7 +88,8 @@
 # Core Bisq Protobuf preservation rules
 ###########################################
 
-# Keep all Bisq core classes (narrowing tracked as Phase B of issue #1680).
+# Keep all Bisq core classes.
+# TODO narrow to the core's actual reflection surfaces (protobuf + FSM EventHandler constructors)
 # NOTE: former sibling rules org.bisq.**/chat.**/network.**/bonded_roles.**/user.** were removed:
 # no such top-level Java packages exist in the bisq2 jars (all core code lives under bisq.*), and
 # network.** additionally swallowed ALL of our own app code (network.bisq.mobile.**), exempting it
@@ -175,6 +176,10 @@
 
 # Keep all Tor-related classes
 -keep class org.torproject.** { *; }
+# kmp-tor (runtime + resource loaders + controller): was kept ACCIDENTALLY before issue #1680 by the
+# removed keep-everything-external rule; shrinking it breaks Tor bootstrap in release. Kept wholesale
+# deliberately - security-critical infra, same policy as bouncycastle/netty. TODO evaluate narrowing.
+-keep class io.matthewnelson.** { *; }
 
 # Ignore missing Java desktop/server classes
 -dontwarn com.sun.net.httpserver.**
