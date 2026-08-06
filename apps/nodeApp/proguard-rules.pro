@@ -45,7 +45,7 @@
     native <methods>;
 }
 
-# NOTE (issue #1680): a blanket keep for every java.io.Serializable implementor was removed - bisq2
+# NOTE: a blanket keep for every java.io.Serializable implementor was removed - bisq2
 # serializes via protobuf (fully kept below), our code via kotlinx-serialization (rules above).
 
 # Keep classes used by androidx.datastore persistence
@@ -131,6 +131,19 @@
 -keepattributes RuntimeInvisibleAnnotations
 -keepattributes *Annotation*
 
+# Network-wide determinism contract: bisq2's Proto#serializeForHash scans fields for @ExcludeForHash
+# VIA REFLECTION to build the deterministic hash the P2P proof-of-work authorization commits to.
+# Losing these annotations would silently diverge our hash from every peer's and the node would
+# reject all network data (no prices, no offers, endless sync) - undebuggable in the field.
+# Kept explicitly as insurance: -keepattributes plus the wildcard class keeps DO preserve them under
+# the current AGP/R8 (verified on-device: release and debug serializeForHash byte-identical), but R8
+# full mode makes no general promise for annotations only read via reflection, so this pins the
+# contract against future toolchain changes (e.g. the AGP 9 upgrade).
+-keep @interface bisq.common.annotation.ExcludeForHash
+-keepclassmembers class * {
+    @bisq.common.annotation.ExcludeForHash <fields>;
+}
+
 # Keep fields and methods used for reflection
 -keepclassmembers class * {
     @com.google.protobuf.* *;
@@ -176,9 +189,9 @@
 
 # Keep all Tor-related classes
 -keep class org.torproject.** { *; }
-# kmp-tor (runtime + resource loaders + controller): was kept ACCIDENTALLY before issue #1680 by the
-# removed keep-everything-external rule; shrinking it breaks Tor bootstrap in release. Kept wholesale
-# deliberately - security-critical infra, same policy as bouncycastle/netty. TODO evaluate narrowing.
+# kmp-tor (runtime + resource loaders + controller):
+# shrinking it breaks Tor bootstrap in release. Kept wholesale deliberately - security-critical
+# infra, same policy as bouncycastle/netty. TODO evaluate narrowing.
 -keep class io.matthewnelson.** { *; }
 
 # I2P (bisq2 transitive dep): its SDSCache resolves data-type constructors VIA REFLECTION
@@ -223,7 +236,7 @@
 -keepattributes InnerClasses
 -keepattributes EnclosingMethod
 
-# NOTE (issue #1680): blanket keeps for kotlinx.**, androidx.compose.**, @Composable classes,
+# NOTE: blanket keeps for kotlinx.**, androidx.compose.**, @Composable classes,
 # ComposableSingletons/LiveLiterals, org.koin.** and kotlin.Metadata were removed - all of these
 # libraries ship their own consumer proguard rules, and Koin resolves via constructor references
 # in module DSLs (no reflection). KotlinMetadata is preserved via -keepattributes above.
@@ -265,11 +278,12 @@
 # Keep specific classes that need explicit preservation
 -keep class org.apache.commons.logging.impl.Log4JLogger { *; }
 
-# Obfuscation is OFF deliberately and stays off (issue #1680): Bisq is AGPL open source, so renaming
+# Obfuscation is OFF deliberately and stays off: Bisq is AGPL open source, so renaming
 # buys no secrecy, and readable production stack traces matter more than the Play advisory item -
-# we run no mapping-upload pipeline. Optimization however is ON: everything reflection-sensitive
-# (protobuf, resolvers, bisq core) is explicitly kept below, which is what makes it safe.
+# we run no mapping-upload pipeline.
 -dontobfuscate
+# Optimization is ON: everything reflection-sensitive (protobuf, resolvers, bisq core, and the
+# runtime annotations below) is explicitly kept, which is what makes it safe.
 
 # Keep all protobuf and resolver classes completely intact
 -keep class bisq.common.proto.** { *; }
@@ -292,7 +306,7 @@
 # Preserve line numbers for debugging
 -keepattributes SourceFile,LineNumberTable
 
-# NOTE (issue #1680): a previous rule here kept every class OUTSIDE the bisq/protobuf/netty/... list
+# NOTE: a previous rule here kept every class OUTSIDE the bisq/protobuf/netty/... list
 # ("-keep class !bisq.**,...") - despite its comment it PREVENTED all external-library shrinking.
 # Removed; third-party libraries rely on their bundled consumer rules plus the explicit keeps above.
 
@@ -318,7 +332,7 @@
 }
 
 # NOTE: earlier revisions stripped System.out/println and protobuf getSerializedSize() calls here via
-# -assumenosideeffects, as a workaround for bisq2 core log noise. Removed (issue #1680): those rules were
+# -assumenosideeffects, as a workaround for bisq2 core log noise. Removed: those rules were
 # dormant while -dontoptimize was set and would have activated for the first time with optimization on -
 # risky around SystemOutFilter's stream capture - and they are redundant since #767 silences the core's
 # logback (root OFF) and hard-blocks stdout in release builds at runtime.
