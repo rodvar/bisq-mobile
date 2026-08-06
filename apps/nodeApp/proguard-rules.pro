@@ -288,8 +288,24 @@
 # buys no secrecy, and readable production stack traces matter more than the Play advisory item -
 # we run no mapping-upload pipeline.
 -dontobfuscate
-# Optimization is ON: everything reflection-sensitive (protobuf, resolvers, bisq core, and the
-# runtime annotations below) is explicitly kept, which is what makes it safe.
+# Optimization is OFF: R8's optimization passes horizontally merge the per-store resolver
+# lambdas into shared synthetic classes, and bisq2 core derives registry keys from the LAMBDA'S
+# class name in two places:
+#  - bisq.common.proto.ProtoResolver#getProtoType -> PersistableStoreResolver: breaks the entire
+#    persistence READ path on app restart (writes don't consult the map, so the damage only shows
+#    on next launch: every store falls back to defaults = key bundle/identity rotated, local data
+#    discarded). No app-side workaround exists - the resolver map is private and the name<->resolver
+#    pairs are destroyed before registration.
+#  - bisq.common.proto.NetworkStorageWhiteList#add(protoTypeName, resolver): silently rejects all
+#    P2P network data (see the pre-registration workaround in NodeMainApplication).
+# Keep rules cannot target compiler-synthesized lambda classes, so shrink-only is the safe config.
+# Side effect: the -assumenosideeffects log-stripping rules below are inert without optimization -
+# acceptable, since #767 already silences bisq2 core logging at runtime in release builds.
+# TODO re-enable optimization once bisq2 stops deriving names from lambda classes: derive from
+#  persistableStore.getClass() in PersistenceService/PersistableStoreResolver and from
+#  protoTypeName tokens in NetworkStorageWhiteList (keeping the support.MediationRequest
+#  backward-compat special case), then regenerate the jars. Both fixes are a few lines.
+-dontoptimize
 
 # Keep all protobuf and resolver classes completely intact
 -keep class bisq.common.proto.** { *; }
