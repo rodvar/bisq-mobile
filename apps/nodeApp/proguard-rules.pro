@@ -207,6 +207,12 @@
 # mode to debug. TODO evaluate narrowing.
 -keep class com.fasterxml.jackson.** { *; }
 
+# Apache HttpClient5 (bisq2 transitive dep, TorHttpClient/BaseHttpClient use it for all provider
+# HTTP requests - market price, reference time). Shrunk internals produced MALFORMED requests
+# (providers answered 400 Bad Request on-device). Was kept accidentally before issue #1680 by the
+# removed keep-everything-external rule. TODO evaluate narrowing.
+-keep class org.apache.hc.** { *; }
+
 # Ignore missing Java desktop/server classes
 -dontwarn com.sun.net.httpserver.**
 -dontwarn jakarta.servlet.**
