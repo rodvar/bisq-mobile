@@ -202,12 +202,24 @@ jobs:
           provenance: false
 
       - name: Summary — pushed images
+        # Values come in via env (not ${{ }} interpolation into the script): version derives from
+        # libs.versions.toml / a dispatch input, and this workflow fires on pushes touching that
+        # file — raw interpolation into a run script is a script-injection surface on a runner
+        # that holds the GHCR PAT in its docker login state. Matches the env style of every other
+        # step in this file.
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          BISQ2_REF: ${{ needs.resolve.outputs.bisq2_ref }}
+          PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
+          NS: ${{ vars.GHCR_NAMESPACE }}
+          NODE_DIGEST: ${{ steps.node.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
         run: |
           {
-            echo "## Bisq 2 Umbrel images — \`${{ needs.resolve.outputs.version }}\`"
-            echo "Built bisq2 @ \`${{ needs.resolve.outputs.bisq2_ref }}\` for \`${{ inputs.platforms || 'linux/amd64,linux/arm64' }}\`."
-            echo "- ${{ vars.GHCR_NAMESPACE }}/bisq2-api:${{ needs.resolve.outputs.version }}@${{ steps.node.outputs.digest }}"
-            echo "- ${{ vars.GHCR_NAMESPACE }}/bisq2-api-web-ui:${{ needs.resolve.outputs.version }}@${{ steps.web.outputs.digest }}"
+            echo "## Bisq 2 Umbrel images — \`${VERSION}\`"
+            echo "Built bisq2 @ \`${BISQ2_REF}\` for \`${PLATFORMS}\`."
+            echo "- ${NS}/bisq2-api:${VERSION}@${NODE_DIGEST}"
+            echo "- ${NS}/bisq2-api-web-ui:${VERSION}@${WEB_DIGEST}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Digest-pin the freshly-built images into each configured store + bump the manifest version & notes.
