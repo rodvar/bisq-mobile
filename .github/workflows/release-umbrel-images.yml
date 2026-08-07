@@ -303,13 +303,12 @@ jobs:
           if [ -z "$NOTES" ]; then
             PREV_REF="$(grep -oE 'bisq2 @ [0-9a-f]{7,40}' umbrel-app.yml | head -1 | awk '{print $3}' || true)"
             if [ -n "$PREV_REF" ] && [ "${BISQ2_REF#"$PREV_REF"}" = "$BISQ2_REF" ]; then
-              CHANGES="Changes: https://github.com/bisq-network/bisq2/compare/${PREV_REF}...${BISQ2_REF}"
+              NOTES="Maintenance update with the latest Bisq 2 upstream fixes and improvements (Bisq 2 API ${API_PART}, bisq2 @ ${SHORT}). Full changes: https://github.com/bisq-network/bisq2/compare/${PREV_REF}...${SHORT}"
             elif [ -n "$PREV_REF" ]; then
-              CHANGES="Packaging update only (same bisq2 source as the previous release)."
+              NOTES="Packaging update — no Bisq 2 source changes (Bisq 2 API ${API_PART}, bisq2 @ ${SHORT})."
             else
-              CHANGES="Changes since v${API_PART}: https://github.com/bisq-network/bisq2/compare/v${API_PART}...${BISQ2_REF}"
+              NOTES="Update to Bisq 2 API ${API_PART} (bisq2 @ ${SHORT}). Full changes: https://github.com/bisq-network/bisq2/compare/v${API_PART}...${SHORT}"
             fi
-            NOTES="Bisq 2 Node ${VERSION} — Bisq 2 API ${API_PART} (bisq2 @ ${SHORT}). ${CHANGES}"
           fi
 
           # Set version + releaseNotes in umbrel-app.yml via Python (not sed) so it handles BOTH the
