@@ -18,7 +18,7 @@ bisq-api = "2.1.11"
 umbrel-image-version = "2.1.11.2"
 # Update this commit hash when bisq2 to mark the exact commit recommended for power-user's usage
 # This is helpful for keeping track of
-bisq-api-commit = "932201100b181e1ecf6fd5f0fb3f0943c8ddd453"
+bisq-api-commit = "1f1631fa7a3325274da31519a40ac111ec33730d"
 
 # -------------------- Kotlin & JetBrains --------------------
 kotlin = "2.4.0"
