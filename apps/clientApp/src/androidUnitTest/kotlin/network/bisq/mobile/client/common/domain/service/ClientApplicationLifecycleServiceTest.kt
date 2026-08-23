@@ -4,9 +4,13 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import network.bisq.mobile.client.common.domain.access.ApiAccessService
+import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
+import network.bisq.mobile.data.model.PermissionState
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.data.service.accounts.UserDefinedAccountsServiceFacade
 import network.bisq.mobile.data.service.alert.AlertNotificationsServiceFacade
@@ -22,6 +26,7 @@ import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceF
 import network.bisq.mobile.data.service.network.ConnectivityService
 import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.data.service.network.NetworkServiceFacade
+import network.bisq.mobile.data.service.network.TorBootstrapNotReadyException
 import network.bisq.mobile.data.service.offers.OffersServiceFacade
 import network.bisq.mobile.data.service.push_notification.PushNotificationServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
@@ -34,11 +39,10 @@ import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
-import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 
-class ClientApplicationLifecycleServiceTest {
+class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
     private val order = mutableListOf<String>()
 
     private val openTradesNotificationService: OpenTradesNotificationService = mockk(relaxed = true)
@@ -68,8 +72,7 @@ class ClientApplicationLifecycleServiceTest {
 
     private lateinit var service: ClientApplicationLifecycleService
 
-    @Before
-    fun setUp() {
+    override fun onSetup() {
         configureActivationTracking()
         configureDeactivationTracking()
         // Default the persisted opt-in to false and OS notification permission
@@ -320,6 +323,98 @@ class ClientApplicationLifecycleServiceTest {
 
             coVerify(timeout = 2_000) { openTradesNotificationService.setLocalDeliverySuppressed(true) }
             coVerify(timeout = 2_000) { openTradesNotificationService.setKeepProcessAlive(false) }
+        }
+
+    /**
+     * Regression test for issue #1749 (fresh-install: FG service never starts after the
+     * user grants POST_NOTIFICATIONS from the dashboard cards).
+     *
+     * The orchestrator job used to be launched at the END of `activateServiceFacades()`;
+     * when activation stalled or aborted partway (e.g. [TorBootstrapNotReadyException] on
+     * a fresh Tor pairing — swallowed by design in the `initialize()` entry point), the
+     * permission grant had no listener and the FG service stayed off until an app restart.
+     * The job now launches BEFORE the fallible facade chain.
+     *
+     * The stall is modeled by gating the FIRST facade (`apiAccessService.activate()`)
+     * rather than throwing: the real Tor-abort path runs through `initialize()`, which
+     * needs the Koin-backed `serviceScope` this fixture intentionally doesn't bootstrap,
+     * and a throw through `activate()` escalates to `onUnrecoverableError` (a teardown
+     * path where cancelling the watcher is correct). The pinned property is the same:
+     * the watcher must be live before the facade chain completes.
+     */
+    @Test
+    fun `permission grant still starts FG service while facade activation is stuck on the first facade`() =
+        runTest {
+            order.clear()
+            val settingsFlow = MutableStateFlow(Settings(pushNotificationsEnabled = false))
+            every { settingsRepository.data } returns settingsFlow
+            coEvery { settingsRepository.fetch() } returns Settings(pushNotificationsEnabled = false)
+            // Fresh install: POST_NOTIFICATIONS not granted at bootstrap.
+            var osPermissionGranted = false
+            coEvery { notificationController.hasPermission() } coAnswers { osPermissionGranted }
+            // Fresh Tor pairing: the first facade never completes within this session phase.
+            val torGate = CompletableDeferred<Unit>()
+            coEvery { apiAccessService.activate() } coAnswers {
+                torGate.await()
+                order += "apiAccess.activate"
+            }
+
+            val activation = launch { service.activate() }
+            runCurrent() // drive activation up to the gate suspension
+
+            // Both the bootstrap decision AND the orchestrator's initial emission must have
+            // evaluated with permission denied (exactly 2 suppression calls) before we flip
+            // the permission — this pins the ordering and keeps the next asserts race-free.
+            coVerify(timeout = 2_000, exactly = 2) {
+                openTradesNotificationService.setLocalDeliverySuppressed(true)
+            }
+            // Activation is really stuck on the first facade, and the FG service stayed off.
+            assertEquals(false, order.contains("apiAccess.activate"))
+            assertEquals(false, order.contains("notification.start"))
+
+            // User grants the permission from the dashboard cards; the dashboard writes
+            // the new state into settings. The watcher must react despite the stuck
+            // activation.
+            osPermissionGranted = true
+            settingsFlow.value = settingsFlow.value.copy(notificationPermissionState = PermissionState.GRANTED)
+
+            coVerify(timeout = 2_000) { openTradesNotificationService.setKeepProcessAlive(true) }
+
+            // Let the activation finish normally so the test leaves no dangling job.
+            torGate.complete(Unit)
+            activation.join()
+        }
+
+    /**
+     * Covers the `initialize()` entry point's [TorBootstrapNotReadyException] handling: the
+     * abort must be logged and swallowed — NOT escalated to `onUnrecoverableError`, which
+     * would run `deactivateServiceFacades` (cancelling the permission watcher and stopping
+     * the notification service). Runs on the real Koin-backed `serviceScope`, which is why
+     * this test needs the [ClientKoinIntegrationTestBase] fixture.
+     */
+    @Test
+    fun `initialize swallows Tor-bootstrap abort without escalating to unrecoverable error`() =
+        runTest {
+            order.clear()
+            val settingsFlow = MutableStateFlow(Settings(pushNotificationsEnabled = false))
+            every { settingsRepository.data } returns settingsFlow
+            coEvery { settingsRepository.fetch() } returns Settings(pushNotificationsEnabled = false)
+            coEvery { notificationController.hasPermission() } returns true
+            coEvery { apiAccessService.activate() } throws TorBootstrapNotReadyException()
+
+            service.initialize()
+            // initialize() launches activation on the Koin-backed serviceScope, which runs on
+            // Main — set to a StandardTestDispatcher by the base, so drive it explicitly.
+            runCurrent()
+
+            // The chain aborted at the first facade…
+            coVerify { apiAccessService.activate() }
+            assertEquals(false, order.contains("bootstrap.activate"))
+            // …but the orchestrator watcher stays alive and still drives the FG service.
+            // An escalation would have torn it down and stopped the notification service.
+            settingsFlow.value = settingsFlow.value.copy(notificationPermissionState = PermissionState.GRANTED)
+            coVerify(timeout = 2_000) { openTradesNotificationService.setKeepProcessAlive(true) }
+            coVerify(exactly = 0) { openTradesNotificationService.stopNotificationService() }
         }
 
     @Test
