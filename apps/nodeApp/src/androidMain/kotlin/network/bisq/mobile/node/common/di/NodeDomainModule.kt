@@ -196,7 +196,7 @@ val androidNodeDomainModule =
         single<PublicChatServiceFacade> { NodePublicChatServiceFacade(get()) }
         // A `single` is lazy, so NodeApplicationLifecycleService starts it explicitly — without
         // that it would never exist and the hub badge would have no producer.
-        single { CommunityUnreadCountAggregator(get(), get()) }
+        single { CommunityUnreadCountAggregator(get(), get(), get()) }
 
         single<MediationServiceFacade> { NodeMediationServiceFacade(get()) }
 
@@ -221,16 +221,7 @@ val androidNodeDomainModule =
         single { NodeConnectivityService(get()) } bind ConnectivityService::class
 
         single<BackendCapabilitiesService> { DefaultBackendCapabilitiesService(get()) }
-        single {
-            CommunityHubService(
-                get(),
-                enabledSegments =
-                    CommunityHubService.parseSegments(
-                        BuildNodeConfig.COMMUNITY_HUB_SEGMENTS,
-                        propertyName = "feature.communityHubSegments.node",
-                    ),
-            )
-        }
+        single { CommunityHubService(get()) }
 
         single<UrlLauncher> { AndroidUrlLauncher(androidContext()) }
         single<AppUpdateLinker> { AndroidAppUpdateLinker(androidContext()) }

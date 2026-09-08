@@ -12,30 +12,33 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import network.bisq.mobile.data.replicated.chat.ChatChannel
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.common.CommonPublicChatChannel
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.data.service.chat.public_chat.PublicChatServiceFacade
 import kotlin.concurrent.Volatile
 
 /**
  * Feeds the Community hub's entry-point badge from the public chat channels — the producer
- * [CommunityHubService.unreadCount] has been waiting for since #1743 shipped the slot.
+ * [CommunityHubService.unreadCount] has been waiting for since #1743 shipped the slot — plus the
+ * private chat channels behind the Messages segment (#1825).
  *
  * Two rules here are load-bearing, not defensive:
  *  - **Support is excluded.** The facade serves both domains, and the hub's aggregate is a strict
  *    Discussions + Messages sum by design (#1746).
- *  - **Gated on the segment being live.** The hub's icon appears whenever *any* segment is live and
- *    Contacts already ships on the node, so without this a release build would badge the icon for a
- *    segment the user cannot open.
+ *  - **Each addend is gated on its segment being live.** The hub's icon appears whenever *any*
+ *    segment is live, so without this a release build would badge the icon for a segment the user
+ *    cannot open.
  *
  * Domain rather than presentation because both collaborators are domain and it touches no UI; and it
  * has to outlive the segment, since the badge shows on every main tab while the hub presenter is a
- * factory bound to a mounted tab. [CommunityHubService.setUnreadCount] stays the single write seam,
- * so Messages later adds its addend here.
+ * factory bound to a mounted tab. [CommunityHubService.setUnreadCount] stays the single write seam.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CommunityUnreadCountAggregator(
     private val publicChatServiceFacade: PublicChatServiceFacade,
+    private val privateChatServiceFacade: PrivateChatServiceFacade,
     private val communityHubService: CommunityHubService,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
@@ -58,14 +61,26 @@ class CommunityUnreadCountAggregator(
                 combine(
                     communityHubService.liveSegments,
                     publicChatServiceFacade.channels.flatMapLatest { discussionUnreadCount(it) },
-                ) { liveSegments, unreadCount ->
-                    if (CommunitySegment.DISCUSSIONS in liveSegments) unreadCount else 0L
-                }.collect { unreadCount ->
-                    // The channel counts are Longs and the badge is an Int, and an unchecked toInt()
-                    // wraps in both directions: a large positive to a negative, and a large negative
-                    // back to a positive that the hub's own coerceAtLeast(0) then lets through as a
-                    // false maximum. Hence a two-sided clamp rather than a ceiling.
-                    communityHubService.setUnreadCount(unreadCount.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
+                    privateChatServiceFacade.channels.flatMapLatest { unreadCountSum(it) },
+                ) { liveSegments, discussionCount, messagesCount ->
+                    // A gated segment is ABSENT from the map, not zero: its tab is not rendered, so
+                    // it must not badge the entry icon either. The channel counts are Longs and the
+                    // badge is an Int, and an unchecked toInt() wraps in both directions: a large
+                    // positive to a negative, and a large negative back to a positive that the
+                    // hub's own clamp then lets through as a false maximum. Hence a two-sided
+                    // clamp per segment rather than a ceiling.
+                    buildMap {
+                        if (CommunitySegment.DISCUSSIONS in liveSegments) {
+                            put(CommunitySegment.DISCUSSIONS, discussionCount.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
+                        }
+                        if (CommunitySegment.MESSAGES in liveSegments) {
+                            put(CommunitySegment.MESSAGES, messagesCount.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
+                        }
+                    }
+                }.collect { counts ->
+                    // One write for map and aggregate: the service derives the sum, so the entry
+                    // badge and the tab pills can never disagree.
+                    communityHubService.setUnreadCounts(counts)
                 }
             }
     }
@@ -80,14 +95,15 @@ class CommunityUnreadCountAggregator(
     suspend fun stop() {
         job?.cancelAndJoin()
         job = null
-        communityHubService.setUnreadCount(0)
+        communityHubService.setUnreadCounts(emptyMap())
     }
 
-    private fun discussionUnreadCount(channels: List<CommonPublicChatChannel>): Flow<Long> {
-        val discussions = channels.filter { it.chatChannelDomain == ChatChannelDomainEnum.DISCUSSION }
-        if (discussions.isEmpty()) {
+    private fun discussionUnreadCount(channels: List<CommonPublicChatChannel>): Flow<Long> = unreadCountSum(channels.filter { it.chatChannelDomain == ChatChannelDomainEnum.DISCUSSION })
+
+    private fun unreadCountSum(channels: List<ChatChannel<*>>): Flow<Long> {
+        if (channels.isEmpty()) {
             return flowOf(0L)
         }
-        return combine(discussions.map { it.unreadCount }) { counts -> counts.sum() }
+        return combine(channels.map { it.unreadCount }) { counts -> counts.sum() }
     }
 }

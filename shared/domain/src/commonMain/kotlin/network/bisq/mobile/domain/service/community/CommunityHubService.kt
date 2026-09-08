@@ -18,24 +18,21 @@ import network.bisq.mobile.domain.service.capabilities.Feature
  * Single source of truth for which Community hub segments are live, and for the hub's
  * aggregate unread count.
  *
- * `liveSegments = enabled ∩ capabilities`:
- * - **enabled**: the rollout config from the `feature.communityHubSegments.client` / `.node`
- *   build property. The value checked into gradle.properties is what a release ships — rolling
- *   a segment out is a config edit, not a code edit — and local.properties overrides it per
- *   developer, so the gated UI can be exercised before its features ship.
- * - **capabilities**: per-segment backend requirement ([REQUIRED_FEATURES]) checked against
- *   the trusted node's capability manifest, fail closed — the same gating the rest of the
- *   app uses via [BackendCapabilitiesService]. A segment with no entry has no backend
- *   dependency. The rollout config does not bypass this filter. On the NODE app this filter
- *   passes by construction: requirements are typed [Feature] entries and the node's config
- *   facade reports the full Feature key set (it runs the core in-process), so node
- *   visibility depends only on the rollout config. There is deliberately no per-device grant
- *   filter: every API permission Contacts rides on is STANDARD (covered by any pairing), so node
- *   capability alone decides — same as closed trades.
+ * Every segment ships in every build — the per-app rollout property that staged them was removed
+ * once all three were implemented — so liveness is the capability filter alone: the per-segment
+ * backend requirement ([REQUIRED_FEATURES]) checked against the trusted node's capability
+ * manifest, fail closed — the same gating the rest of the app uses via
+ * [BackendCapabilitiesService]. A segment with no entry has no backend dependency. On the NODE
+ * app this filter passes by construction: requirements are typed [Feature] entries and the
+ * node's config facade reports the full Feature key set (it runs the core in-process). There is
+ * deliberately no per-device grant filter: every API permission the segments ride on is STANDARD
+ * (covered by any pairing), so node capability alone decides — same as closed trades.
  */
 class CommunityHubService(
     backendCapabilitiesService: BackendCapabilitiesService,
-    private val enabledSegments: Set<CommunitySegment> = emptySet(),
+    // Test seam only: production constructs this with the default (all segments) and narrows
+    // nothing; tests narrow it to isolate one segment's behaviour.
+    private val enabledSegments: Set<CommunitySegment> = CommunitySegment.entries.toSet(),
     private val requiredFeatures: Map<CommunitySegment, Feature> = REQUIRED_FEATURES,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
@@ -53,21 +50,39 @@ class CommunityHubService(
     private val _unreadCount = MutableStateFlow(0)
 
     /**
-     * The GLOBAL community unread count shown by the hub's entry-point badge: the sum of the
-     * live segments' own unread counts — Discussions once its wiring ships, plus private-DM
-     * unread once Messages ships. The math never changes shape as segments go live; it only
-     * gains addends. The Support channel is deliberately and permanently excluded: Support is
-     * not a segment, and the aggregate stays a strict Discussions+Messages sum. A single
-     * aggregate number is ambiguous about WHICH source needs attention — accepted by design;
-     * the hub's per-segment tab counts and per-conversation rows resolve it one tap in
+     * The GLOBAL community unread count shown by the hub's entry-point badge: the sum of
+     * [segmentUnreadCounts]. The Support channel is deliberately and permanently excluded:
+     * Support is not a segment, and the aggregate stays a strict Discussions+Messages sum.
+     * A single aggregate number is ambiguous about WHICH source needs attention — accepted by
+     * design; the hub's per-segment tab pills and per-conversation rows resolve it one tap in
      * (the convention mainstream messengers use for their outermost badge).
      *
      * Fed by [CommunityUnreadCountAggregator], which is the single writer.
      */
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
 
-    fun setUnreadCount(count: Int) {
-        _unreadCount.value = count.coerceAtLeast(0)
+    private val _segmentUnreadCounts = MutableStateFlow<Map<CommunitySegment, Int>>(emptyMap())
+
+    /**
+     * Per-segment unread counts for the hub's tab pills — the "where" to [unreadCount]'s
+     * "whether". A segment that is not live is ABSENT, not zero, so the tab row never reserves
+     * badge space for a tab it does not render.
+     */
+    val segmentUnreadCounts: StateFlow<Map<CommunitySegment, Int>> = _segmentUnreadCounts.asStateFlow()
+
+    /**
+     * The single write seam for both flows: the aggregate is derived here from the per-segment
+     * map, so the entry badge and the tab pills can never disagree. Per-segment values clamp at
+     * zero; the sum clamps at Int.MAX_VALUE rather than wrapping.
+     */
+    fun setUnreadCounts(counts: Map<CommunitySegment, Int>) {
+        val clamped = counts.mapValues { (_, count) -> count.coerceAtLeast(0) }
+        _segmentUnreadCounts.value = clamped
+        _unreadCount.value =
+            clamped.values
+                .sumOf { it.toLong() }
+                .coerceAtMost(Int.MAX_VALUE.toLong())
+                .toInt()
     }
 
     private fun computeLiveSegments(capabilities: BackendCapabilities): Set<CommunitySegment> =
@@ -87,27 +102,8 @@ class CommunityHubService(
         val REQUIRED_FEATURES: Map<CommunitySegment, Feature> =
             mapOf(
                 CommunitySegment.DISCUSSIONS to Feature.PUBLIC_CHAT,
+                CommunitySegment.MESSAGES to Feature.PRIVATE_CHAT,
                 CommunitySegment.CONTACTS to Feature.CONTACTS,
             )
-
-        /**
-         * Parses a comma-separated list of [CommunitySegment] names, case-insensitively,
-         * ignoring surrounding whitespace. Unknown names fail fast — this only ever parses
-         * a build property, identified by [propertyName] in the error.
-         */
-        fun parseSegments(
-            raw: String,
-            propertyName: String,
-        ): Set<CommunitySegment> =
-            raw
-                .split(',')
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .map { name ->
-                    requireNotNull(CommunitySegment.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }) {
-                        "Unknown community segment '$name' in the $propertyName build property; " +
-                            "valid values: ${CommunitySegment.entries.joinToString()}"
-                    }
-                }.toSet()
     }
 }
