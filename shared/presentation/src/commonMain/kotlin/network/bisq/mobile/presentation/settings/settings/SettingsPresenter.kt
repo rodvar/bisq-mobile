@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import network.bisq.mobile.data.model.CommunityNotificationLevel
 import network.bisq.mobile.data.replicated.settings.DEFAULT_MAX_TRADE_PRICE_DEVIATION
 import network.bisq.mobile.data.replicated.settings.DEFAULT_NUM_DAYS_AFTER_REDACTING_TRADE_DATA
 import network.bisq.mobile.data.service.common.LanguageServiceFacade
@@ -125,6 +126,7 @@ open class SettingsPresenter(
         fetchSettings()
         observePushNotificationsEnabled()
         observeKeepConnectedInBackground()
+        observeCommunityNotificationLevel()
         observeAnalyticsEnabled()
         observeRememberOfferbookFilterPreferences()
     }
@@ -168,6 +170,16 @@ open class SettingsPresenter(
      * gate, so a flip from here propagates to emission within the next track()
      * call without any extra plumbing.
      */
+    private fun observeCommunityNotificationLevel() {
+        presenterScope.launch {
+            settingsRepository.data.collect { settings ->
+                _uiState.update {
+                    it.copy(communityNotificationLevel = settings.communityNotificationLevel)
+                }
+            }
+        }
+    }
+
     private fun observeAnalyticsEnabled() {
         presenterScope.launch {
             settingsRepository.data.collect { settings ->
@@ -221,6 +233,8 @@ open class SettingsPresenter(
             SettingsUiAction.OnResetAllDontShowAgainClick -> onResetAllDontShowAgainClick()
             SettingsUiAction.OnRetryLoadSettingsClick -> fetchSettings()
             is SettingsUiAction.OnPushNotificationsToggle -> onPushNotificationsToggle(action.enabled)
+            is SettingsUiAction.OnCommunityNotificationLevelChange ->
+                onCommunityNotificationLevelChange(action.level)
             SettingsUiAction.OnPushNotificationsLearnMore ->
                 navigateToUrl(BisqLinks.BISQ_CONNECT_PUSH_NOTIFICATIONS_WIKI_URL)
 
@@ -504,6 +518,19 @@ open class SettingsPresenter(
                     _uiState.update { it.copy(useAnimations = !value) }
                     handleError(exception)
                 }
+        }
+    }
+
+    private fun onCommunityNotificationLevelChange(level: CommunityNotificationLevel) {
+        presenterScope.launch {
+            try {
+                settingsRepository.setCommunityNotificationLevel(level)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                // No optimistic write to revert — uiState follows the repository flow.
+                handleError(exception)
+            }
         }
     }
 

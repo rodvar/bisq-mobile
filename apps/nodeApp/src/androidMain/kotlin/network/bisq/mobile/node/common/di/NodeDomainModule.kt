@@ -87,6 +87,7 @@ import network.bisq.mobile.presentation.common.notification.NotificationControll
 import network.bisq.mobile.presentation.common.notification.NotificationControllerImpl
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
 import network.bisq.mobile.presentation.common.service.PrivateChatNotificationService
+import network.bisq.mobile.presentation.common.service.PublicChatNotificationService
 import okio.Path.Companion.toOkioPath
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.bind
@@ -196,7 +197,15 @@ val androidNodeDomainModule =
         single<PublicChatServiceFacade> { NodePublicChatServiceFacade(get()) }
         // A `single` is lazy, so NodeApplicationLifecycleService starts it explicitly — without
         // that it would never exist and the hub badge would have no producer.
-        single { CommunityUnreadCountAggregator(get(), get(), get()) }
+        single {
+            CommunityUnreadCountAggregator(
+                publicChatServiceFacade = get(),
+                privateChatServiceFacade = get(),
+                communityHubService = get(),
+                settingsRepository = get(),
+                ownProfiles = get<UserProfileServiceFacade>().userProfiles,
+            )
+        }
 
         single<MediationServiceFacade> { NodeMediationServiceFacade(get()) }
 
@@ -235,6 +244,7 @@ val androidNodeDomainModule =
                 get(), // privateChatServiceFacade
                 get(), // publicChatServiceFacade
                 get(), // privateChatNotificationService
+                get(), // publicChatNotificationService
                 get(), // communityUnreadCountAggregator
                 get(),
                 get(),
@@ -285,6 +295,9 @@ val androidNodeDomainModule =
 
         single {
             PrivateChatNotificationService(get(), get(), get())
+        }
+        single {
+            PublicChatNotificationService(get(), get(), get(), get(), get())
         }
 
         // Push notification service - no-op for node app

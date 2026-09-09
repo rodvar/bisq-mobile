@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.data.model.CommunityNotificationLevel
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.ErrorState
 import network.bisq.mobile.presentation.common.ui.components.LoadingState
@@ -26,6 +27,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqChipType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqMultiSelect
+import network.bisq.mobile.presentation.common.ui.components.atoms.BisqSegmentButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqSelect
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqSwitch
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -38,6 +40,7 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBarContent
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
+import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.DataEntry
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
@@ -379,6 +382,13 @@ fun SettingsContent(
                         }
                     }
 
+                    BisqHDivider()
+
+                    CommunityNotificationsSection(
+                        level = uiState.communityNotificationLevel,
+                        onLevelChange = { onAction(SettingsUiAction.OnCommunityNotificationLevelChange(it)) },
+                    )
+
                     if (uiState.shouldShowPoWAdjustmentFactor) {
                         BisqHDivider()
 
@@ -617,5 +627,53 @@ private fun SettingsScreen_Preview() {
             onAction = previewOnAction,
             topBar = { PreviewTopBar() },
         )
+    }
+}
+
+/**
+ * The global Community notifications preference: governs the
+ * PublicChatNotificationService's delivery for the Discussions and Support channels. A change
+ * applies immediately — no restart.
+ *
+ * A [BisqSelect] like the Language setting, not a segment button: three verbose labels sharing one
+ * row wrap inside the pills at phone widths, and German runs ~30% longer still. The dropdown gives
+ * every option a full-width row in any locale.
+ */
+@Composable
+private fun CommunityNotificationsSection(
+    level: CommunityNotificationLevel,
+    onLevelChange: (CommunityNotificationLevel) -> Unit,
+) {
+    BisqSelect(
+        label = "mobile.settings.communityNotifications.title".i18n(),
+        options = CommunityNotificationLevel.entries,
+        optionKey = { it.name },
+        optionLabel = { it.label() },
+        selectedKey = level.name,
+        onSelect = { onLevelChange(it) },
+        helpText = "mobile.settings.communityNotifications.help".i18n(),
+    )
+}
+
+private fun CommunityNotificationLevel.label(): String =
+    when (this) {
+        CommunityNotificationLevel.ALL -> "mobile.settings.communityNotifications.all".i18n()
+        CommunityNotificationLevel.MENTIONS_AND_REPLIES -> "mobile.settings.communityNotifications.mentions".i18n()
+        CommunityNotificationLevel.OFF -> "mobile.settings.communityNotifications.off".i18n()
+    }
+
+/** All three selection states, top to bottom: the shipped default sits in the middle. */
+@ExcludeFromCoverage
+@Preview
+@Composable
+private fun CommunityNotificationsSection_AllLevelsPreview() {
+    BisqTheme.Preview {
+        Column(modifier = Modifier.padding(BisqUIConstants.ScreenPadding)) {
+            CommunityNotificationsSection(level = CommunityNotificationLevel.ALL, onLevelChange = {})
+            BisqGap.V2()
+            CommunityNotificationsSection(level = CommunityNotificationLevel.MENTIONS_AND_REPLIES, onLevelChange = {})
+            BisqGap.V2()
+            CommunityNotificationsSection(level = CommunityNotificationLevel.OFF, onLevelChange = {})
+        }
     }
 }

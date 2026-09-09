@@ -49,6 +49,7 @@ import network.bisq.mobile.node.common.domain.service.network.NodeConnectivitySe
 import network.bisq.mobile.node.common.domain.utils.AndroidMemoryReportService
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
 import network.bisq.mobile.presentation.common.service.PrivateChatNotificationService
+import network.bisq.mobile.presentation.common.service.PublicChatNotificationService
 import java.io.File
 
 /**
@@ -62,6 +63,7 @@ class NodeApplicationLifecycleService(
     private val privateChatServiceFacade: PrivateChatServiceFacade,
     private val publicChatServiceFacade: PublicChatServiceFacade,
     private val privateChatNotificationService: PrivateChatNotificationService,
+    private val publicChatNotificationService: PublicChatNotificationService,
     private val communityUnreadCountAggregator: CommunityUnreadCountAggregator,
     private val languageServiceFacade: LanguageServiceFacade,
     private val explorerServiceFacade: ExplorerServiceFacade,
@@ -168,6 +170,7 @@ class NodeApplicationLifecycleService(
         // Re-arms its lifecycle observer: deactivate() stops it, and the lifecycle-restart path
         // deactivates then activates the same singleton.
         privateChatNotificationService.startService()
+        publicChatNotificationService.startService()
         // A Koin `single` is lazy: without this the hub's unread badge would have no producer.
         communityUnreadCountAggregator.start()
 
@@ -229,6 +232,13 @@ class NodeApplicationLifecycleService(
             throw e
         } catch (e: Exception) {
             log.w(e) { "Error at privateChatNotificationService.stopNotificationService" }
+        }
+        try {
+            publicChatNotificationService.stopNotificationService()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w(e) { "Error at publicChatNotificationService.stopNotificationService" }
         }
 
         // Symmetric to start(): the singleton survives a lifecycle restart, so leaving its
