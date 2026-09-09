@@ -2,6 +2,8 @@ package network.bisq.mobile.data.service.trades
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import network.bisq.mobile.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
@@ -17,6 +19,21 @@ import network.bisq.mobile.domain.model.trade.TradeSort
 interface TradesServiceFacade : LifeCycleAware {
     val selectedTrade: StateFlow<TradeItemPresentationModel?>
     val openTradeItems: StateFlow<List<TradeItemPresentationModel>>
+
+    /**
+     * True once the open trades have been delivered at least once, so an [openTradeItems] that does not
+     * hold a trade means the trade is gone rather than still on its way. Until then an empty list says
+     * nothing, which is what [selectOpenTradeWhenSynced] waits on.
+     */
+    val openTradesSynced: StateFlow<Boolean>
+
+    /**
+     * True while the open trades cannot be delivered at all: on the client, a TRADES subscribe that
+     * failed, which is only retried on the next reconnect. [openTradesSynced] will not turn true until
+     * this clears, so a wait on it gives up instead and the trade reads as absent. Never true on the
+     * node, whose trades come from its own store.
+     */
+    val openTradesSyncFailed: StateFlow<Boolean>
 
     /**
      * Change signal for closed trades. Increments whenever the server pushes a closed-trades update
@@ -72,4 +89,29 @@ interface TradesServiceFacade : LifeCycleAware {
         outcomeFilter: TradeOutcomeFilter = TradeOutcomeFilter.ALL,
         roleFilter: TradeRoleFilter = TradeRoleFilter.ALL,
     ): Result<PaginatedResponse<ClosedTradeListItem>>
+}
+
+/**
+ * Selects [tradeId] and returns it, waiting while the open trades sync in. A deep link or a
+ * notification tap opens a trade right after the app connects, when the list can still be arriving,
+ * so a plain snapshot read reports a trade that does exist as missing. Returns null once the trades
+ * have synced without it, which means genuinely absent, or once the sync has failed and is not coming;
+ * both are what the callers' not-found dialog is for. The wait has no bound: the data layer knows
+ * when the trades have arrived and when they are not going to, and a duration would only be wrong in
+ * one of the two directions.
+ *
+ * The lookup is local and the selection happens once, at the end: selecting on every emission would
+ * write the shared [TradesServiceFacade.selectedTrade] for every waiter, and two screens waiting on
+ * different trades (a deep link and a chat notification) would overwrite each other's selection while
+ * the trade actions all read that one global.
+ */
+suspend fun TradesServiceFacade.selectOpenTradeWhenSynced(tradeId: String): TradeItemPresentationModel? {
+    // Every flow replays its current value, so a trade already in the list resolves without waiting.
+    val trade =
+        combine(openTradeItems, openTradesSynced, openTradesSyncFailed) { items, synced, failed ->
+            items.find { it.tradeId == tradeId } to (synced || failed)
+        }.first { (found, settled) -> found != null || settled }
+            .first ?: return null
+    selectOpenTrade(trade.tradeId)
+    return trade
 }

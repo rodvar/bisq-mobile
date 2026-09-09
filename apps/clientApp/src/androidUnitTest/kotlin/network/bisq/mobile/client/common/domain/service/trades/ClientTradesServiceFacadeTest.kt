@@ -1,22 +1,30 @@
 package network.bisq.mobile.client.common.domain.service.trades
 
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.subscription.ModificationType
+import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventObserver
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
+import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.domain.analytics.AnalyticsService
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import org.junit.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -39,6 +47,69 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
         analyticsService = mockk(relaxed = true)
         facade = ClientTradesServiceFacade(apiGateway, webSocketClientService, Json, globalUiManager, analyticsService, mockk(relaxed = true))
     }
+
+    @Test
+    fun `a trades snapshot marks the open trades as synced`() =
+        runTest {
+            assertFalse(facade.openTradesSynced.value, "Nothing has been delivered yet")
+
+            // The snapshot the node sends on subscribe, empty here because only the flag is under test.
+            facade.handleTradeItemPresentationChange(emptyList(), ModificationType.REPLACE)
+
+            assertTrue(facade.openTradesSynced.value)
+        }
+
+    @Test
+    fun `an incremental trades update does not mark the open trades as synced`() =
+        runTest {
+            facade.handleTradeItemPresentationChange(emptyList(), ModificationType.ADDED)
+
+            assertFalse(facade.openTradesSynced.value, "Only the snapshot is authoritative about absence")
+        }
+
+    /** A subscribe that failed is only retried on the next reconnect, so a wait on the sync has to be told. */
+    @Test
+    fun `a failed trades subscription is reported until a reconnect clears it`() =
+        runTest {
+            val failedTopics = MutableStateFlow<Set<Topic>>(emptySet())
+            every { webSocketClientService.failedSubscriptionTopics } returns failedTopics
+            coEvery { webSocketClientService.subscribe(any(), any()) } returns WebSocketEventObserver()
+            facade.activate()
+            runCurrent()
+            assertFalse(facade.openTradesSyncFailed.value)
+
+            failedTopics.value = setOf(Topic.TRADES)
+            runCurrent()
+            assertTrue(facade.openTradesSyncFailed.value)
+
+            failedTopics.value = emptySet()
+            runCurrent()
+            assertFalse(facade.openTradesSyncFailed.value)
+
+            facade.deactivate()
+        }
+
+    /** After re-pairing, a deep link must resolve against the new session, not the previous one's trades. */
+    @Test
+    fun `deactivate drops the open trades together with the synced flag`() =
+        runTest {
+            mockkStatic(TRADE_ITEM_PRESENTATION_DTO_MAPPING_CLASS)
+            try {
+                val trade = mockk<TradeItemPresentationModel>(relaxed = true)
+                every { trade.tradeId } returns "trade-1"
+                every { any<TradeItemPresentationDto>().toDomain() } returns trade
+                facade.handleTradeItemPresentationChange(listOf(mockk()), ModificationType.REPLACE)
+                assertEquals(listOf("trade-1"), facade.openTradeItems.value.map { it.tradeId })
+                assertTrue(facade.openTradesSynced.value)
+
+                facade.deactivate()
+
+                assertTrue(facade.openTradeItems.value.isEmpty())
+                assertFalse(facade.openTradesSynced.value)
+            } finally {
+                unmockkStatic(TRADE_ITEM_PRESENTATION_DTO_MAPPING_CLASS)
+            }
+        }
 
     @Test
     fun `takeOffer success tracks Taken`() =
@@ -193,4 +264,10 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
             assertFailsWith<IllegalArgumentException> { facade.rejectTrade() }
             assertFailsWith<IllegalArgumentException> { facade.cancelTrade() }
         }
+
+    private companion object {
+        /** JVM file class holding the `TradeItemPresentationDto.toDomain` extension. */
+        const val TRADE_ITEM_PRESENTATION_DTO_MAPPING_CLASS =
+            "network.bisq.mobile.client.common.domain.service.trades.TradeItemPresentationDtoMappingKt"
+    }
 }

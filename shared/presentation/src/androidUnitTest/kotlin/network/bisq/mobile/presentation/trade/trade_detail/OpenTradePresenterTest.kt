@@ -10,6 +10,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
+import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
@@ -20,6 +21,7 @@ import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -43,6 +45,14 @@ class OpenTradePresenterTest : PresentationKoinTestBase() {
     override fun onKoinReady() {
         I18nSupport.initialize("en")
         every { userProfileServiceFacade.ignoredProfileIds } returns MutableStateFlow(emptySet())
+        // The presenter resolves the trade from the open trades once they have synced, so each test
+        // says which trades are open.
+        every { tradesServiceFacade.openTradesSynced } returns MutableStateFlow(true)
+        every { tradesServiceFacade.openTradesSyncFailed } returns MutableStateFlow(false)
+    }
+
+    private fun givenOpenTrades(vararg trades: TradeItemPresentationModel) {
+        every { tradesServiceFacade.openTradeItems } returns MutableStateFlow(trades.toList())
     }
 
     private fun runPresenterTest(block: suspend TestScope.() -> Unit) =
@@ -76,11 +86,24 @@ class OpenTradePresenterTest : PresentationKoinTestBase() {
     }
 
     @Test
+    fun `a trade missing once the open trades synced raises the not found dialog`() =
+        runPresenterTest {
+            // Synced and empty, so the lookup can only come up empty.
+            givenOpenTrades()
+
+            createAndInitializePresenter()
+            runCurrent()
+
+            assertTrue(presenter.showTradeNotFoundDialog.value)
+            assertNull(presenter.selectedTrade.value)
+        }
+
+    @Test
     fun `a trade stuck in INIT past the threshold is flagged out of sync`() =
         runPresenterTest {
             val harness = createTradeDetailsHeaderTestHarness(isSeller = false)
             // The harness pins takeOfferDate far in the past, so an INIT trade is stuck right away.
-            every { tradesServiceFacade.selectedTrade } returns harness.selectedTrade
+            givenOpenTrades(harness.selectedTrade.value!!)
 
             createAndInitializePresenter()
             runCurrent()
@@ -94,7 +117,7 @@ class OpenTradePresenterTest : PresentationKoinTestBase() {
             val harness = createTradeDetailsHeaderTestHarness(isSeller = false)
             val tradeModel = harness.selectedTrade.value!!.bisqEasyTradeModel
             every { tradeModel.takeOfferDate } returns DateUtils.now()
-            every { tradesServiceFacade.selectedTrade } returns harness.selectedTrade
+            givenOpenTrades(harness.selectedTrade.value!!)
 
             createAndInitializePresenter()
             runCurrent()
@@ -106,7 +129,7 @@ class OpenTradePresenterTest : PresentationKoinTestBase() {
     fun `a stuck trade leaving INIT clears the flag`() =
         runPresenterTest {
             val harness = createTradeDetailsHeaderTestHarness(isSeller = false)
-            every { tradesServiceFacade.selectedTrade } returns harness.selectedTrade
+            givenOpenTrades(harness.selectedTrade.value!!)
 
             createAndInitializePresenter()
             runCurrent()
@@ -122,7 +145,7 @@ class OpenTradePresenterTest : PresentationKoinTestBase() {
     fun `unattaching the view resets the flag`() =
         runPresenterTest {
             val harness = createTradeDetailsHeaderTestHarness(isSeller = false)
-            every { tradesServiceFacade.selectedTrade } returns harness.selectedTrade
+            givenOpenTrades(harness.selectedTrade.value!!)
 
             createAndInitializePresenter()
             runCurrent()
@@ -132,5 +155,26 @@ class OpenTradePresenterTest : PresentationKoinTestBase() {
             runCurrent()
 
             assertFalse(presenter.isTradeOutOfSync.value)
+        }
+
+    /**
+     * A singleTop re-navigation keeps the presenter, so the reset in initialize is all that stands
+     * between the previous trade's panes and the next trade's first state.
+     */
+    @Test
+    fun `re-initialising clears the previous trade's panes before the next trade resolves`() =
+        runPresenterTest {
+            val harness = createTradeDetailsHeaderTestHarness(isSeller = false)
+            harness.tradeStateFlow.value = BisqEasyTradeStateEnum.REJECTED
+            givenOpenTrades(harness.selectedTrade.value!!)
+
+            createAndInitializePresenter()
+            runCurrent()
+            assertTrue(presenter.tradeAbortedBoxVisible.value)
+
+            presenter.initialize("other", ScrollState(0), scrollScope!!)
+
+            assertFalse(presenter.tradeAbortedBoxVisible.value)
+            assertFalse(presenter.tradeProcessBoxVisible.value)
         }
 }
