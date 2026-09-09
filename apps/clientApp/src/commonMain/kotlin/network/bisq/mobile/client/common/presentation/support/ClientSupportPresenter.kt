@@ -1,8 +1,10 @@
 package network.bisq.mobile.client.common.presentation.support
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.service.push_notification.PushNotificationServiceFacade
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
@@ -22,14 +24,8 @@ class ClientSupportPresenter(
     mainPresenter: MainPresenter,
     private val pushNotificationServiceFacade: PushNotificationServiceFacade,
 ) : BasePresenter(mainPresenter) {
-    private val _deviceToken = MutableStateFlow<String?>(null)
-    val deviceToken: StateFlow<String?> = _deviceToken.asStateFlow()
-
-    private val _isDeviceRegistered = MutableStateFlow(false)
-    val isDeviceRegistered: StateFlow<Boolean> = _isDeviceRegistered.asStateFlow()
-
-    private val _tokenRequestInProgress = MutableStateFlow(false)
-    val tokenRequestInProgress: StateFlow<Boolean> = _tokenRequestInProgress.asStateFlow()
+    private val _uiState = MutableStateFlow(ClientSupportUiState())
+    val uiState: StateFlow<ClientSupportUiState> = _uiState.asStateFlow()
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -37,20 +33,30 @@ class ClientSupportPresenter(
         // Observe push notification state
         presenterScope.launch {
             pushNotificationServiceFacade.deviceToken.collect { token ->
-                _deviceToken.value = token
+                _uiState.update { it.copy(deviceToken = token) }
             }
         }
 
         presenterScope.launch {
             pushNotificationServiceFacade.isDeviceRegistered.collect { registered ->
-                _isDeviceRegistered.value = registered
+                _uiState.update { it.copy(isDeviceRegistered = registered) }
             }
         }
     }
 
-    fun onRequestDeviceToken() {
+    fun onAction(action: ClientSupportUiAction) {
+        when (action) {
+            ClientSupportUiAction.OnRequestDeviceToken -> onRequestDeviceToken()
+            is ClientSupportUiAction.OnCopyToken -> {
+                copyToClipboard(action.token)
+                showSnackbar("Token copied to clipboard")
+            }
+        }
+    }
+
+    private fun onRequestDeviceToken() {
         presenterScope.launch {
-            _tokenRequestInProgress.value = true
+            _uiState.update { it.copy(tokenRequestInProgress = true) }
             try {
                 val result = pushNotificationServiceFacade.registerForPushNotifications()
                 if (result.isSuccess) {
@@ -59,18 +65,17 @@ class ClientSupportPresenter(
                     val errorMessage = result.exceptionOrNull()?.message ?: "Unknown error"
                     showSnackbar("Failed to get device token: $errorMessage", type = SnackbarType.ERROR)
                 }
+            } catch (e: CancellationException) {
+                // Ours (the screen closed mid-request): rethrow so structured cancellation holds
+                // and no snackbar is raised at a screen that is no longer there.
+                throw e
             } catch (e: Exception) {
                 val errorMessage = e.message ?: "Unknown error"
                 showSnackbar("Error: $errorMessage", type = SnackbarType.ERROR)
             } finally {
-                _tokenRequestInProgress.value = false
+                _uiState.update { it.copy(tokenRequestInProgress = false) }
             }
         }
-    }
-
-    fun onCopyToken(token: String) {
-        copyToClipboard(token)
-        showSnackbar("Token copied to clipboard")
     }
 }
 
