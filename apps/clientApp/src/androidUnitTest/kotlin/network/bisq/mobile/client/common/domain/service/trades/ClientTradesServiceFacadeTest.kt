@@ -19,6 +19,7 @@ import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.service.trades.ExpectedTradeProtocolRejection
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import org.junit.Test
@@ -173,6 +174,67 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
             )
 
             assertTrue(errorMessage.value!!.contains("nope"), "raw reason should be surfaced, got: ${errorMessage.value}")
+        }
+
+    @Test
+    fun `takeOffer price deviation rejection is passed through unwrapped`() =
+        runTest {
+            I18nSupport.initialize("en")
+            val raw =
+                "Takers (buyers) Bitcoin amount is too high. " +
+                    "This can be caused by differences in the 2 traders market price or by an attempt by the taker " +
+                    "to manipulate the price."
+            coEvery { apiGateway.takeOffer(any(), any(), any(), any(), any()) } returns
+                Result.failure(RuntimeException(raw))
+            val errorMessage = MutableStateFlow<String?>(null)
+
+            facade.takeOffer(
+                mockk<BisqEasyOfferVO>(relaxed = true),
+                mockk<MonetaryVO>(relaxed = true),
+                mockk<MonetaryVO>(relaxed = true),
+                "btc",
+                "fiat",
+                MutableStateFlow(null),
+                errorMessage,
+            )
+
+            assertEquals(raw, errorMessage.value)
+        }
+
+    /**
+     * TradeRestApi.takeOffer reports a peer rejection as a plain-text 400 with an
+     * `. ErrorStackTrace:` tail. The dialog must show the core protocol sentence only.
+     */
+    @Test
+    fun `takeOffer price deviation rejection strips the REST ErrorStackTrace tail`() =
+        runTest {
+            I18nSupport.initialize("en")
+            val raw =
+                "Takers (buyers) Bitcoin amount is too high. " +
+                    "This can be caused by differences in the 2 traders market price or by an attempt by the taker " +
+                    "to manipulate the price."
+            val restBody =
+                "Invalid input: An error occurred at the peers side at taking the offer: $raw. " +
+                    "ErrorStackTrace: bisq.trade.exceptions.TradeProtocolException: $raw" +
+                    "\n\tat bisq.trade.bisq_easy.protocol.BisqEasyProtocol.onMessage(BisqEasyProtocol.java:1)" +
+                    "\n\tat java.base/java.lang.Thread.run(Thread.java:1)"
+            coEvery { apiGateway.takeOffer(any(), any(), any(), any(), any()) } returns
+                Result.failure(RuntimeException(restBody))
+            val errorMessage = MutableStateFlow<String?>(null)
+
+            facade.takeOffer(
+                mockk<BisqEasyOfferVO>(relaxed = true),
+                mockk<MonetaryVO>(relaxed = true),
+                mockk<MonetaryVO>(relaxed = true),
+                "btc",
+                "fiat",
+                MutableStateFlow(null),
+                errorMessage,
+            )
+
+            assertEquals(raw, ExpectedTradeProtocolRejection.extractExpected(errorMessage.value!!))
+            assertTrue(ExpectedTradeProtocolRejection.isAtPeer(errorMessage.value!!))
+            assertFalse(errorMessage.value!!.contains("ErrorStackTrace"), errorMessage.value)
         }
 
     /**
