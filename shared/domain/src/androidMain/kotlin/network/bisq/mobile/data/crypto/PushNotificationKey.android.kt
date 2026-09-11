@@ -3,6 +3,7 @@ package network.bisq.mobile.data.crypto
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.VisibleForTesting
+import kotlinx.coroutines.CancellationException
 import network.bisq.mobile.data.utils.AndroidAppContext
 import network.bisq.mobile.domain.utils.getLogger
 import java.security.SecureRandom
@@ -14,6 +15,7 @@ private val log = getLogger("PushNotificationKey")
 private const val KEY_SIZE_BYTES = 32 // AES-256
 private const val PREFS_FILE = "bisq_push_notification_key"
 private const val PREF_KEY_WRAPPED = "wrapped_symmetric_key_base64"
+private const val PREF_KEY_WRAPPED_PREVIOUS = "wrapped_symmetric_key_previous_base64"
 private const val WRAPPING_KEY_ALIAS = "network.bisq.mobile.push_notification_key_wrapper"
 
 /**
@@ -26,6 +28,14 @@ interface PushNotificationKeyStore {
     fun put(base64: String)
 
     fun get(): String?
+
+    /**
+     * The key generation that [put] displaced, or null when there has been at most one.
+     * Decryption tries it after the current key: a push encrypted just before a rotation
+     * (or queued by FCM/APNs while the app was closed) is otherwise undecryptable the moment
+     * the app re-registers. One generation of skew is the deliberate window.
+     */
+    fun getPrevious(): String? = null
 }
 
 /**
@@ -63,6 +73,7 @@ actual fun getOrCreatePushNotificationKeyBase64(): String? =
         store.put(base64)
         base64
     }.onFailure {
+        if (it is CancellationException) throw it
         // Callers only see a null and abort registration, so without this the reason
         // (Keystore refusal, failed commit) never reaches the logs. The exceptions carry
         // no key material, so they are safe to log in full.
@@ -81,10 +92,44 @@ fun readPushNotificationKeyBase64(): String? =
     runCatching {
         pushNotificationKeyStoreFactory().get()
     }.onFailure {
+        if (it is CancellationException) throw it
         // Distinguishes "never registered" from "the Keystore blew up" in the field, which
         // the messaging service cannot tell apart once this returns null.
         log.e(it) { "Failed to read the push notification key; treating it as absent" }
     }.getOrNull()
+
+/**
+ * The decryption candidates for `BisqFirebaseMessagingService`, current key first, then the
+ * previous generation when one exists. Trying both is what keeps a push encrypted before a
+ * rotation — and delivered after it — decryptable; see [PushNotificationKeyStore.getPrevious].
+ *
+ * The two slots are read INDEPENDENTLY: the previous blob is moved as-is on rotation, so a
+ * Keystore whose wrapping key was regenerated mid-rotation can leave it permanently
+ * un-unwrappable while the current key stays perfectly valid. One shared failure scope would
+ * let that poisoned previous slot take the current key down with it — dropping every push the
+ * valid key could decrypt, a strictly worse outage than the skew loss this window exists to fix.
+ */
+fun readPushNotificationKeyCandidatesBase64(): List<String> {
+    val store =
+        runCatching { pushNotificationKeyStoreFactory() }
+            .onFailure {
+                if (it is CancellationException) throw it
+                log.e(it) { "Failed to create the push notification key store; treating keys as absent" }
+            }.getOrNull() ?: return emptyList()
+    val current =
+        runCatching { store.get() }
+            .onFailure {
+                if (it is CancellationException) throw it
+                log.e(it) { "Failed to read the current push notification key; treating it as absent" }
+            }.getOrNull()
+    val previous =
+        runCatching { store.getPrevious() }
+            .onFailure {
+                if (it is CancellationException) throw it
+                log.e(it) { "Failed to read the previous push notification key; continuing with the current one" }
+            }.getOrNull()
+    return listOfNotNull(current, previous)
+}
 
 /**
  * Wraps bytes with a non-exportable key so the result can live in plain storage.
@@ -133,18 +178,36 @@ internal class SharedPrefsKeyStore(
     @OptIn(ExperimentalEncodingApi::class)
     override fun put(base64: String) {
         val wrapped = Base64.encode(wrapper.wrap(base64.toByteArray(Charsets.UTF_8)))
+        // The displaced key moves to the previous slot AS ITS WRAPPED BLOB — no unwrap/rewrap
+        // round trip through the Keystore, and the move rides the same atomic commit as the
+        // new key so the two slots can never describe three generations.
+        val displaced = prefs.getString(PREF_KEY_WRAPPED, null)
         // commit() (synchronous) rather than apply() (async): the symmetric
         // key is registered with the trusted node immediately after this
         // returns. If apply() were used and the process died before the
         // write hit disk, the server and device would diverge on the key
         // and decryption would silently fail.
-        val ok = prefs.edit().putString(PREF_KEY_WRAPPED, wrapped).commit()
+        val ok =
+            prefs
+                .edit()
+                .apply {
+                    if (displaced != null) {
+                        putString(PREF_KEY_WRAPPED_PREVIOUS, displaced)
+                    }
+                    putString(PREF_KEY_WRAPPED, wrapped)
+                }.commit()
         check(ok) { "Failed to persist push notification symmetric key" }
     }
 
     @OptIn(ExperimentalEncodingApi::class)
-    override fun get(): String? {
-        val wrapped = prefs.getString(PREF_KEY_WRAPPED, null) ?: return null
+    override fun get(): String? = unwrapPref(PREF_KEY_WRAPPED)
+
+    @OptIn(ExperimentalEncodingApi::class)
+    override fun getPrevious(): String? = unwrapPref(PREF_KEY_WRAPPED_PREVIOUS)
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun unwrapPref(prefKey: String): String? {
+        val wrapped = prefs.getString(prefKey, null) ?: return null
         return wrapper.unwrap(Base64.decode(wrapped)).toString(Charsets.UTF_8)
     }
 }
