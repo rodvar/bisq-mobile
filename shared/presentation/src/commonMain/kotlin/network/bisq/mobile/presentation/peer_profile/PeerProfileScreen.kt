@@ -309,7 +309,6 @@ private fun PeerProfileBody(
                 onEditClick = { onAction(PeerProfileUiAction.OnEditContactDetailsClick) },
             )
         }
-
         // TODO putting it last for now, we should consider this first but the action buttons need a redesign
         // like vertical icon based buttons right after the reputation
         if (uiState.showPeerOffersSection) {

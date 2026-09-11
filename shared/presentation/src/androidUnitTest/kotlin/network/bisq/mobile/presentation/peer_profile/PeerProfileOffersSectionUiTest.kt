@@ -117,6 +117,29 @@ class PeerProfileOffersSectionUiTest : BisqComposeUiTestBase() {
 
     private fun contactHeader() = "mobile.peerProfile.offers.sectionTitleContactOnly".i18n("Alice")
 
+    /**
+     * Regression: the section must live INSIDE the profile body's scrollable column — a sibling
+     * placed after it renders as a fixed block below the scroll area, without the body's
+     * horizontal padding. `assertIsDisplayed` alone cannot catch that (a fixed block still
+     * displays); the ancestor-with-scroll assertion pins the structure.
+     */
+    @Test
+    fun `the section renders inside the scrollable profile body`() {
+        render(stateWithOffers(hasTradedBefore = true))
+
+        composeTestRule
+            .onNode(
+                androidx.compose.ui.test
+                    .hasText(tradedHeader())
+                    .and(
+                        androidx.compose.ui.test.hasAnyAncestor(
+                            androidx.compose.ui.test
+                                .hasScrollAction(),
+                        ),
+                    ),
+            ).assertExists()
+    }
+
     @Test
     fun `a traded peer gets the Trade again header with the offer count`() {
         render(stateWithOffers(hasTradedBefore = true))
