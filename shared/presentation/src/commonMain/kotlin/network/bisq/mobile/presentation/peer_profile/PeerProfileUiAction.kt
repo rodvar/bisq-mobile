@@ -35,6 +35,26 @@ sealed interface PeerProfileUiAction {
 
     data object OnRemoveContactClick : PeerProfileUiAction
 
+    /**
+     * A tap on one of the peer's offers in the "Trade again" section. Every row funnels through the
+     * same eligibility gate: an eligible offer goes straight into the take-offer wizard, an
+     * ineligible one opens the reputation-requirement dialog.
+     */
+    data class OnPeerOfferClick(
+        val offerId: String,
+    ) : PeerProfileUiAction
+
+    data object OnDismissNotEnoughReputationDialog : PeerProfileUiAction
+
+    /** The "View all {N} offers" affordance under the capped inline list. */
+    data object OnViewAllOffersClick : PeerProfileUiAction
+
+    /** Confirm on the seller-as-taker variant of the reputation dialog: build my own reputation. */
+    data object OnNavigateToReputationClick : PeerProfileUiAction
+
+    /** Confirm on the buyer variant: open the reputation wiki explaining the maker's requirement. */
+    data object OnOpenReputationWikiClick : PeerProfileUiAction
+
     data object OnReportClick : PeerProfileUiAction
 
     data object OnReportSuccess : PeerProfileUiAction
