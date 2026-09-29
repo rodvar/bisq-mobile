@@ -1,348 +1,306 @@
 /**
- * OffersBelowReputationDesign.kt — Design PoC (Issue #1873)
+ * OffersBelowReputationDesign.kt
  *
- * STATUS: Design proof-of-concept. NOT wired to any presenter or production code. All preview
- * data flows through [simulatedOffersBelowReputationUiState] / [simulatedOffendingOfferRow],
- * which take only primitives.
+ * Compose specification for warning a seller when one or more of their own sell offers no longer
+ * meet their current reputation-based amount limit. Not wired to a presenter; state shown in the
+ * previews below is produced entirely by the `simulatedXxx` helpers, which take only primitives.
  *
- * ======================================================================================
- * PURPOSE
- * ======================================================================================
- * Bisq2 Desktop checks the maker's OWN published sell offers against their CURRENT reputation
- * score on every offerbook activation
- * (`BisqEasyOfferbookController.onActivate()`, using
- * `BisqEasySellersReputationBasedTradeAmountService.hasSellerSufficientReputation`) and, if any
- * can no longer be taken, shows a popup listing what to do about it. Mobile validates
- * reputation only at create-offer time (client-side) and take-offer time
- * ([network.bisq.mobile.presentation.offer.take_offer.TakeOfferCoordinator.checkTakeOfferEligibility]);
- * nothing ever re-checks a maker's own already-published offers, so a seller whose score drops
- * (profile-age recalculation, bond/burn expiry, ranking changes) keeps live, unreachable offers
- * with no explanation. rodvar hits this on every release test.
+ * ------------------------------------------------------------------------------------
+ * 1. PURPOSE
+ * ------------------------------------------------------------------------------------
+ * A seller's reputation score can drop after an offer is published (profile-age recalculation,
+ * bond/burn expiry, ranking changes). A sell offer whose amount the current score no longer
+ * covers stays live in the offerbook; a buyer who tries to take it is stopped by their own
+ * not-enough-reputation dialog (`TakeOfferCoordinator.checkTakeOfferEligibility`, SELL branch),
+ * but the seller who published it gets no signal at all. This specification adds an app-wide
+ * warning banner plus a review dialog so a seller learns about this without having to happen to
+ * revisit the offerbook.
  *
- * Production reference: `shared/presentation/.../offerbook/OfferbookPresenter.kt` +
- * `OfferbookScreen.kt` + `OfferCard.kt`. Desktop reference:
- * `bisq2/apps/desktop/desktop/.../bisq_easy/offerbook/BisqEasyOfferbookController.java` lines
- * ~250-278, backed by `bisq2/bisq-easy/.../BisqEasySellersReputationBasedTradeAmountService.java`.
+ * ------------------------------------------------------------------------------------
+ * 2. DATA SOURCE AND DETECTION
+ * ------------------------------------------------------------------------------------
+ * Formula: `withTolerance(sellersScore) < requiredReputationScoreForMinOrFixed`, where the
+ * required score is resolved by
+ * [network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount]
+ * and the tolerance by
+ * [network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits.withTolerance] — both already exist
+ * in `shared/domain/.../domain/utils/BisqEasyTradeAmountLimits.kt`, ported from Desktop's own
+ * `BisqEasySellersReputationBasedTradeAmountService`.
  *
- * ======================================================================================
- * VERDICT — ARE THE OFFENDING OFFERS HIDDEN FROM OTHER USERS ON MOBILE? NO.
- * ======================================================================================
- * Desktop's popup message claims "As a result, these offers are hidden from other users" —
- * true on desktop, because `hasSellerSufficientReputation` is also used as an offerbook-list
- * FILTER for every message that is not the viewer's own (see the controller wiring; the
- * service itself is a `Service`, not just a popup helper). Mobile has NO equivalent filter:
- * grepping the whole `shared/` module for `SufficientReputation` / `ReputationBasedTradeAmount`
- * outside generated translation bundles returns nothing. `OfferbookPresenter.processOffer` only
- * computes [network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPresentationModel.isInvalidDueToReputation]
- * for `DirectionEnum.BUY` offers (checking whether the VIEWER, as a prospective seller/taker,
- * clears the requirement) — it never evaluates a SELL offer's OWN maker score, and it never
- * removes anything from `sortedFilteredOffers`. So on mobile, a seller's below-reputation SELL
- * offers stay fully visible to every buyer, who reaches them, taps take-offer, and gets stopped
- * by their OWN [network.bisq.mobile.presentation.offer.take_offer.TakeOfferEligibility.NotEnoughReputation]
- * dialog when `checkTakeOfferEligibility` resolves the MAKER's score (SELL branch, line ~387 of
- * `TakeOfferCoordinator.kt`) — confirming the issue's premise exactly: buyers waste a tap
- * reaching an offer that was always going to reject them, and the seller never learns why.
- * **This PoC's copy must not claim the offers are hidden — doing so would tell the seller a
- * false safety property.** See "COPY" below for the resulting new message key.
+ * Fetch source: `OffersServiceFacade.offersByAuthor` — every market, not the currently selected
+ * one, matching Desktop's own all-channels scan. Its `mayBeIncomplete` flag (true while the
+ * all-markets offers cache is still syncing over a Tor connection) gates the check: a pass made
+ * while `mayBeIncomplete` is true is skipped rather than treated as "no offending offers," and
+ * retried on the same interval and retry budget `PeerProfilePresenter.loadPeerOffers` already
+ * uses (`PEER_OFFERS_SYNC_RETRY_MS` / `PEER_OFFERS_SYNC_RETRIES`) — the query is a local cache
+ * read, not a round trip, so the retry adds no network cost.
  *
- * ======================================================================================
- * THE FORMULA (ported already; nothing new needed at the math layer)
- * ======================================================================================
- * Desktop: `withTolerance(sellersScore) < requiredReputationScoreForMinOrFixed`, where
- * `requiredReputationScoreForMinOrFixed` falls back to the max/fixed-amount score when the
- * offer has no separate min (fixed-amount offers). Mobile already has both halves ported to
- * `shared/domain/.../domain/utils/BisqEasyTradeAmountLimits.kt`:
- *   - [network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount]
- *     — already folds "fixed → same value for min and max" via `getFixedOrMinAmount()`, so one
- *     call reproduces desktop's `orElse(max)` fallback.
- *   - [network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits.withTolerance] — already
- *     exists, unused by anything today; this PoC is its first real caller.
- * So the production check, per own SELL offer, is exactly:
- * ```
- * val required = BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount(
- *     marketPriceServiceFacade, offer.bisqEasyOffer, limits) ?: return@offer /* skip, can't compute */
- * val offending = BisqEasyTradeAmountLimits.withTolerance(myScore, limits) < required
- * ```
- * identical in shape to `TakeOfferCoordinator.checkTakeOfferEligibility`'s SELL-offer branch,
- * minus the tolerance (that check is strict; ours mirrors desktop's own popup gate, which does
- * apply tolerance — small buffer against boundary flapping right as the score changes).
+ * Detection is an app-wide use case producing `StateFlow<List<InvalidOwnOfferRow>>`, consumed by
+ * `TabContainerPresenter` rather than owned by `OfferbookPresenter`. Two triggers feed it: the
+ * presenter's own attach (`TabContainerPresenter` is alive for the app's whole tab-shell session,
+ * so this replaces the previous "on offerbook screen entry" trigger with "for as long as the app
+ * is running"), and a live collector on `reputationServiceFacade.scoreByUserProfileId`, filtered
+ * to the local profile id and `distinctUntilChanged()`, recomputing on every change while the
+ * process stays alive. Every dependency — `offersByAuthor`, `deleteOffer`, `reputationServiceFacade`,
+ * `marketPriceServiceFacade`, `configServiceFacade.tradeAmountLimits` — already exists identically
+ * on `ClientOffersServiceFacade` (Connect), so this is not a node-only capability; the only added
+ * cost of running it app-wide instead of only while the offerbook screen is attached is one more
+ * long-lived `StateFlow` collector for the session, not new computation or a new network
+ * dependency — the underlying reads were already cheap local cache reads.
  *
- * ======================================================================================
- * WHERE THIS LIVES: OfferbookPresenter, not a new dedicated presenter
- * ======================================================================================
- * `OfferbookPresenter` already owns every dependency this needs — `offersServiceFacade`
- * (`offersByAuthor`, `deleteOffer`), `reputationServiceFacade`, `marketPriceServiceFacade`,
- * `configServiceFacade.tradeAmountLimits` — and already owns the sibling concept for the OTHER
- * direction: `isInvalidDueToReputation` / `showReputationRequirementInfo` /
- * `showNotEnoughReputationDialog`. A dedicated presenter would duplicate all of that wiring for
- * no isolation benefit; this is additive state on the same presenter, named distinctly so it
- * cannot be confused with the existing (unrelated) not-enough-reputation-to-TAKE dialog:
- * [OffersBelowReputationUiState] / `showOffersBelowReputationDialog`.
+ * `OfferbookPresenter` no longer runs this check itself. For the card badge (see "9. Card badge"),
+ * it only needs to know whether the offer id it is currently rendering appears in the shared
+ * `StateFlow<List<InvalidOwnOfferRow>>` — a membership check against state it already collects,
+ * not a second computation of the reputation comparison.
  *
- * Fetch source: [network.bisq.mobile.data.service.offers.OffersServiceFacade.offersByAuthor] —
- * NOT `offerbookListItems`/`sortedFilteredOffers`, which are scoped to the currently selected
- * market. Desktop iterates every channel (every market); `offersByAuthor` is the one mobile call
- * that already does the same across markets (built for the peer-profile "Trade again" list —
- * see agent memory `project_peer_profile_trade_again_design`). Its `mayBeIncomplete` flag (true
- * while the client's all-markets offers cache is still syncing over Tor) must gate this check:
- * an incomplete snapshot must never fire the dialog on a false-negative pass (offer not synced
- * yet ≠ offer doesn't exist / is fine) — skip silently and let the next trigger (below) retry
- * once the cache settles, exactly like `isSyncingSelectedMarketOffers` already guards the list's
- * own empty state elsewhere in this file.
+ * ------------------------------------------------------------------------------------
+ * 3. WHETHER OFFENDING OFFERS ARE HIDDEN FROM OTHER USERS: THEY ARE NOT
+ * ------------------------------------------------------------------------------------
+ * Desktop's own popup states that offending offers are hidden from other users, because on
+ * Desktop `hasSellerSufficientReputation` also gates the offerbook list itself for every offer
+ * that is not the viewer's own. Mobile has no equivalent filter: grepping the whole `shared/`
+ * module for `SufficientReputation` / `ReputationBasedTradeAmount` outside generated translation
+ * bundles returns nothing. `OfferbookPresenter.processOffer` only computes
+ * `OfferItemPresentationModel.isInvalidDueToReputation` for `DirectionEnum.BUY` offers (checking
+ * whether the viewer, as a prospective seller/taker, clears the requirement) — it never evaluates
+ * a SELL offer's own maker score, and it never removes anything from `sortedFilteredOffers`. A
+ * seller's below-reputation SELL offer therefore stays fully visible to every buyer on mobile, who
+ * can still reach it and attempt to take it, and is stopped only by their own
+ * `TakeOfferEligibility.NotEnoughReputation` result when `checkTakeOfferEligibility` resolves the
+ * maker's score. The banner and dialog copy states this plainly rather than claiming the offers
+ * are hidden — see "10. Proposed i18n keys."
  *
- * ======================================================================================
- * TRIGGERS — "on offerbook entry and when own score changes" (issue's own words)
- * ======================================================================================
- * Two triggers, both already available on the presenter:
- *   1. `onViewAttached()` — entry. Desktop only checks `onActivate()`; mobile mirrors that as
- *      the baseline.
- *   2. A live collector on `reputationServiceFacade.scoreByUserProfileId`, filtered to my own
- *      profile id, `distinctUntilChanged()`, recompute on every change while the screen stays
- *      attached — this is the literal "when own score changes" half of the ask, and it is
- *      MORE proactive than desktop (which only invalidates its cache on score-change and waits
- *      for the next popup-eligible activation to actually show anything). Mobile users
- *      plausibly leave the offerbook open longer (background app, pull-to-refresh) than desktop
- *      users leave the controller un-reactivated, so the live trigger is worth the small extra
- *      reactivity; it reuses a flow the presenter would otherwise have to poll for regardless.
- *   3. A bounded re-query while the snapshot reports `mayBeIncomplete`. Neither trigger above
- *      fires when the all-markets cache finishes syncing, so without this an incomplete pass on
- *      entry would go unchecked until the score changes or the screen is re-entered. Mirror
- *      `PeerProfilePresenter.loadPeerOffers` exactly: re-run the check on the same interval and
- *      retry budget (`PEER_OFFERS_SYNC_RETRY_MS` / `PEER_OFFERS_SYNC_RETRIES`) while
- *      `mayBeIncomplete` is true; the query is a local cache read, no round trip. An incomplete
- *      pass still shows nothing, only the retry is added.
- *   Own-offer changes need no trigger of their own: create-offer validates the reputation limit
- *   client-side, so a new offer cannot start out offending, and the create/delete flows leave and
- *   re-enter the offerbook, which re-runs trigger 1. An offer removed elsewhere only shrinks the
- *   offending set, which the subset rule below already treats as nothing new.
+ * ------------------------------------------------------------------------------------
+ * 4. VISIBILITY SCOPE AND PLACEMENT
+ * ------------------------------------------------------------------------------------
+ * [InvalidOwnOffersBanner] renders inside `TabContainerScreen.kt`'s `BisqStaticScaffold` `content`
+ * slot, above `TabNavGraph(tabNavController)` and below the scaffold's own `topBar`, so it is
+ * visible on every one of the four tabs (Dashboard, Offerbook, My Trades, More) without being part
+ * of any one tab's own screen content. It is not shown while navigation has moved outside the tab
+ * shell (a trade detail screen, the create-offer wizard, chat) — those are reached through
+ * `rootNavController`, not `tabNavController`, so the banner's slot is simply not in that part of
+ * the composition tree; nothing has to explicitly hide it there.
  *
- * ======================================================================================
- * PER-SESSION DISMISSAL — WHAT COUNTS AS "THE SAME SITUATION" (DECIDED 2026-09-23)
- * ======================================================================================
- * The issue asks for dismissal "remembered per session so it doesn't nag on every visit."
- * A single boolean "dialog dismissed" flag is the wrong granularity: it would also suppress a
- * GENUINELY NEW problem (one more offer just became invalid after a further score drop, or a
- * newly created offer starts out invalid) for the rest of the session, which is not what
- * "don't nag about the SAME thing" should mean. This PoC keys dismissal to the exact SET of
- * offending offer ids the user chose "Keep" on (a sorted id list is enough — no need for a
- * hash): on the next trigger, if the freshly computed offending set is a SUBSET of (or equal
- * to) the last-dismissed set, stay silent; if it contains any id NOT in the last-dismissed set,
- * show the dialog again (with the full current list, not just the delta — the seller should
- * always see everything currently wrong, per desktop's own re-list-everything-every-time
- * behavior). "Session" = presenter/process lifetime, held as plain in-memory state (no
- * persistence layer) — consistent with `BisqEasyTradeAmountLimits.invalidBuyOffers`, the
- * sibling BUY-offer cache, which is also process-lifetime only. Removing an offer or building
- * enough reputation naturally shrinks the offending set on the next trigger, which is itself
- * a strict subset of anything previously dismissed, so it never re-nags for offers the user
- * already resolved.
+ * `AlertNotificationBanner` (`shared/presentation/.../common/ui/alert/banner/
+ * AlertNotificationBanner.kt`) is not inside `TabContainerScreen.kt` — it renders at the
+ * application root, in `App.kt`'s `Column { NetworkStatusBanner(); AlertNotificationBanner(...);
+ * navGraphContent() }`, above the entire navigation graph, which includes `TabContainerScreen`.
+ * The two banners therefore already stack in a fixed order purely as a consequence of where each
+ * one sits in the composition tree: `NetworkStatusBanner`, then `AlertNotificationBanner`, then
+ * (inside the nav graph) `TabContainerScreen`'s own top bar, then [InvalidOwnOffersBanner], then
+ * tab content. No shared queue or priority comparison between the two banners is needed to produce
+ * that order — see "6. Stacking with the alert banner."
  *
- * ======================================================================================
- * DIALOG — WHY LIST THE OFFERS (UNLIKE DESKTOP) AND HOW IT MAPS TO EXISTING PATTERNS
- * ======================================================================================
- * Desktop's popup is generic text; the issue explicitly asks mobile to list market + amount per
- * offer, which is more actionable on a screen with no persistent list of "my offers" visible
- * behind the dialog (desktop's offerbook table stays visible under a popup; mobile's dialog
- * covers the whole screen). [OffersBelowReputationDialog] reuses the existing
- * [network.bisq.mobile.presentation.common.ui.components.molecules.dialog.ConfirmationDialog]
- * exactly as `OfferbookScreen.kt` already does for the sibling not-enough-reputation-to-TAKE
- * dialog on this same screen, using its `extraContent` slot (already built for
- * variable-length dialog bodies) to render the offending-offer rows between the message and the
- * sticky buttons — no new dialog primitive needed.
+ * ------------------------------------------------------------------------------------
+ * 5. BANNER ANATOMY
+ * ------------------------------------------------------------------------------------
+ * [InvalidOwnOffersBanner] is one line of text, `BisqTheme.colors.warning` tint — not `danger` —
+ * because this is a self-diagnostic condition the seller caused and can resolve themselves
+ * (their own score changed, or they can remove the offers), not a signed, network-wide,
+ * authoritative alert the way the security-manager banner is; reserving `danger` for that
+ * distinction keeps the color meaning consistent with how the rest of the app already uses it
+ * (`AlertNotificationCommonUi.alertAccentColor` maps `AlertType.EMERGENCY` to `danger`, not
+ * `WARN`). The whole banner is one tap target, opening [InvalidOwnOffersReviewDialog]; the
+ * trailing dismiss icon is a separate, smaller tap target so a seller aiming for "read more" does
+ * not accidentally dismiss instead. The banner is not shown at all while
+ * [InvalidOwnOffersUiState.offendingOffers] is empty or while the current dismissal covers
+ * every id currently in that list — see "7. Dismissal rule."
  *
- * Two-button contract, matching every other [ConfirmationDialog] on this screen (never three
- * buttons): confirm = "Remove offers" (primary, destructive-adjacent but NOT styled `.danger` —
- * deleting your own offer is a normal, reversible-by-recreating action, not the fraud-tier
- * severity of the banned-account design), dismiss = "Keep" (explicit, not "Cancel" — this is an
- * affirmative choice to leave the offers as they are, not an aborted operation; "Cancel" would
- * misdescribe it). Desktop's third action ("Learn how to build up reputation") is kept but
- * demoted to a tertiary underlined text link inside `extraContent`, below the offer list and
- * above the sticky buttons — [BisqButtonType.Underline], the same type [LinkButton] uses — so
- * the two-button contract this screen already establishes elsewhere is not broken by a third
- * full-width button.
+ * ------------------------------------------------------------------------------------
+ * 6. STACKING WITH THE ALERT BANNER
+ * ------------------------------------------------------------------------------------
+ * The two banners are independent composables with independent dismiss state and independent data
+ * sources (a signed security-manager alert vs. a locally-derived reputation comparison) — they are
+ * not merged into `AlertNotificationBannerPresenter`'s own alert queue (which already has its own
+ * "+N more" mechanism for multiple alerts of that one kind, `PendingAlertsCounter`). Folding a
+ * structurally different kind of banner into that queue would mix two different severities and
+ * two different dismiss semantics behind one counter. The alert banner keeps visual precedence:
+ * it always renders above [InvalidOwnOffersBanner] when both are visible, which — per
+ * "4. Visibility scope and placement" — falls out of where each composable already sits in the
+ * tree rather than needing new coordination logic between the two presenters. At most these two
+ * banners stack; there is no scenario in this app today where more than two independent banner
+ * sources compete for the same vertical slot.
  *
- * ======================================================================================
- * "LEARN HOW TO BUILD UP REPUTATION" — KEPT, NAVIGATES IN-APP (NOT THE WIKI)
- * ======================================================================================
- * Mobile already has a `ReputationScreen` (`NavRoute.Reputation`,
- * `CommonNavGraph.kt` line 166) and — critically — `OfferbookPresenter` already navigates
- * there for the EXACT SAME semantic situation from the take-offer side: when
- * `isReputationWarningForSellerAsTaker` is true (the viewer's own score is what's short), its
- * `ConfirmationDialog`'s confirm action is `onNavigateToReputation` → `navigateTo(NavRoute.Reputation)`
- * — in-app, NOT `BisqLinks.REPUTATION_WIKI_URL`. Only the OTHER branch (someone else's score is
- * short) opens the external wiki via [network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WebLinkConfirmationDialog].
- * This PoC's situation — the viewer's OWN score is short — is that same "my own score" case,
- * so it follows the same precedent: the link navigates to `NavRoute.Reputation` in-app, not to
- * `BisqLinks.BUILD_REPUTATION_WIKI_URL`. `ReputationScreen` already contains desktop's full
- * "how to build reputation" content (burn BSQ / bond BSQ / signed account age / account age —
- * `reputation.buildReputation.*` keys), so nothing is lost by staying in-app; it is a strictly
- * better destination than a browser tab for something a decentralized-app user needs to trust.
+ * ------------------------------------------------------------------------------------
+ * 7. DISMISSAL RULE
+ * ------------------------------------------------------------------------------------
+ * Dismissal is scoped to the process lifetime (in-memory state, not persisted), cleared on the
+ * next cold start regardless of how long that takes — not on backgrounding/foregrounding, which
+ * happens far more often on mobile (switching to check a message, an incoming call) and would
+ * reproduce, on every such switch, the exact nagging the dismissal exists to prevent.
  *
- * ======================================================================================
- * HOW THE SELLER RE-FINDS THIS AFTER "KEEP" — CARD BADGE, NOT A BANNER (DECIDED 2026-09-23)
- * ======================================================================================
- * Two alternatives were weighed and rejected before landing on the card badge:
- *   (a) A persistent offerbook-wide banner. Rejected: the offerbook is a busy, per-market,
- *       per-direction screen (`DirectionToggle` + market selector); a banner would either have
- *       to reappear on every market/direction combination the affected offers are NOT currently
- *       showing in (confusing — "why does this banner exist here on the Buy tab of a market I
- *       have no sell offers in") or be scoped to only the Sell tab of specific markets (fragile
- *       to build, easy to miss when scrolled past the `DirectionToggle`). Desktop has no
- *       persistent banner either — only the popup — so building one here would be new surface
- *       area the issue never asked for.
- *   (b) Rely on per-session dismissal alone, nothing persists on screen. Rejected: the issue's
- *       whole premise is that a seller currently has ZERO way to notice this between the
- *       (rare) trigger moments; dismissing the dialog and having literally nothing left behind
- *       reproduces exactly the "never learns why" problem for the rest of that session — a
- *       buyer could still be hitting the offer, the seller still has no way to re-check short of
- *       waiting for the next score-change trigger.
+ * Dismissal is keyed to the exact SET of offending offer ids present at the moment of dismissal
+ * (a sorted id list, no hash needed), not a single boolean: on the next detection pass, if the
+ * freshly computed offending set is a subset of (or equal to) the last-dismissed set, the banner
+ * stays hidden; if it contains any id not in the last-dismissed set, the banner shows again with
+ * the full current list, not just the newly added offers — matching how the review dialog always
+ * lists everything currently wrong. A single boolean would also suppress a genuinely new problem
+ * (a further score drop invalidating one more offer, or a newly created offer starting out
+ * invalid) for the rest of the process lifetime, which is a different thing than "don't repeat
+ * the same warning." Removing an offer or the score recovering only shrinks the offending set,
+ * which is itself always a subset of anything previously dismissed, so resolved offers never
+ * re-trigger the banner. Both dismiss entry points — the banner's own X icon and the review
+ * dialog's "Keep" action — write to the same dismissed-id-set; they are two places to reach one
+ * rule, not two different rules.
  *
- * **Decision: a small badge on the offer's own [OfferCard], visible whenever the seller opens
- * "My offers only"** (`OfferbookFilterController`'s existing toggle — see `project_ui_patterns`
- * memory, `onlyMyOffers` / `_onlyMyOffers`) is the SOLE post-"Keep" rediscovery path — no banner,
- * no other surface. `OfferCard.kt` already gives every own-offer card a distinct treatment
- * (`myOfferBackgroundColor`, `directionalLabel` in `myOfferColor`, a bottom-right
- * [RemoveOfferIcon] as the existing delete affordance) — [OffendingOfferCardBadge] is one more
- * icon in that same bottom-right row, reusing `WarningIconLightGrey` (legible on the card's
- * existing translucent primary-tinted background, unlike a saturated `.warning` orange which
- * would compete with [RemoveOfferIcon] for attention in the same corner). Icon-only, no text —
- * matching [RemoveOfferIcon]'s own icon-only precedent on this card, so no new i18n string is
- * needed for it. This is cheap (the card already computes everything needed — `isMyOffer` is
- * already true, and the same offending-check that feeds the dialog can set a boolean on the
- * model, mirroring exactly how `isInvalidDueToReputation` already does this for BUY offers) and
- * it answers "how do I find this again" with the same screen state the seller would check
- * anyway (their own offers), not a new one to remember. Per-session dismissal on the dialog
- * (does not nag) plus this persistent per-card badge (never loses the information) is the
- * complete answer — no additional offerbook chrome is introduced.
+ * The dismissed-id-set and the app-wide `StateFlow<List<InvalidOwnOfferRow>>` both live in the
+ * session-scoped use case/service (a Koin `single` in the domain layer), not in
+ * `TabContainerPresenter`. `TabContainerPresenter` is registered as a Koin `factory` and attached
+ * through `RememberPresenterLifecycle`, so a new instance is created every time the tab shell
+ * leaves composition and returns (any push to a non-tab route — offerbook, a trade, settings —
+ * and back); a presenter-held set would be cleared far more often than a cold start, defeating the
+ * "reappears only on the next cold start" half of this rule. A Koin `single`'s plain in-memory
+ * state is cleared on cold start by construction (the process that held it no longer exists) and
+ * survives everything short of that, including the presenter recreations the tab shell's own
+ * navigation already causes. Banner visibility is computed inside the `single` itself —
+ * `invalid.isNotEmpty() && !dismissed.containsAll(invalid.map { it.offerId })` — not in the
+ * presenter; the presenter only reads the resulting `StateFlow` and forwards dispatched actions to
+ * the `single`'s dismiss/remove functions.
  *
- * ======================================================================================
- * REMOVE FLOW — BULK, USING THE EXISTING SINGLE-OFFER API, RESILIENT TO PARTIAL FAILURE
- * ======================================================================================
- * There is no bulk-delete endpoint; [network.bisq.mobile.data.service.offers.OffersServiceFacade.deleteOffer]
- * takes one offer id. "Remove offers" fires one `deleteOffer` call per row (sequential is fine —
- * this list is realistically 1-4 offers, not a pagination-scale operation). As each call
- * succeeds, that row drops out of [OffersBelowReputationUiState.offendingOffers] live, so the
- * user watches the list shrink rather than staring at a spinner with no feedback. A failed call
- * reuses the EXACT existing single-offer failure surface — the snackbar already shown by
- * `OfferbookPresenter.onConfirmedDeleteOffer`
- * (`mobile.bisqEasy.offerbook.failedToDeleteOffer` / `.unableToDeleteOffer`) — and the row STAYS
- * in the list with a small inline error mark (reusing `ExclamationRedIcon`, the same atom the
- * banned-account PoC uses, since a failed delete is this dialog's one genuinely bad-news state)
- * so retrying is just tapping "Remove offers" again; no separate per-row retry control is needed
- * for a list this short.
+ * ------------------------------------------------------------------------------------
+ * 8. REVIEW DIALOG
+ * ------------------------------------------------------------------------------------
+ * [InvalidOwnOffersReviewDialog] reuses
+ * [network.bisq.mobile.presentation.common.ui.components.molecules.dialog.ConfirmationDialog]'s
+ * `extraContent` slot to render the offending-offer rows between the message and the sticky
+ * buttons, the same way every other variable-length `ConfirmationDialog` body on this screen
+ * already does. Two-button contract: confirm = "Remove offers" (not styled `.danger` — deleting
+ * one's own offer is a normal, reversible-by-recreating action, not fraud-tier severity), dismiss
+ * = "Keep" (an affirmative choice to leave the offers as they are, distinct from "Cancel," which
+ * would describe aborting an operation rather than choosing to keep something). "Learn how to
+ * build up reputation" is a tertiary underlined link inside `extraContent`, below the offer list
+ * and above the sticky buttons, so the two-button contract is not broken by a third full-width
+ * button; tapping it navigates to `NavRoute.Reputation` in-app — the same destination
+ * `OfferbookPresenter` already navigates to for the symmetric "my own score is short" case on the
+ * take-offer side — rather than an external wiki page.
  *
- * **Rule (decided 2026-09-23): tapping "Keep" after a partial remove failure still suppresses
- * the dialog for that offer — it is NOT forced into a retry loop.** The dismissal rule (above)
- * is keyed to the offending-id set at the moment "Keep" is tapped, with no separate carve-out
- * for "but one of these just failed to delete" — the row's presence in the set is all that
- * matters, not the history of what was attempted on it. Rationale: "Keep" is an affirmative,
- * general-purpose choice — "leave these offers live for now" — and a failed deletion does not
- * change what the user is choosing; forcing a retry would turn one dialog action into two
- * different behaviors depending on an internal detail (did the delete call succeed) the user
- * has no reason to track. The seller is not left worse off for choosing Keep here: the card
- * badge (previous section) already carries the "this offer is still below your reputation"
- * signal forward regardless of why it is still in that state, so nothing is silently lost —
- * the seller can always come back to "My offers only" and try the delete again whenever they
- * choose, the same as for any other own-offer deletion in this app today.
+ * Each row is tappable and dispatches `OnGoToMarket(offerId, marketCode)`, selecting that market
+ * (`OffersServiceFacade.selectOfferbookMarket`) and navigating to the market's offerbook with the
+ * "only my offers" filter already on, then closing the dialog. `NavRoute.Offerbook` is currently a
+ * plain, parameterless object; it needs an optional `onlyMyOffers: Boolean = false` parameter so
+ * the destination screen can enable that filter (`OfferbookPresenter.setOnlyMyOffers`) on arrival
+ * instead of only in response to a manual toggle — see "13. Implementation notes."
  *
- * ======================================================================================
- * COPY
- * ======================================================================================
- * Headline and the "Remove offers" / "Learn how to build up reputation" actions reuse desktop's
- * existing, already-translated (all 14 locales) keys verbatim — they carry no claim this PoC
- * needs to change. The existing `.message` key is NOT reused (see "VERDICT" above — it asserts
- * the offers are hidden, which is false on mobile) — replaced by a new, mobile-accurate message
- * that names what actually happens (buyers can still reach and try to take these offers, and
- * will be blocked) and states the count. "Keep" has no existing short, standalone key in this
- * codebase (`action.cancel` = "Cancel" describes aborting an operation, not this affirmative
- * choice — see "DIALOG" above) — one small new key.
+ * Removing is bulk, using the existing single-offer `OffersServiceFacade.deleteOffer` call once
+ * per row (sequential; the list is realistically 1-4 offers, not pagination scale). As each call
+ * succeeds, that row drops out of the list live; a failed call reuses the existing single-offer
+ * failure snackbar (`mobile.bisqEasy.offerbook.failedToDeleteOffer` /
+ * `.unableToDeleteOffer`) and the row stays with an inline error mark, so retrying is just tapping
+ * "Remove offers" again. Tapping "Keep" after a partial failure still applies the dismissal rule
+ * to the current offending set, including any row that just failed to remove — "Keep" is a
+ * general "leave these as they are for now" choice, not conditioned on which specific delete
+ * calls happened to succeed; the card badge (see "9. Card badge") keeps carrying the signal for
+ * that offer regardless.
  *
- * ======================================================================================
- * ACCESSIBILITY
- * ======================================================================================
- * - Long/localized market codes and amount strings (see `project_ui_patterns` memory on
- *   14-language support; German/Russian run ~30-40% longer) use [AutoResizeText] with
- *   `TextOverflow.Ellipsis` for the market label — the same atom `OfferCard.kt` already uses
- *   for maker usernames — rather than a fixed-size `BisqText`, so a long custom-fiat market code
- *   (e.g. a long non-`mainCurrencies` ticker) shrinks instead of clipping mid-code.
- * - `Modifier.testTag(...)` on the dialog's confirm/dismiss buttons and each offer row, per
- *   repo convention — no `semantics { contentDescription = }` blocks added.
- * - The dialog's own scrollable body (inherited from [ConfirmationDialog]/`BisqDialog`) means a
- *   long offending list does not push the sticky Remove/Keep buttons off-screen — verified by
- *   the "several offers" preview below with 5 rows including long market names.
+ * ------------------------------------------------------------------------------------
+ * 9. CARD BADGE
+ * ------------------------------------------------------------------------------------
+ * [OffendingOfferCardBadge] stays as a secondary re-find affordance on the offer's own card,
+ * visible whenever the seller opens "My offers only" in a market's offerbook. It answers "how do
+ * I find this again after dismissing the banner for the session" with the same screen state the
+ * seller would check anyway, and it is the one trace of the condition that survives a session
+ * dismissal — the banner is gone until the next cold start or the next new offense, the badge is
+ * not. It is icon-only, matching the existing delete affordance in the same bottom-right row on an
+ * own-offer card, so no additional string is needed for the badge itself beyond its accessibility
+ * description.
  *
- * ======================================================================================
- * CONNECT BUILDS
- * ======================================================================================
- * Every dependency this needs — `offersByAuthor`, `deleteOffer`, `reputationServiceFacade` —
- * already exists identically on `ClientOffersServiceFacade` (Connect) today; unlike the
- * banned-account-data check, this is not a node-only capability. The only Connect-specific
- * nuance is `AuthorOffersSnapshot.mayBeIncomplete`, already handled above (skip the check on an
- * incomplete pass rather than gating the whole feature behind a capability probe).
+ * ------------------------------------------------------------------------------------
+ * 10. PROPOSED I18N KEYS
+ * ------------------------------------------------------------------------------------
+ * English base values only, per repo convention — nothing is added to `mobile.properties` by this
+ * file; production implementation adds these.
  *
- * ======================================================================================
- * PROPOSED I18N KEYS (English base only, per repo convention — nothing added to
- * mobile.properties by this PoC; production implementation adds these)
- * ======================================================================================
- * New (2):
- *   mobile.bisqEasy.offerbook.offersBelowReputation.dialog.message
- *     → "Your reputation score no longer covers the amount on {0} of your sell offers. Buyers
- *        can still see and try to take them, but will be blocked until you remove them or
- *        build up your reputation."
- *   mobile.bisqEasy.offerbook.offersBelowReputation.dialog.keep
- *     → "Keep"
- *   mobile.bisqEasy.offerbook.offersBelowReputation.badge.contentDescription
- *     → "Offer exceeds your reputation limit"
- *        (screen-reader text for [OffendingOfferCardBadge]; the shared icon composable only
- *        carries a fixed "Warning icon" description, which says nothing about why the badge is
- *        there. Production either wraps the icon in `semantics { contentDescription = ... }`
- *        with this key or adds a description parameter to `WarningIconLightGrey`. Not done in
- *        this PoC, whose strings are all hard-coded English pending the keys above.)
+ * New:
+ *   mobile.bisqEasy.offerbook.offersBelowReputation.dialog.message = "Your reputation score no
+ *     longer covers the amount on {0} of your sell offers. Buyers can still see and try to take
+ *     them, but will be blocked until you remove them or build up your reputation."
+ *   mobile.bisqEasy.offerbook.offersBelowReputation.dialog.keep = "Keep"
+ *   mobile.bisqEasy.offerbook.offersBelowReputation.dialog.goToMarket = "Go to market"
+ *   mobile.bisqEasy.offerbook.offersBelowReputation.badge.contentDescription = "Offer exceeds your
+ *     reputation limit"
  *
- * Reused, already present (all 14 locales) in
- * `shared/domain/.../resources/mobile/bisq_easy.properties`:
- *   bisqEasy.offerbook.offerList.popup.offersWithInsufficientReputationWarning.headline
- *     ("Your offer(s) cannot be accepted" — dialog headline)
- *   bisqEasy.offerbook.offerList.popup.offersWithInsufficientReputationWarning.removeOffers
- *     ("Remove my invalid offers" — confirm button)
- *   bisqEasy.offerbook.offerList.popup.offersWithInsufficientReputationWarning.buildReputation
- *     ("Learn how to build up reputation" — tertiary link)
- * Reused from `shared/domain/.../resources/mobile/mobile.properties` (failure snackbar, already
- * wired by `OfferbookPresenter.onConfirmedDeleteOffer`):
+ * Reused, already present (all 14 locales) in `shared/domain/.../resources/mobile/
+ * bisq_easy.properties`:
+ *   bisqEasy.offerbook.offerList.popup.offersWithInsufficientReputationWarning.headline = "Your
+ *     offer(s) cannot be accepted" — dialog headline AND the banner's one-line text, reused
+ *     verbatim rather than drafting separate banner copy.
+ *   bisqEasy.offerbook.offerList.popup.offersWithInsufficientReputationWarning.removeOffers =
+ *     "Remove my invalid offers"
+ *   bisqEasy.offerbook.offerList.popup.offersWithInsufficientReputationWarning.buildReputation =
+ *     "Learn how to build up reputation"
+ * Reused from `shared/domain/.../resources/mobile/mobile.properties`:
+ *   mobile.alert.actions.dismiss.label = "Dismiss" (banner dismiss icon content description)
  *   mobile.bisqEasy.offerbook.failedToDeleteOffer / mobile.bisqEasy.offerbook.unableToDeleteOffer
+ *     (failure snackbar, already wired by the existing single-offer delete path)
  *
- * ======================================================================================
- * IMPLEMENTATION NOTES FOR THE DEVELOPER
- * ======================================================================================
- * - Add `isOffendingDueToReputation: Boolean` to `OfferItemPresentationModel`, sibling to
- *   `isInvalidDueToReputation`, computed only for `isMyOffer && direction == SELL` — feeds
- *   [OffendingOfferCardBadge] in `OfferCard.kt`.
- * - `OfferbookPresenter`: add `_showOffersBelowReputationDialog`, `_offendingOffers`,
- *   `_isRemovingOffendingOffers`; a `checkOffersBelowReputation()` suspend fun run from
- *   `onViewAttached()` and from a `reputationServiceFacade.scoreByUserProfileId` collector
- *   (presenterScope, filtered to own id, `distinctUntilChanged()`); a `lastDismissedOfferIds:
- *   Set<String>` field (session-lifetime, not persisted) implementing the subset rule above.
- * - `onRemoveOffendingOffers()`: set `_isRemovingOffendingOffers`, then sequential
- *   `deleteOffer` per row, updating `_offendingOffers`/badges live; failures reuse the existing
- *   snackbar strings and leave the row in place. When the loop ends, clear
- *   `_isRemovingOffendingOffers` in every case, and if no row is left hide the dialog and clear
- *   `_offendingOffers`; if rows failed, the dialog stays open with the failed rows for Keep or
- *   retry.
- * - `onKeepOffendingOffers()`: `lastDismissedOfferIds = current offending id set`; hide dialog.
- * - `onBuildReputationFromOffendingDialog()`: `navigateTo(NavRoute.Reputation)`; hide dialog
- *   (mirrors `onNavigateToReputation` exactly).
- * - Presenter test: fake an offending SELL offer, assert dialog shows on attach and on a
- *   simulated score-change emission; assert Keep suppresses an identical re-check but not one
- *   with an added id; assert Remove calls `deleteOffer` once per row and clears the list on
- *   success.
- * - No `TODO()` calls in this file; no Koin injection; no `IXxxPresenter` interface.
+ * ------------------------------------------------------------------------------------
+ * 11. ACCESSIBILITY
+ * ------------------------------------------------------------------------------------
+ * - Long/localized market codes and amount strings use [AutoResizeText] with `TextOverflow
+ *   .Ellipsis` for the market label, the same atom `OfferCard.kt` already uses for maker
+ *   usernames, rather than a fixed-size `BisqText`, so a long custom-fiat market code shrinks
+ *   instead of clipping mid-code — see [InvalidOwnOffersReviewDialog_LongLocaleText_Preview].
+ * - `Modifier.testTag(...)` marks the banner, its dismiss icon, each row, and the dialog's
+ *   confirm/dismiss/keep controls, per repo convention — no `semantics {}` block is used as a
+ *   test-id substitute.
+ * - The dialog's own scrollable body means a long offending list does not push the sticky
+ *   Remove/Keep buttons off-screen.
+ * - The banner's dismiss icon and the row's "go to market" tap target are accessible
+ *   independently of each other, with distinct content descriptions, so a screen reader user does
+ *   not have to guess which action a single announced "warning" element performs.
+ *
+ * ------------------------------------------------------------------------------------
+ * 12. TESTS TO ADD
+ * ------------------------------------------------------------------------------------
+ * - Use case test: fake an offending SELL offer; assert the app-wide `StateFlow` emits it on
+ *   attach and on a simulated score-change emission; assert an incomplete `offersByAuthor`
+ *   snapshot is skipped and retried rather than treated as "no offending offers."
+ * - Use case/service test: dismissing suppresses an identical re-check but not one with an added
+ *   id; dismissing via the dialog's "Keep" applies the same rule as dismissing via the banner's
+ *   icon; the dismissal survives a `TabContainerPresenter` recreation (a new presenter instance
+ *   reading the same `single` still sees the banner hidden) with the offending set unchanged; a
+ *   new offender id appearing after a dismissal re-shows the banner even without any presenter
+ *   recreation.
+ * - Presenter test for removal: `OnRemoveOffers` calls `deleteOffer` once per row and clears the
+ *   list on success; a partial failure leaves the failed row with its error mark and the dialog
+ *   open.
+ * - UI test: the banner is not rendered when the offending list is empty or fully dismissed;
+ *   tapping a row dispatches `OnGoToMarket` with that row's offer id and market code; tapping
+ *   "Remove offers" shows the loading state on the confirm button.
+ *
+ * ------------------------------------------------------------------------------------
+ * 13. IMPLEMENTATION NOTES FOR THE DEVELOPER
+ * ------------------------------------------------------------------------------------
+ * - New app-wide use case/service registered as a Koin `single` in the domain layer (see "2. Data
+ *   source and detection" and "7. Dismissal rule"), owning both the detection `StateFlow<List
+ *   <InvalidOwnOfferRow>>` and the dismissed-id-set, and exposing the already-combined banner
+ *   visibility plus dismiss/remove functions. `TabContainerPresenter` (Koin `factory`, a new
+ *   instance on every tab-shell recomposition — see "7. Dismissal rule") only collects that
+ *   `StateFlow` and forwards `OnDismissBanner`/`OnKeep`/`OnRemoveOffers` to it; it holds no
+ *   `lastDismissedOfferIds` or offending-list state of its own, unlike `showTradeRestrictedDialog`
+ *   / `isCreateOfferEnabled`, which are fine to stay presenter-local because nothing about them
+ *   depends on surviving a presenter recreation.
+ * - `TabContainerScreen.kt`: render [InvalidOwnOffersBanner] inside the `BisqStaticScaffold`
+ *   `content` lambda, above `TabNavGraph(tabNavController)`.
+ * - `OfferbookPresenter`: remove its own `checkOffersBelowReputation()` trigger and
+ *   `isOffendingDueToReputation` computation; read the shared `StateFlow` for the card-badge
+ *   membership check instead — see "2. Data source and detection."
+ * - Deep link: turn `NavRoute.Offerbook` from a parameterless `data object` into a `data class`
+ *   with an optional `onlyMyOffers: Boolean = false` parameter — no existing mechanism carries a
+ *   pre-set filter into that screen. The destination presenter's `onViewAttached()` calls
+ *   `setOnlyMyOffers(true)` when it is set — see "8. Review dialog."
  */
 package network.bisq.mobile.presentation.design.offerbook_reputation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -353,6 +311,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.AutoResizeTex
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
+import network.bisq.mobile.presentation.common.ui.components.atoms.icons.CloseIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ExclamationRedIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.RemoveOfferIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.WarningIcon
@@ -364,79 +323,129 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 // -------------------------------------------------------------------------------------
-// MVIP sketch (design package only — production shape lives in OfferbookPresenter)
+// State and actions (production shape: detection and dismissal own their state in a
+// session-scoped Koin `single`; `TabContainerPresenter` only reads and forwards — see
+// "13. Implementation notes for the developer" above)
 // -------------------------------------------------------------------------------------
 
-/** One offending row: [offerId] is the delete key, the rest is already-formatted display text. */
-internal data class OffendingOfferRow(
+/** One offending row: [offerId] is the delete/navigation key, the rest is display text. */
+internal data class InvalidOwnOfferRow(
     val offerId: String,
+    val marketCode: String,
     val marketLabel: String,
     val amountLabel: String,
     val hasRemoveError: Boolean = false,
 )
 
-/**
- * Stands in for the slice of `OfferbookPresenter` state this design touches. Everything else on
- * the real screen (market/direction filters, the unrelated not-enough-reputation-to-TAKE dialog)
- * is unchanged and not modeled here.
- */
-internal data class OffersBelowReputationUiState(
-    val offendingOffers: List<OffendingOfferRow>,
-    val isDialogVisible: Boolean,
+internal data class InvalidOwnOffersUiState(
+    val offendingOffers: List<InvalidOwnOfferRow>,
+    val isBannerVisible: Boolean,
+    val isReviewDialogVisible: Boolean,
     val isRemoving: Boolean,
 )
 
-internal sealed interface OffersBelowReputationUiAction {
-    data object RemoveOffers : OffersBelowReputationUiAction
+internal sealed interface InvalidOwnOffersUiAction {
+    data object OnOpenReviewDialog : InvalidOwnOffersUiAction
 
-    data object Keep : OffersBelowReputationUiAction
+    data object OnDismissBanner : InvalidOwnOffersUiAction
 
-    data object BuildReputation : OffersBelowReputationUiAction
+    data object OnCloseReviewDialog : InvalidOwnOffersUiAction
+
+    data object OnRemoveOffers : InvalidOwnOffersUiAction
+
+    data object OnKeep : InvalidOwnOffersUiAction
+
+    data object OnBuildReputation : InvalidOwnOffersUiAction
+
+    data class OnGoToMarket(
+        val offerId: String,
+        val marketCode: String,
+    ) : InvalidOwnOffersUiAction
 }
 
-/** Builds a [OffendingOfferRow] from primitives with realistic defaults. */
-internal fun simulatedOffendingOfferRow(
+/** Builds an [InvalidOwnOfferRow] from primitives with realistic defaults. */
+internal fun simulatedInvalidOwnOfferRow(
     offerId: String = "off-1",
+    marketCode: String = "BTC/EUR",
     marketLabel: String = "BTC/EUR",
-    amountLabel: String = "50.00 – 200.00 EUR",
+    amountLabel: String = "50.00 - 200.00 EUR",
     hasRemoveError: Boolean = false,
-): OffendingOfferRow =
-    OffendingOfferRow(
+): InvalidOwnOfferRow =
+    InvalidOwnOfferRow(
         offerId = offerId,
+        marketCode = marketCode,
         marketLabel = marketLabel,
         amountLabel = amountLabel,
         hasRemoveError = hasRemoveError,
     )
 
-/** Builds a [OffersBelowReputationUiState] from primitives with realistic defaults. */
-internal fun simulatedOffersBelowReputationUiState(
-    offendingOffers: List<OffendingOfferRow> = listOf(simulatedOffendingOfferRow()),
-    isDialogVisible: Boolean = true,
+/** Builds an [InvalidOwnOffersUiState] from primitives with realistic defaults. */
+internal fun simulatedInvalidOwnOffersUiState(
+    offendingOffers: List<InvalidOwnOfferRow> = listOf(simulatedInvalidOwnOfferRow()),
+    isBannerVisible: Boolean = true,
+    isReviewDialogVisible: Boolean = false,
     isRemoving: Boolean = false,
-): OffersBelowReputationUiState =
-    OffersBelowReputationUiState(
+): InvalidOwnOffersUiState =
+    InvalidOwnOffersUiState(
         offendingOffers = offendingOffers,
-        isDialogVisible = isDialogVisible,
+        isBannerVisible = isBannerVisible,
+        isReviewDialogVisible = isReviewDialogVisible,
         isRemoving = isRemoving,
     )
 
 // -------------------------------------------------------------------------------------
-// Dialog — proactive, on offerbook entry / score change
+// Banner — see "4. Visibility scope and placement" and "5. Banner anatomy"
 // -------------------------------------------------------------------------------------
 
-/**
- * Blocking-by-default (but NOT non-dismissible — see file KDoc "DIALOG") warning listing every
- * own SELL offer whose amount now exceeds what [uiState]'s current reputation score allows.
- * Two-button contract matching every other [ConfirmationDialog] on this screen: confirm =
- * "Remove offers", dismiss = "Keep". The "Learn how to build up reputation" action is a tertiary
- * underlined link inside the body, not a third button.
- */
 @Composable
-internal fun OffersBelowReputationDialog(
-    uiState: OffersBelowReputationUiState,
-    onAction: (OffersBelowReputationUiAction) -> Unit,
+internal fun InvalidOwnOffersBanner(
+    uiState: InvalidOwnOffersUiState,
+    onAction: (InvalidOwnOffersUiAction) -> Unit,
+    message: String = "Your offer(s) cannot be accepted",
+) {
+    if (!uiState.isBannerVisible || uiState.offendingOffers.isEmpty()) return
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(BisqTheme.colors.warning.copy(alpha = 0.12f))
+                .clickable { onAction(InvalidOwnOffersUiAction.OnOpenReviewDialog) }
+                .padding(horizontal = BisqUIConstants.ScreenPadding, vertical = BisqUIConstants.ScreenPaddingHalf)
+                .testTag("invalid_own_offers_banner"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
+        ) {
+            WarningIcon()
+            BisqText.SmallMedium(
+                text = message,
+                color = BisqTheme.colors.warning,
+            )
+        }
+        IconButton(
+            onClick = { onAction(InvalidOwnOffersUiAction.OnDismissBanner) },
+            modifier = Modifier.testTag("invalid_own_offers_banner_dismiss"),
+        ) {
+            CloseIcon()
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------
+// Review dialog — see "8. Review dialog"
+// -------------------------------------------------------------------------------------
+
+@Composable
+internal fun InvalidOwnOffersReviewDialog(
+    uiState: InvalidOwnOffersUiState,
+    onAction: (InvalidOwnOffersUiAction) -> Unit,
     headline: String = "Your offer(s) cannot be accepted",
-    message: String = defaultOffersBelowReputationMessage(uiState.offendingOffers.size),
+    message: String = defaultInvalidOwnOffersMessage(uiState.offendingOffers.size),
     removeButtonText: String = "Remove my invalid offers",
     keepButtonText: String = "Keep",
     buildReputationText: String = "Learn how to build up reputation",
@@ -449,44 +458,43 @@ internal fun OffersBelowReputationDialog(
         confirmButtonText = removeButtonText,
         dismissButtonText = keepButtonText,
         confirmButtonLoading = uiState.isRemoving,
-        onConfirm = { onAction(OffersBelowReputationUiAction.RemoveOffers) },
-        onDismiss = { onAction(OffersBelowReputationUiAction.Keep) },
+        onConfirm = { onAction(InvalidOwnOffersUiAction.OnRemoveOffers) },
+        onDismiss = { onAction(InvalidOwnOffersUiAction.OnKeep) },
         extraContent = {
             Column {
                 uiState.offendingOffers.forEach { row ->
-                    OffendingOfferListRow(row)
+                    InvalidOwnOfferListRow(row, onAction)
                     BisqGap.VHalf()
                 }
                 BisqGap.VHalf()
                 BisqButton(
                     text = buildReputationText,
                     type = BisqButtonType.Underline,
-                    onClick = { onAction(OffersBelowReputationUiAction.BuildReputation) },
-                    modifier = Modifier.testTag("offers_below_reputation_build_reputation_link"),
+                    onClick = { onAction(InvalidOwnOffersUiAction.OnBuildReputation) },
+                    modifier = Modifier.testTag("invalid_own_offers_build_reputation_link"),
                 )
             }
         },
     )
 }
 
-/**
- * Proposed `mobile.bisqEasy.offerbook.offersBelowReputation.dialog.message`, `{0}` = offer
- * count. Deliberately does NOT claim the offers are hidden from other users — see file KDoc
- * "VERDICT": on mobile they are not.
- */
-private fun defaultOffersBelowReputationMessage(offerCount: Int): String =
+private fun defaultInvalidOwnOffersMessage(offerCount: Int): String =
     "Your reputation score no longer covers the amount on $offerCount of your sell offers. " +
         "Buyers can still see and try to take them, but will be blocked until you remove them " +
         "or build up your reputation."
 
-/** One row: market pair + amount, with an inline error mark on a failed removal attempt. */
+/** One row: market pair + amount, tappable to jump to that market with "only my offers" on. */
 @Composable
-private fun OffendingOfferListRow(row: OffendingOfferRow) {
+private fun InvalidOwnOfferListRow(
+    row: InvalidOwnOfferRow,
+    onAction: (InvalidOwnOffersUiAction) -> Unit,
+) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .testTag("offending_offer_row_${row.offerId}"),
+                .clickable { onAction(InvalidOwnOffersUiAction.OnGoToMarket(row.offerId, row.marketCode)) }
+                .testTag("invalid_own_offer_row_${row.offerId}"),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -506,27 +514,24 @@ private fun OffendingOfferListRow(row: OffendingOfferRow) {
             BisqGap.H1()
             ExclamationRedIcon()
         }
+        BisqGap.HHalf()
+        BisqText.SmallMedium(
+            text = "Go to market",
+            color = BisqTheme.colors.primary,
+        )
     }
 }
 
 // -------------------------------------------------------------------------------------
-// Card badge — how the seller re-finds this after "Keep" (see file KDoc)
+// Card badge — see "9. Card badge"
 // -------------------------------------------------------------------------------------
 
-/**
- * Persistent per-card indicator for an own SELL offer that currently exceeds the seller's
- * reputation-based limit. Sits alongside [RemoveOfferIcon] in `OfferCard.kt`'s existing
- * bottom-right row for own offers — icon-only, matching [RemoveOfferIcon]'s own precedent. The
- * only string it needs is the screen-reader description listed under "PROPOSED I18N KEYS", since
- * the icon's built-in "Warning icon" text does not say what the badge means. This is the answer
- * to "how does the seller re-find this after Keep" — see file KDoc "HOW THE SELLER RE-FINDS THIS".
- */
 @Composable
 internal fun OffendingOfferCardBadge() {
     WarningIconLightGrey(modifier = Modifier.testTag("offending_offer_card_badge"))
 }
 
-/** Standalone re-creation of `OfferCard`'s own bottom-right row, for badge-in-context previews. */
+/** Standalone reproduction of an own-offer card's own bottom-right row, for badge-in-context previews. */
 @Composable
 private fun SimulatedOfferCardBottomRow(isOffending: Boolean) {
     Row(
@@ -544,20 +549,46 @@ private fun SimulatedOfferCardBottomRow(isOffending: Boolean) {
     }
 }
 
-/**
- * Small non-zero host content for a dialog-only preview — see "1. Single offending offer" below
- * for why this is needed. Mirrors the banned-account design PoC's own standalone-dialog preview.
- */
+// -------------------------------------------------------------------------------------
+// Tab-container context reproduction, for the "in context" previews
+// -------------------------------------------------------------------------------------
+
 @Composable
-private fun DialogPreviewHost(label: String) {
-    // Full width, or the preview root shrinks to this label and the dialog window is clipped.
-    Column(
+private fun SimulatedTabTopBar() {
+    Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(BisqUIConstants.ScreenPadding),
+                .background(BisqTheme.colors.dark_grey30)
+                .padding(horizontal = BisqUIConstants.ScreenPadding, vertical = BisqUIConstants.ScreenPadding),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        BisqText.SmallLight(label, color = BisqTheme.colors.mid_grey20)
+        BisqText.BaseRegular(text = "Bisq", color = BisqTheme.colors.white)
+    }
+}
+
+@Composable
+private fun SimulatedAlertBanner(message: String) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(BisqTheme.colors.danger.copy(alpha = 0.15f))
+                .padding(horizontal = BisqUIConstants.ScreenPadding, vertical = BisqUIConstants.ScreenPaddingHalf),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
+    ) {
+        ExclamationRedIcon()
+        BisqText.SmallMedium(text = message, color = BisqTheme.colors.danger)
+    }
+}
+
+@Composable
+private fun SimulatedDashboardContent() {
+    Column(modifier = Modifier.padding(BisqUIConstants.ScreenPadding)) {
+        BisqText.H5Light("Market price")
+        BisqGap.V1()
+        BisqText.BaseLightGrey("111247.40 BTC/USD")
     }
 }
 
@@ -565,54 +596,77 @@ private fun DialogPreviewHost(label: String) {
 // Previews
 // -------------------------------------------------------------------------------------
 
-/**
- * 1. Single offending offer — the common case.
- *
- * A [ConfirmationDialog] is a real `Dialog`/`Popup` window; on its own, with no other content in
- * the composition, it gives the preview a zero-size root and Android Studio's renderer throws
- * instead of showing it — the exact failure mode this file's dialog previews hit before this
- * fix. [DialogPreviewHost] is the same small host-column trick the banned-account design PoC
- * (`trade_banned_account/BuyerState2aBannedAccountDesign.kt`) already established for its own
- * standalone-dialog preview: real, non-zero content sits in the composition alongside the
- * dialog so the renderer has something to measure.
- */
+/** Banner alone, inside the tab-container context, above the dashboard content. */
 @ExcludeFromCoverage
-@Preview(name = "1. Dialog — single offer", heightDp = 700)
+@Preview(name = "1. Banner — in the tab container, above the dashboard", heightDp = 500)
 @Composable
-private fun OffersBelowReputation_SingleOffer_Preview() {
+private fun InvalidOwnOffersBanner_InTabContainer_Preview() {
+    BisqTheme.Preview {
+        Column {
+            SimulatedTabTopBar()
+            InvalidOwnOffersBanner(
+                uiState = simulatedInvalidOwnOffersUiState(),
+                onAction = {},
+            )
+            SimulatedDashboardContent()
+        }
+    }
+}
+
+/** Banner stacked below a security-manager alert banner — precedence via composition order. */
+@ExcludeFromCoverage
+@Preview(name = "2. Banner — stacked with an alert banner", heightDp = 550)
+@Composable
+private fun InvalidOwnOffersBanner_StackedWithAlertBanner_Preview() {
+    BisqTheme.Preview {
+        Column {
+            SimulatedAlertBanner("Trading requires app version 2.1.8 or newer.")
+            SimulatedTabTopBar()
+            InvalidOwnOffersBanner(
+                uiState = simulatedInvalidOwnOffersUiState(),
+                onAction = {},
+            )
+            SimulatedDashboardContent()
+        }
+    }
+}
+
+/** Review dialog — a single offending offer. */
+@ExcludeFromCoverage
+@Preview(name = "3. Dialog — single offer", heightDp = 700)
+@Composable
+private fun InvalidOwnOffersReviewDialog_SingleOffer_Preview() {
     BisqTheme.Preview {
         DialogPreviewHost("Single offending sell offer:")
-        OffersBelowReputationDialog(
-            uiState = simulatedOffersBelowReputationUiState(),
+        InvalidOwnOffersReviewDialog(
+            uiState = simulatedInvalidOwnOffersUiState(),
             onAction = {},
         )
     }
 }
 
-/**
- * 2. Several offending offers, including a long non-`mainCurrencies` market code and a large
- * range amount, to check truncation/i18n wrapping (see file KDoc "ACCESSIBILITY").
- */
+/** Review dialog — several offending offers, including a long market code and a large amount. */
 @ExcludeFromCoverage
-@Preview(name = "2. Dialog — several offers, long market + large amount", heightDp = 900)
+@Preview(name = "4. Dialog — several offers", heightDp = 900)
 @Composable
-private fun OffersBelowReputation_SeveralOffers_Preview() {
+private fun InvalidOwnOffersReviewDialog_SeveralOffers_Preview() {
     BisqTheme.Preview {
         DialogPreviewHost("Several offending sell offers:")
-        OffersBelowReputationDialog(
+        InvalidOwnOffersReviewDialog(
             uiState =
-                simulatedOffersBelowReputationUiState(
+                simulatedInvalidOwnOffersUiState(
                     offendingOffers =
                         listOf(
-                            simulatedOffendingOfferRow(offerId = "off-1", marketLabel = "BTC/EUR", amountLabel = "50.00 – 200.00 EUR"),
-                            simulatedOffendingOfferRow(offerId = "off-2", marketLabel = "BTC/GBP", amountLabel = "45.00 GBP"),
-                            simulatedOffendingOfferRow(
+                            simulatedInvalidOwnOfferRow(offerId = "off-1", marketCode = "BTC/EUR", marketLabel = "BTC/EUR", amountLabel = "50.00 - 200.00 EUR"),
+                            simulatedInvalidOwnOfferRow(offerId = "off-2", marketCode = "BTC/GBP", marketLabel = "BTC/GBP", amountLabel = "45.00 GBP"),
+                            simulatedInvalidOwnOfferRow(
                                 offerId = "off-3",
+                                marketCode = "BTC/XAAAAAAAAAAA",
                                 marketLabel = "BTC/XAAAAAAAAAAA",
                                 amountLabel = "1,250,000.00 XAAAAAAAAAAA",
                             ),
-                            simulatedOffendingOfferRow(offerId = "off-4", marketLabel = "BTC/USD", amountLabel = "12.50 – 99.99 USD"),
-                            simulatedOffendingOfferRow(offerId = "off-5", marketLabel = "BTC/NGN", amountLabel = "980,000.00 NGN"),
+                            simulatedInvalidOwnOfferRow(offerId = "off-4", marketCode = "BTC/USD", marketLabel = "BTC/USD", amountLabel = "12.50 - 99.99 USD"),
+                            simulatedInvalidOwnOfferRow(offerId = "off-5", marketCode = "BTC/NGN", marketLabel = "BTC/NGN", amountLabel = "980,000.00 NGN"),
                         ),
                 ),
             onAction = {},
@@ -620,20 +674,20 @@ private fun OffersBelowReputation_SeveralOffers_Preview() {
     }
 }
 
-/** 3. Removing in progress — confirm button shows the loading state, dismiss disabled with it. */
+/** Dialog — removing in progress: confirm button shows the loading state. */
 @ExcludeFromCoverage
-@Preview(name = "3. Dialog — removing in progress", heightDp = 700)
+@Preview(name = "5. Dialog — removing in progress", heightDp = 700)
 @Composable
-private fun OffersBelowReputation_Removing_Preview() {
+private fun InvalidOwnOffersReviewDialog_Removing_Preview() {
     BisqTheme.Preview {
         DialogPreviewHost("Removing in progress:")
-        OffersBelowReputationDialog(
+        InvalidOwnOffersReviewDialog(
             uiState =
-                simulatedOffersBelowReputationUiState(
+                simulatedInvalidOwnOffersUiState(
                     offendingOffers =
                         listOf(
-                            simulatedOffendingOfferRow(offerId = "off-1"),
-                            simulatedOffendingOfferRow(offerId = "off-2", marketLabel = "BTC/GBP", amountLabel = "45.00 GBP"),
+                            simulatedInvalidOwnOfferRow(offerId = "off-1"),
+                            simulatedInvalidOwnOfferRow(offerId = "off-2", marketCode = "BTC/GBP", marketLabel = "BTC/GBP", amountLabel = "45.00 GBP"),
                         ),
                     isRemoving = true,
                 ),
@@ -642,22 +696,19 @@ private fun OffersBelowReputation_Removing_Preview() {
     }
 }
 
-/**
- * 4. Remove failure — one row failed to delete and stays listed with an inline error mark; the
- * other succeeded and already dropped out of the list (see file KDoc "REMOVE FLOW").
- */
+/** Dialog — one row failed to remove and stays listed with an inline error mark. */
 @ExcludeFromCoverage
-@Preview(name = "4. Dialog — remove failure, one row left with error", heightDp = 700)
+@Preview(name = "6. Dialog — remove failure, one row left with error", heightDp = 700)
 @Composable
-private fun OffersBelowReputation_RemoveFailure_Preview() {
+private fun InvalidOwnOffersReviewDialog_RemoveFailure_Preview() {
     BisqTheme.Preview {
         DialogPreviewHost("Remove failed for one offer:")
-        OffersBelowReputationDialog(
+        InvalidOwnOffersReviewDialog(
             uiState =
-                simulatedOffersBelowReputationUiState(
+                simulatedInvalidOwnOffersUiState(
                     offendingOffers =
                         listOf(
-                            simulatedOffendingOfferRow(offerId = "off-2", marketLabel = "BTC/GBP", amountLabel = "45.00 GBP", hasRemoveError = true),
+                            simulatedInvalidOwnOfferRow(offerId = "off-2", marketCode = "BTC/GBP", marketLabel = "BTC/GBP", amountLabel = "45.00 GBP", hasRemoveError = true),
                         ),
                 ),
             onAction = {},
@@ -666,14 +717,13 @@ private fun OffersBelowReputation_RemoveFailure_Preview() {
 }
 
 /**
- * 5. Card badge in context — "Keep" was tapped, the dialog is gone, but the offer's own card
- * (as seen via the existing "My offers only" filter) still marks it. Left card: fine. Right
- * card: offending. Answers "how does the seller re-find this after Keep."
+ * Dismissed state: the banner is gone for the session, the card badge is the only remaining
+ * trace on the offer's own card — see "9. Card badge."
  */
 @ExcludeFromCoverage
-@Preview(name = "5. Card badge — how the seller re-finds this after Keep")
+@Preview(name = "7. Dismissed — banner gone, card badge remains")
 @Composable
-private fun OffersBelowReputation_CardBadgeInContext_Preview() {
+private fun InvalidOwnOffers_DismissedCardBadge_Preview() {
     BisqTheme.Preview {
         Column(modifier = Modifier.padding(BisqUIConstants.ScreenPadding)) {
             BisqText.SmallLight(
@@ -684,7 +734,7 @@ private fun OffersBelowReputation_CardBadgeInContext_Preview() {
             SimulatedOfferCardBottomRow(isOffending = false)
             BisqGap.V2()
             BisqText.SmallLight(
-                "Own offer card, below reputation (after Keep, badge persists):",
+                "Own offer card, still below reputation after the banner was dismissed:",
                 color = BisqTheme.colors.mid_grey20,
             )
             BisqGap.VHalf()
@@ -693,15 +743,23 @@ private fun OffersBelowReputation_CardBadgeInContext_Preview() {
     }
 }
 
-/** 6. Long-locale simulation — German runs ~30-40% longer than English (see file KDoc). */
+/** Long-locale simulation — German text runs longer than English. */
 @ExcludeFromCoverage
-@Preview(name = "6. Dialog — simulated long-locale text", heightDp = 750)
+@Preview(name = "8. Banner and dialog — simulated long-locale text", heightDp = 800)
 @Composable
-private fun OffersBelowReputation_LongLocaleText_Preview() {
+private fun InvalidOwnOffersReviewDialog_LongLocaleText_Preview() {
     BisqTheme.Preview {
+        Column {
+            SimulatedTabTopBar()
+            InvalidOwnOffersBanner(
+                uiState = simulatedInvalidOwnOffersUiState(),
+                onAction = {},
+                message = "Ihr(e) Angebot(e) kann/können nicht angenommen werden",
+            )
+        }
         DialogPreviewHost("Simulated German locale:")
-        OffersBelowReputationDialog(
-            uiState = simulatedOffersBelowReputationUiState(),
+        InvalidOwnOffersReviewDialog(
+            uiState = simulatedInvalidOwnOffersUiState(),
             onAction = {},
             headline = "Ihr(e) Angebot(e) kann/können nicht angenommen werden",
             message =
@@ -712,5 +770,22 @@ private fun OffersBelowReputation_LongLocaleText_Preview() {
             keepButtonText = "Behalten",
             buildReputationText = "Erfahren Sie, wie Sie Ihre Reputation aufbauen können",
         )
+    }
+}
+
+/**
+ * Small non-zero host content for a dialog-only preview: a real `Dialog`/`Popup` window with no
+ * other content in the composition gives the preview a zero-size root, so a host column with one
+ * line of text sits alongside it.
+ */
+@Composable
+private fun DialogPreviewHost(label: String) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(BisqUIConstants.ScreenPadding),
+    ) {
+        BisqText.SmallLight(label, color = BisqTheme.colors.mid_grey20)
     }
 }
