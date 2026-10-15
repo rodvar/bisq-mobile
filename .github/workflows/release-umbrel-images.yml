@@ -518,7 +518,10 @@ jobs:
   #   community  Start9-Community/bisq2-startos — the distribution channel. Start9's CI runs the Build
   #              check only on PRs to the default branch and tags + publishes v<version>_0 to the
   #              community registry on every push to it, so merging our PR there IS the release.
-  #   mirror     bisq-network/bisq2-startos — our canonical mirror of the package.
+  #   mirror     bisq-network/bisq2-startos — our canonical mirror of the package. Its leg first merges
+  #              the community default branch, so the release PR also syncs whatever Start9 changed
+  #              since the last sync (a conflict fails the leg; sync manually and re-run). The merge
+  #              can touch .github/workflows, so the fork push needs a token with workflow scope.
   # The base is always the target repo's CURRENT default branch, looked up at run time, never a
   # hardcoded name: Start9 package repos also carry a `next` iteration branch (fed FROM the default
   # branch by their syncNext workflow) that neither builds nor releases — three release PRs once
@@ -563,13 +566,24 @@ jobs:
           if [ -z "$BASE" ]; then
             echo "::error::could not resolve the default branch of ${REPO}"; exit 1
           fi
+          # The mirror leg first merges the community package's default branch, so its release PR
+          # also carries any Start9-side change the mirror hasn't synced yet (see the pin step).
+          SYNC_FROM=""
+          if [ "$CHANNEL" = "mirror" ] && [ -n "$COMMUNITY_REPO" ]; then
+            SYNC_BASE="$(gh api "repos/${COMMUNITY_REPO}" --jq .default_branch)"
+            if [ -z "$SYNC_BASE" ]; then
+              echo "::error::could not resolve the default branch of ${COMMUNITY_REPO}"; exit 1
+            fi
+            SYNC_FROM="${COMMUNITY_REPO}@${SYNC_BASE}"
+          fi
           {
             echo "enabled=true"
             echo "repo=$REPO"
             echo "fork=$FORK"
             echo "base=$BASE"
+            echo "sync_from=$SYNC_FROM"
           } >> "$GITHUB_OUTPUT"
-          echo "::notice::startos channel=$CHANNEL repo=$REPO fork=$FORK base=$BASE"
+          echo "::notice::startos channel=$CHANNEL repo=$REPO fork=$FORK base=$BASE sync_from=${SYNC_FROM:-none}"
 
       - name: Checkout our fork
         if: steps.target.outputs.enabled == 'true'
@@ -602,6 +616,7 @@ jobs:
           UPSTREAM: ${{ steps.target.outputs.repo }}
           BASE: ${{ steps.target.outputs.base }}
           CHANNEL: ${{ matrix.channel }}
+          SYNC_FROM: ${{ steps.target.outputs.sync_from }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
           set -euo pipefail
@@ -616,6 +631,22 @@ jobs:
           # make them force-push over each other.
           branch="release/bisq2-node-${VERSION}-${CHANNEL}"
           git checkout -B "$branch" "upstream/${BASE}"
+          # Mirror only: merge the community package first, so the mirror never lags Start9 by more
+          # than one release PR. A no-op when already synced; a conflict fails the leg loudly (resolve
+          # it with a manual sync PR, then re-run) instead of shipping a half-synced tree.
+          if [ -n "$SYNC_FROM" ]; then
+            sync_repo="${SYNC_FROM%@*}"
+            sync_base="${SYNC_FROM#*@}"
+            git remote add sync "https://github.com/${sync_repo}.git"
+            git fetch sync "$sync_base"
+            if git merge-base --is-ancestor "sync/${sync_base}" HEAD; then
+              echo "::notice::${UPSTREAM}@${BASE} already contains ${SYNC_FROM}"
+            elif ! git merge --no-ff --no-edit -m "Merge ${SYNC_FROM} into ${BASE}" "sync/${sync_base}"; then
+              git merge --abort || true
+              echo "::error::merging ${SYNC_FROM} into ${UPSTREAM}@${BASE} conflicts — sync the mirror manually, then re-run"
+              exit 1
+            fi
+          fi
           # 0.4-SDK-tree guard: a target whose base branch still carries the legacy 0.3.x layout
           # (or anything else) is skipped loudly rather than half-edited.
           if [ ! -f startos/manifest/index.ts ] || [ ! -f startos/versions/current.ts ]; then
@@ -753,9 +784,13 @@ jobs:
             || { echo "::error::version not bumped in startos/versions/current.ts"; exit 1; }
           if git diff --quiet; then
             echo "::notice::${UPSTREAM}@${BASE} already at ${VERSION} with this digest — nothing to commit"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -am "Update Bisq 2 Node to bisq2-api ${VERSION}"
+          fi
+          # Changed = anything on top of the base, including a mirror sync merge with no pin change.
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse "upstream/${BASE}")" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -768,6 +803,7 @@ jobs:
           FORK: ${{ steps.target.outputs.fork }}
           BASE: ${{ steps.target.outputs.base }}
           CHANNEL: ${{ matrix.channel }}
+          SYNC_FROM: ${{ steps.target.outputs.sync_from }}
           NOTES: ${{ steps.pin.outputs.notes }}
           SECURITY: ${{ steps.pin.outputs.security }}
         run: |
@@ -782,6 +818,9 @@ jobs:
             body="$body Merging to \`${BASE}\` releases: Start9's CI tags \`v${VERSION}_0\` and publishes to the community registry on push."
           else
             body="$body Merge to keep the mirror in sync with the community package."
+            if [ -n "$SYNC_FROM" ] && ! git merge-base --is-ancestor "sync/${SYNC_FROM#*@}" "upstream/${BASE}"; then
+              body="$body Also merges \`${SYNC_FROM}\`, which the mirror had not synced yet."
+            fi
           fi
           if [ "$SECURITY" = "true" ]; then
             title="${title} — security update"
