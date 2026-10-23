@@ -59,6 +59,10 @@ class ClientPushNotificationServiceFacade(
     companion object {
         // Guards against a connected node that never answers; over Tor a DELETE takes a few seconds.
         const val RELEASE_UNREGISTER_TIMEOUT_MS = 15_000L
+
+        // The token is fetched under registrationMutex, so a provider that never answers (FCM while
+        // offline) must not hold the lock. Matches the iOS provider's own APNs wait.
+        const val TOKEN_REQUEST_TIMEOUT_MS = 30_000L
     }
 
     override val isRelayedPushSupported: Boolean get() = pushNotificationTokenProvider.isSupported
@@ -181,7 +185,9 @@ class ClientPushNotificationServiceFacade(
         // The token is fetched under the lock too: a release in progress revokes the current token,
         // and one fetched before that revoke completes would be registered already deleted.
         return registrationMutex.withLock {
-            val tokenResult = pushNotificationTokenProvider.requestDeviceToken()
+            val tokenResult =
+                withTimeoutOrNull(TOKEN_REQUEST_TIMEOUT_MS) { pushNotificationTokenProvider.requestDeviceToken() }
+                    ?: Result.failure(PushNotificationException("Timed out fetching device token"))
             if (tokenResult.isFailure) {
                 log.e { "Failed to get device token: ${tokenResult.exceptionOrNull()?.redactedSummary()}" }
                 return@withLock Result.failure(tokenResult.exceptionOrNull() ?: PushNotificationException("Failed to get device token"))

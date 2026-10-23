@@ -11,6 +11,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -311,6 +312,24 @@ class ClientPushNotificationServiceFacadeNodeChangeTest : ClientKoinIntegrationT
             registration.join()
 
             assertEquals(listOf(true), revokeFinishedAtTokenFetch)
+        }
+
+    @Test
+    fun `a token request that never answers fails and does not block the release`() =
+        runTest {
+            activateRegisteredWithOldNode()
+            advanceUntilIdle()
+            coEvery { tokenProvider.requestDeviceToken() } coAnswers { awaitCancellation() }
+
+            val registration = async { facade.registerForPushNotifications() }
+            runCurrent()
+            val release = launch { facade.releaseCurrentNode() }
+            advanceTimeBy(ClientPushNotificationServiceFacade.TOKEN_REQUEST_TIMEOUT_MS + 1)
+            runCurrent()
+
+            assertTrue(registration.await().isFailure)
+            assertTrue(release.isCompleted)
+            coVerify(exactly = 1) { tokenProvider.revokeDeviceToken() }
         }
 
     private class InMemoryKeyStore : PushNotificationKeyStore {
