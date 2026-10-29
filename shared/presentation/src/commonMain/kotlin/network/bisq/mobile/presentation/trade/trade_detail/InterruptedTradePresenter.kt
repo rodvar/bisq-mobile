@@ -25,6 +25,7 @@ import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.repository.TradeCancelReasonRepository
 import network.bisq.mobile.domain.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.utils.redactedSummary
+import network.bisq.mobile.domain.utils.resultCatching
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
@@ -55,7 +56,10 @@ class InterruptedTradePresenter(
                 .map { it.map[trade.tradeId] }
                 .distinctUntilChanged()
                 // Without a readable reason the generic text still shows.
-                .catch { emit(null) }
+                .catch { e ->
+                    log.w { "Failed to read the cancel reason: ${e.redactedSummary()}" }
+                    emit(null)
+                }
         combine(trade.bisqEasyTradeModel.tradeState, cancelReason) { state, reason -> tradeStateChanged(state, reason) }
             .launchIn(presenterScope)
         trade.bisqEasyOpenTradeChannelModel.isInMediation
@@ -155,7 +159,7 @@ class InterruptedTradePresenter(
             } else {
                 withContext(Dispatchers.IO) {
                     // On success, clear read state. If this fails, report but still navigate back.
-                    runCatching {
+                    resultCatching {
                         tradeReadStateRepository.clearId(trade.tradeId)
                     }.onFailure { ex ->
                         GenericErrorHandler.handleGenericError(
@@ -163,7 +167,7 @@ class InterruptedTradePresenter(
                         )
                     }
                     // Not user facing: a leftover reason only matters for a trade that is gone.
-                    runCatching {
+                    resultCatching {
                         tradeCancelReasonRepository.clearId(trade.tradeId)
                     }.onFailure { ex -> log.w { "Failed to clear the cancel reason: ${ex.redactedSummary()}" } }
                 }

@@ -79,14 +79,17 @@ abstract class BaseTradesServiceFacade(
     }
 
     /**
-     * Saves the reason on this device after a successful cancel, so the cancelled trade screen can
-     * explain it. A failure to save it is logged and does not fail the cancel.
+     * Saves the reason on this device so the cancelled trade screen can explain it, and removes it
+     * again if the cancel fails. Saving or removing it can fail without failing the cancel; that is logged.
      */
     final override suspend fun cancelTradeForBannedAccountData(): Result<Unit> {
         // Captured before the request, while the trade being cancelled is still the selected one.
         val tradeId = selectedTrade.value?.tradeId
-        return cancelSelectedTradeForBannedAccountData().onSuccess {
-            if (tradeId != null) saveCancelReason(tradeId, TradeCancelReason.BANNED_ACCOUNT_DATA)
+        // Saved before the request: on Connect the cancelled screen can show, and the trade be closed,
+        // before the cancel response arrives.
+        if (tradeId != null) saveCancelReason(tradeId, TradeCancelReason.BANNED_ACCOUNT_DATA)
+        return cancelSelectedTradeForBannedAccountData().onFailure {
+            if (tradeId != null) clearCancelReason(tradeId)
         }
     }
 
@@ -99,6 +102,11 @@ abstract class BaseTradesServiceFacade(
     ) {
         resultCatching { tradeCancelReasonRepository.setReason(tradeId, reason) }
             .onFailure { log.e { "Failed to save the cancel reason: ${it.redactedSummary()}" } }
+    }
+
+    private suspend fun clearCancelReason(tradeId: String) {
+        resultCatching { tradeCancelReasonRepository.clearId(tradeId) }
+            .onFailure { log.e { "Failed to remove the cancel reason: ${it.redactedSummary()}" } }
     }
 
     /** Launch the open-trades observers (phase-reached / completed / errored). Call once from activate(). */
